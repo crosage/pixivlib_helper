@@ -11,7 +11,7 @@ from response.models import MyResponse
 from .models import Lib
 from .models import Tag
 from .models import Image
-from .serializers import LibSerializer
+from .serializers import LibSerializer, ImageSerializer,ImageWithTidSerializer
 import re
 import os
 import pixivpy3
@@ -36,7 +36,6 @@ class initLib(APIView):
             for lib in libs.data:
                 path = lib.get("path")
                 images = os.listdir(path)
-                #random.shuffle(images)
                 for image in images:
                     print(image)
                     match = re.match(r"(\d+)_p(\d+).(\w+)", image)
@@ -92,14 +91,36 @@ class filterTags(APIView):
         try :
             map=json.loads(request.body)
             tags=map.get("tag")
-            id_list = Tag.objects.filter(name__in=tags).values_list('id',flat=True)
-            q=Q()
-            for tag in id_list:
-                q|=Q(tid__id=tag)
-            image_list=Image.objects.filter(q).values_list('name').annotate(count=Count('pid')).filter(count=len(id_list)).values_list('name', flat=True)
+            offset=map.get("offset",0)
+            limit=map.get("limit",20)
+            image_list=Image.filterTags(tags,offset=offset,limit=limit)
             response.put({"list":list(image_list)})
-            #print(Image.objects.filter(q).values_list('pid').annotate(count=Count('pid')).filter(count=len(id_list)))
             response.success()
         except Exception as e:
             response.error(e)
         return Response(response.d)
+
+class getImages(APIView):
+    def post(self,request):
+        response=MyResponse()
+        try:
+            map=json.loads(request.body)
+            offset=map.get("offset",0)
+            limit=map.get("limit",20)
+            print(Image.getImages(limit,offset))
+            image_list=ImageWithTidSerializer(Image.getImages(limit,offset),many=True)
+            print(image_list)
+            response.put({"images":image_list.data})
+            return response.success()
+        except Exception as e:
+            return response.error(e)
+
+class getImageTagsByPid(APIView):
+    def get(self,request,pid):
+        response=MyResponse()
+        try:
+            image=Image.getImageTagsByPid(pid)
+            response.put({"tags":image})
+            return response.success()
+        except Exception as e:
+            return response.error(e)

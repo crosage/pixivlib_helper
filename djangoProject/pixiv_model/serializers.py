@@ -10,7 +10,10 @@ class ImageSerializer(serializers.ModelSerializer):
     class Meta:
         model=Image
         fields="__all__"
-
+class ImageWithTidSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Image
+        fields = ['pid','page', 'name', 'path']
 class LibSerializer(serializers.ModelSerializer):
     class Meta:
         model=Lib

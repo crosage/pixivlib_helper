@@ -18,4 +18,4 @@ class MyResponse:
     def error(self,msg):
         self.d.update({"status":1})
         self.d.update({"msg":str(msg)})
-        return Response(self.d)
+        return Response(self.d,status=500)
