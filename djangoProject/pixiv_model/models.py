@@ -41,10 +41,12 @@ class Image(models.Model):
 
     @classmethod
     def getImages(cls,limit,offset):
-        image_list=Image.objects.values("pid","page","name","path").distinct().order_by("-pid")[offset:offset+limit]
+        image_list=Image.objects.values("pid","page","name","path").distinct().order_by("-pid")
         page_size=limit
         page=offset/limit+1
+#        print(image_list)
         paginator=Paginator(image_list,page_size)
+        #print(paginator.page(1))
         image_list=paginator.page(page)
         return image_list
     @classmethod

@@ -1,115 +1,299 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:tagselector/main.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const MyApp());
+class ImageWithInfo extends StatefulWidget {
+  final String imageUrl;
+  final int page;
+  final int pid;
+  final List<dynamic> tags;
+  final Function(List<String>) onSelectedTagsChanged;
+  ImageWithInfo({
+    required this.imageUrl,
+    required this.page,
+    required this.pid,
+    required this.tags,
+    required this.onSelectedTagsChanged,
+  });
+
+  @override
+  State<ImageWithInfo> createState() => _ImageWithInfoState();
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class _ImageWithInfoState extends State<ImageWithInfo> {
+  late List<bool> _isSelected;
+  late List<Color> _colors;
 
-  // This widget is the root of your application.
+  @override
+  void initState() {
+    super.initState();
+    _isSelected = List.generate(30, (index) => false);
+    print("length=:::" + _isSelected.length.toString());
+    print("now pid=" + widget.pid.toString());
+    _colors = List.generate(30, (index) => Colors.grey);
+  }
+
+  void _handleTagSelection(int index, bool isSelected) {
+    setState(() {
+      _isSelected[index] = isSelected;
+    });
+    final selectedTags = _getSelectedTags();
+    widget.onSelectedTagsChanged(selectedTags);
+  }
+
+  List<String> _getSelectedTags() {
+    final selectedTags = <String>[];
+    for (int i = 0; i < widget.tags.length; i++) {
+      if (_isSelected[i]) {
+        selectedTags.add(widget.tags[i]);
+      }
+    }
+    return selectedTags;
+  }
+
+  Color _getRandomColor() {
+    final random = Random();
+    int r, g, b;
+    do {
+      r = random.nextInt(256);
+      g = random.nextInt(256);
+      b = random.nextInt(256);
+    } while (r + g + b <= 600);
+    return Color.fromARGB(
+      255,
+      r,
+      g,
+      b,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
+    return Container(
+      height: 200,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10.0),
+              child: Image.file(
+                File(widget.imageUrl),
+                //fit: BoxFit.fitHeight,
+              ),
+            ),
+          ),
+          SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RawChip(
+                  avatar: Icon(
+                    Icons.image,
+                    color: Colors.blue,
+                  ),
+                  label: Text(
+                    "pid:" + widget.pid.toString(),
+//                    style: TextStyle(color: Colors.blue),
+                  ),
+                ),
+                SizedBox(
+                  height: 5,
+                ),
+                RawChip(
+                  avatar: Icon(
+                    Icons.find_in_page,
+                    color: Colors.blue,
+                  ),
+                  label: Text(
+                    "page:" + widget.page.toString(),
+//                    style: TextStyle(color: Colors.blue),
+                  ),
+                ),
+                SizedBox(
+                  height: 5,
+                ),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 10,
+                  children: [
+                    RawChip(
+                      avatar: Icon(
+                        Icons.tag,
+                        color: Colors.blue,
+                      ),
+                      label: Text(
+                        "Tags:",
+//                        style: TextStyle(color: Colors.blue),
+                      ),
+                    ),
+                    for (int i = 0; i < widget.tags.length; i++)
+                      FilterChip(
+                        label: Text(widget.tags[i]),
+                        selected: _isSelected[i],
+                        onSelected: (isSelected) {
+                          _handleTagSelection(i, isSelected);
+                          if (isSelected) _colors[i] = _getRandomColor();
+                        },
+                        selectedColor: _colors[i],
+                      ),
+                  ],
+                )
+              ],
+            ),
+          )
+        ],
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+void main() {
+  runApp(MyApp());
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+//一行展示已选择的Tag
+//下面多个ImageWithInfo组件
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
 
-  void _incrementCounter() {
+class _MyAppState extends State<MyApp> {
+  late List<String> selectedTags;
+  ScrollController _scrollController = ScrollController();
+
+  late int total;
+  late int _index;
+  @override
+  void initState() {
+    super.initState();
+    selectedTags = [];
+    _index = 0;
+    _scrollController = ScrollController();
+  }
+
+  void _handleSelectedTags(List<String> tags) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      selectedTags = tags;
     });
   }
 
+  void _lastPage() {
+    setState(() {
+      _index = _index > 0 ? _index - 1 : 0;
+      _scrollController.animateTo(0,
+          duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
+    });
+  }
+
+  void _nextPage() {
+    setState(() {
+      _index = _index + 1;
+      _scrollController.animateTo(0,
+          duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
+    });
+  }
+
+  Future<List<dynamic>> getImages() async {
+    int limit = 20, offset = _index * 20;
+    print(selectedTags);
+    var jsonData = json.encode(<String, dynamic>{
+      "limit": limit,
+      "offset": offset,
+      "tag": selectedTags
+    });
+    print("#########" + jsonData);
+    final response = await http
+        .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
+    print(response.statusCode);
+    if (response.statusCode == 200) {
+      Map<String, dynamic> map = json.decode(response.body);
+      final List<dynamic> images = map['images'];
+      List<dynamic> imageWithInfo = [];
+      for (final image in images) {
+        int pid = image['pid'];
+        int page = image['page'];
+        String imageUrl = image['path'] + "\\" + image['name'];
+        final resp = await http.get(
+            Uri.parse('http://localhost:8000/api/image/' + pid.toString()));
+        List<dynamic> tags = json.decode(utf8.decode(resp.bodyBytes))['tags'];
+        print(tags);
+        ImageWithInfo tmp = new ImageWithInfo(
+          imageUrl: imageUrl,
+          page: page,
+          pid: pid,
+          tags: tags,
+          onSelectedTagsChanged: _handleSelectedTags,
+        );
+        imageWithInfo.add(tmp);
+        print(resp.headers['Content-Type']);
+        print(utf8.decode(resp.bodyBytes));
+
+        print("*****************length=" + imageWithInfo.length.toString());
+      }
+      return imageWithInfo;
+    } else {
+      print("WWWWWWWRRRRROOOOONNGGGGGGG Happened");
+      return [];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+    return MaterialApp(
+        title: 'pixiv_helper',
+        home: Scaffold(
+          appBar: AppBar(
+            title: Text('pixiv_helper'),
+          ),
+          body: Column(
+            children: [
+              FutureBuilder<List<dynamic>>(
+                future: getImages(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    return Expanded(
+                      child: ListView(
+                        controller: _scrollController,
+                        children: [
+                          for (final i in snapshot.data!)
+                            ImageWithInfo(
+                              imageUrl: i.imageUrl,
+                              page: i.page,
+                              pid: i.pid,
+                              tags: i.tags,
+                              onSelectedTagsChanged: _handleSelectedTags,
+                            ),
+                        ],
+                      ),
+                    );
+                  }
+                  // return other widget when snapshot does not have data yet
+                  return Center(
+                    child: CircularProgressIndicator(),
+                  );
+                },
+              ),
+            ],
+          ),
+          bottomNavigationBar: BottomAppBar(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
+                Text((_index + 1).toString()),
+                IconButton(
+                    onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
+              ],
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+          ),
+        ));
   }
 }

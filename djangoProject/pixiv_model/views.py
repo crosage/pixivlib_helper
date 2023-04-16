@@ -2,8 +2,6 @@ import random
 import time
 
 import json
-
-from django.db.models import Q, Count
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -70,6 +68,8 @@ class initLib(APIView):
         except Exception as e:
             response.error(e)
         return Response(response.d)
+
+    # 删除lib
     def delete(self,request):
         # TODO
         pass
@@ -107,10 +107,12 @@ class getImages(APIView):
             map=json.loads(request.body)
             offset=map.get("offset",0)
             limit=map.get("limit",20)
-            print(Image.getImages(limit,offset))
-            image_list=ImageWithTidSerializer(Image.getImages(limit,offset),many=True)
-            print(image_list)
-            response.put({"images":image_list.data})
+            tag=map.get("tag",None)
+            if tag==None or tag==[]:
+                image_list=Image.getImages(limit,offset)
+            else :
+                image_list=Image.filterTags(tags=tag,offset=offset,limit=limit)
+            response.put({"images":list(image_list)})
             return response.success()
         except Exception as e:
             return response.error(e)
