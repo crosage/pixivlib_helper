@@ -4,12 +4,29 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+
+Color _getRandomColor(int seed) {
+  final random = Random(seed);
+  int r, g, b;
+  do {
+    r = random.nextInt(256);
+    g = random.nextInt(256);
+    b = random.nextInt(256);
+  } while (r + g + b <= 600);
+  return Color.fromARGB(
+    255,
+    r,
+    g,
+    b,
+  );
+}
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
   final int page;
   final int pid;
   final List<dynamic> tags;
-  final Function(List<String>) onSelectedTagsChanged;
+  final List<dynamic> selectedTags;
+  final Function(String) onSelectedTagsChanged;
 
   const ImageWithInfo({
     super.key,
@@ -18,6 +35,7 @@ class ImageWithInfo extends StatefulWidget {
     required this.pid,
     required this.tags,
     required this.onSelectedTagsChanged,
+    required this.selectedTags
   });
 
   @override
@@ -40,7 +58,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       _isSelected[index] = isSelected;
     });
     final selectedTags = _getSelectedTags();
-    widget.onSelectedTagsChanged(selectedTags);
+    widget.onSelectedTagsChanged(widget.tags[index]);
   }
 
   List<String> _getSelectedTags() {
@@ -53,26 +71,18 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     return selectedTags;
   }
 
-  Color _getRandomColor() {
-    final random = Random();
-    int r, g, b;
-    do {
-      r = random.nextInt(256);
-      g = random.nextInt(256);
-      b = random.nextInt(256);
-    } while (r + g + b <= 600);
-    return Color.fromARGB(
-      255,
-      r,
-      g,
-      b,
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
     _isSelected = List.generate(30, (index) => false);
     _colors = List.generate(30, (index) => Colors.grey);
+    for(int i=0;i<widget.tags.length;i++){
+      if(widget.selectedTags.contains(widget.tags[i])){
+        _colors[i]=_getRandomColor(widget.tags[i].hashCode);
+        _isSelected[i]=true;
+      }
+    }
     return Container(
       height: 200,
       child: Row(
@@ -140,7 +150,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         selected: _isSelected[i],
                         onSelected: (isSelected) {
                           _handleTagSelection(i, isSelected);
-                          if (isSelected) _colors[i] = _getRandomColor();
                         },
                         selectedColor: _colors[i],
                       ),
@@ -181,9 +190,15 @@ class _MyAppState extends State<MyApp> {
     _scrollController = ScrollController();
   }
 
-  void _handleSelectedTags(List<String> tags) {
+  void _handleSelectedTags(String tag) {
     setState(() {
-      selectedTags = tags;
+      _index=0;
+      if(selectedTags.contains(tag)){
+        selectedTags.removeWhere((item) => item == tag);
+      }
+      else {
+        selectedTags.add(tag);
+      }
     });
   }
 
@@ -205,7 +220,6 @@ class _MyAppState extends State<MyApp> {
 
   Future<List<dynamic>> getImages() async {
     int limit = 20, offset = _index * 20;
-    print(selectedTags);
     var jsonData = json.encode(<String, dynamic>{
       "limit": limit,
       "offset": offset,
@@ -230,6 +244,7 @@ class _MyAppState extends State<MyApp> {
           pid: pid,
           tags: tags,
           onSelectedTagsChanged: _handleSelectedTags,
+          selectedTags: selectedTags,
         ));
       }
       return imageWithInfo;
@@ -258,14 +273,41 @@ class _MyAppState extends State<MyApp> {
                       child: ListView(
                         controller: _scrollController,
                         children: [
+                          Row(
+                            children: [
+                              for(final i in selectedTags)
+                                FilterChip(
+                                  label: Text(i),
+                                  selected: true,
+                                  onSelected: (isSelected) {
+                                    selectedTags.removeWhere((element) => element==i);
+                                  },
+                                  selectedColor: _getRandomColor(i.hashCode),
+                                ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              RawChip(
+                                avatar: Icon(
+                                  Icons.access_alarm,
+                                  color: Colors.blue,
+                                ),
+                                label: Text(
+                                  "Cnt:"+snapshot.data!.length.toString(),
+//                        style: TextStyle(color: Colors.blue),
+                                ),
+                              ),
+                            ],
+                          ),
                           for (final i in snapshot.data!)
                             ImageWithInfo(
-                              //key: Key(generateRandomString(6)),
                               imageUrl: i.imageUrl,
                               page: i.page,
                               pid: i.pid,
                               tags: i.tags,
                               onSelectedTagsChanged: _handleSelectedTags,
+                              selectedTags: selectedTags,
                             ),
                         ],
                       ),
