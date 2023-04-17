@@ -264,6 +264,26 @@ class _MyAppState extends State<MyApp> {
           ),
           body: Column(
             children: [
+              Row(
+                children:[
+                  Wrap(
+                  spacing: 5,
+                  children: [
+                  for(int i=0;i< selectedTags.length;i++)
+                    FilterChip(
+                      key:Key(Random().nextInt(99844353).toString()),
+                      label: Text(selectedTags[i]),
+                      selected: true,
+                      onSelected: (isSelected) {
+                        setState(() {
+                          selectedTags.removeAt(i);
+                        });
+                      },
+                      selectedColor: _getRandomColor(selectedTags[i].hashCode),
+                    ),
+                ],),],
+              ),
+              SizedBox(height: 5,),
               FutureBuilder<List<dynamic>>(
                 //key: Key(generateRandomString(6)),
                 future: getImages(),
@@ -273,19 +293,7 @@ class _MyAppState extends State<MyApp> {
                       child: ListView(
                         controller: _scrollController,
                         children: [
-                          Row(
-                            children: [
-                              for(final i in selectedTags)
-                                FilterChip(
-                                  label: Text(i),
-                                  selected: true,
-                                  onSelected: (isSelected) {
-                                    selectedTags.removeWhere((element) => element==i);
-                                  },
-                                  selectedColor: _getRandomColor(i.hashCode),
-                                ),
-                            ],
-                          ),
+
                           Row(
                             children: [
                               RawChip(
