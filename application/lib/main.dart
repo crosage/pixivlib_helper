@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-
 Color _getRandomColor(int seed) {
   final random = Random(seed);
   int r, g, b;
@@ -20,6 +19,7 @@ Color _getRandomColor(int seed) {
     b,
   );
 }
+
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
   final int page;
@@ -28,18 +28,17 @@ class ImageWithInfo extends StatefulWidget {
   final List<dynamic> selectedTags;
   final Function(String) onSelectedTagsChanged;
 
-  const ImageWithInfo({
-    super.key,
-    required this.imageUrl,
-    required this.page,
-    required this.pid,
-    required this.tags,
-    required this.onSelectedTagsChanged,
-    required this.selectedTags
-  });
+  const ImageWithInfo(
+      {super.key,
+      required this.imageUrl,
+      required this.page,
+      required this.pid,
+      required this.tags,
+      required this.onSelectedTagsChanged,
+      required this.selectedTags});
 
   @override
-  State<ImageWithInfo> createState() => _ImageWithInfoState();
+  _ImageWithInfoState createState() => _ImageWithInfoState();
 }
 
 class _ImageWithInfoState extends State<ImageWithInfo> {
@@ -71,16 +70,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     return selectedTags;
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     _isSelected = List.generate(30, (index) => false);
     _colors = List.generate(30, (index) => Colors.grey);
-    for(int i=0;i<widget.tags.length;i++){
-      if(widget.selectedTags.contains(widget.tags[i])){
-        _colors[i]=_getRandomColor(widget.tags[i].hashCode);
-        _isSelected[i]=true;
+    for (int i = 0; i < widget.tags.length; i++) {
+      if (widget.selectedTags.contains(widget.tags[i])) {
+        _colors[i] = _getRandomColor(widget.tags[i].hashCode);
+        _isSelected[i] = true;
       }
     }
     return Container(
@@ -91,12 +88,9 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
             width: 20,
           ),
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10.0),
-              child: Image.file(
-                File(widget.imageUrl),
-                //fit: BoxFit.fitHeight,
-              ),
+            child: Image.file(
+              File(widget.imageUrl),
+              //fit: BoxFit.fitHeight,
             ),
           ),
           SizedBox(width: 20),
@@ -164,6 +158,53 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   }
 }
 
+class _dropDownButton extends StatefulWidget {
+  @override
+  _dropDownButtonState createState() => _dropDownButtonState();
+}
+
+class _dropDownButtonState extends State<_dropDownButton> {
+  String dropdownValue = 'one';
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.list_alt_outlined),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'option1',
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.search),
+              Text('Option 1'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'option2',
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.favorite),
+              Text('Option 2'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'option3',
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.settings),
+              Text('Option 3'),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (String value) {
+
+      },
+    );
+  }
+}
+
 void main() {
   runApp(MyApp());
 }
@@ -192,11 +233,10 @@ class _MyAppState extends State<MyApp> {
 
   void _handleSelectedTags(String tag) {
     setState(() {
-      _index=0;
-      if(selectedTags.contains(tag)){
+      _index = 0;
+      if (selectedTags.contains(tag)) {
         selectedTags.removeWhere((item) => item == tag);
-      }
-      else {
+      } else {
         selectedTags.add(tag);
       }
     });
@@ -249,7 +289,6 @@ class _MyAppState extends State<MyApp> {
       }
       return imageWithInfo;
     } else {
-      print("WWWWWWWRRRRROOOOONNGGGGGGG Happened");
       return [];
     }
   }
@@ -265,27 +304,38 @@ class _MyAppState extends State<MyApp> {
           body: Column(
             children: [
               Row(
-                children:[
-                  Wrap(
-                  spacing: 5,
-                  children: [
-                  for(int i=0;i< selectedTags.length;i++)
-                    FilterChip(
-                      key:Key(Random().nextInt(99844353).toString()),
-                      label: Text(selectedTags[i]),
-                      selected: true,
-                      onSelected: (isSelected) {
-                        setState(() {
-                          selectedTags.removeAt(i);
-                        });
-                      },
-                      selectedColor: _getRandomColor(selectedTags[i].hashCode),
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Wrap(
+                      spacing: 5,
+                      children: [
+                        for (int i = 0; i < selectedTags.length; i++)
+                          FilterChip(
+                            key: Key(Random().nextInt(99844353).toString()),
+                            label: Text(selectedTags[i]),
+                            selected: true,
+                            onSelected: (isSelected) {
+                              setState(() {
+                                selectedTags.removeAt(i);
+                              });
+                            },
+                            selectedColor:
+                                _getRandomColor(selectedTags[i].hashCode),
+                          ),
+                      ],
                     ),
-                ],),],
+                  ),
+                  Expanded(
+                    flex: 0,
+                    child: _dropDownButton(),
+                  ),
+                ],
               ),
-              SizedBox(height: 5,),
+              SizedBox(
+                height: 5,
+              ),
               FutureBuilder<List<dynamic>>(
-                //key: Key(generateRandomString(6)),
                 future: getImages(),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
@@ -293,7 +343,6 @@ class _MyAppState extends State<MyApp> {
                       child: ListView(
                         controller: _scrollController,
                         children: [
-
                           Row(
                             children: [
                               RawChip(
@@ -302,7 +351,7 @@ class _MyAppState extends State<MyApp> {
                                   color: Colors.blue,
                                 ),
                                 label: Text(
-                                  "Cnt:"+snapshot.data!.length.toString(),
+                                  "Cnt:" + snapshot.data!.length.toString(),
 //                        style: TextStyle(color: Colors.blue),
                                 ),
                               ),
@@ -342,9 +391,4 @@ class _MyAppState extends State<MyApp> {
           ),
         ));
   }
-}
-
-String generateRandomString(int len) {
-  var r = Random();
-  return String.fromCharCodes(List.generate(len, (index) => r.nextInt(33) + 89));
 }
