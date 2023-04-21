@@ -2,18 +2,23 @@
 
 ## 现在还是个半成品，有的东西后端写了前端没写，有的后端也没写
 
+使用前：若干个文件夹里若干个名为123456_p0.png（\d+_p\d+\.\w+）的图片（未来可能写个ASCII2d爬虫就不需要严格命名了），django环境和flutter环境（）（本来计划是给我自己用的未来可能有release？）
+
+使用：
+
+获取你的pixiv refresh_token和access_token
+
+启动django
+
+![image-20230421190138857](C:\Users\crosa\AppData\Roaming\Typora\typora-user-images\image-20230421190138857.png)
+
+启动flutter
+
+![image-20230421185811697](C:\Users\crosa\AppData\Roaming\Typora\typora-user-images\image-20230421185811697.png)
+
+右上角仓库列表中添加本地图库路径，然后初始化仓库
 
 
-计划写pixiv根据pid下载图片，还有根据tag选择已经存储的图片（图库里命名全按照12345678_p0.jpg/png的格式）然后能对图库里的图片进行tag筛选，手动添加tag等，
-未来可能添加兴趣筛选获取新图（调用pixivpy3）
 
-djangoProject是django写的后端目前只有四个api
-![image](https://user-images.githubusercontent.com/90540469/232323575-74f90a02-92fd-4df8-a2e7-c10aeadbeaf3.png)
+单机tag即可对用tag进行图片筛选
 
-application是前端，乱成一团，
-
-效果：
-
-![屏幕截图 2023-04-16 230659](https://user-images.githubusercontent.com/90540469/232322359-84cea2d5-bb03-4e0f-b3dd-fa5c6bd540ed.png)
-
-![U2 TS0RC{XF{C`6{O9NQOQ7](https://user-images.githubusercontent.com/90540469/232322363-6126f079-b271-480f-89d1-bf090f730720.png)
