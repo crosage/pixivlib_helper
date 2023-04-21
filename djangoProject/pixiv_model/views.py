@@ -19,8 +19,8 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw",
-             access_token="eawtKWYJUBZWB4ElIIqJ35LLHY82xlBApcKoc2sQI3A")
+api.set_auth(refresh_token="your",
+             access_token="your")
 
 
 # Create your views here.
