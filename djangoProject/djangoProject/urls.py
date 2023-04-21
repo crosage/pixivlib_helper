@@ -22,7 +22,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/lib",initLib.as_view()),
     path("api/lib/update",changeAllImage.as_view()),
-    path("api/tag",filterTags.as_view()),
+    path("api/tag",getAllTagsWithCount.as_view()),
     path("api/image",getImages.as_view()),
-    path("api/image/<int:pid>",getImageTagsByPid.as_view())
+    path("api/image/<int:pid>",getImageTagsByPid.as_view()),
+    path("api/test",test.as_view())
 ]

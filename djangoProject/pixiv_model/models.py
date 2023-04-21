@@ -19,11 +19,20 @@ class Tag(models.Model):
             tag=Tag.objects.get(name=name)
         return tag
 
+    @classmethod
+    def getAllTagsWithLimitAndOffset(cls,offset,limit):
+        tags=Tag.objects.all().order_by("name").values_list("name",flat=True)
+        page_size=limit
+        page=offset/limit+1
+        paginator=Paginator(tags,page_size)
+        tag_list=paginator.page(page)
+        return tag_list
 
 class Image(models.Model):
     id = models.IntegerField(primary_key=True)
     pid = models.IntegerField()
     page = models.IntegerField()
+    author=models.CharField(max_length=100,default="unknown author")
     tid = models.ForeignKey(Tag, on_delete=models.CASCADE)
     name=models.CharField(max_length=100)
     path=models.CharField(max_length=100,default="D:\\bot\\awesomebot\\mylibrary")
@@ -41,7 +50,7 @@ class Image(models.Model):
 
     @classmethod
     def getImages(cls,limit,offset):
-        image_list=Image.objects.values("pid","page","name","path").distinct().order_by("-pid")
+        image_list=Image.objects.values("pid","page","name","path","author").distinct().order_by("-pid")
         page_size=limit
         page=offset/limit+1
 #        print(image_list)
@@ -51,11 +60,12 @@ class Image(models.Model):
         return image_list
     @classmethod
     def filterTags(cls,tags,limit,offset):
+        print(tags)
         id_list = Tag.objects.filter(name__in=tags).values_list('id', flat=True)
         q = Q()
         for tag in id_list:
             q |= Q(tid__id=tag)
-        image_list = Image.objects.filter(q).values("pid","page","name","path").order_by("-pid").annotate(count=Count('pid')).filter(
+        image_list = Image.objects.filter(q).values("pid","page","name","path","author").order_by("-pid").annotate(count=Count('pid')).filter(
             count=len(id_list))
         page_size=limit
         page=offset/limit+1

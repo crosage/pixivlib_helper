@@ -19,8 +19,8 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(refresh_token="your cookie",
-             access_token="your cookie")
+api.set_auth(refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw",
+             access_token="eawtKWYJUBZWB4ElIIqJ35LLHY82xlBApcKoc2sQI3A")
 
 
 # Create your views here.
@@ -29,11 +29,15 @@ class initLib(APIView):
     def get(self, request):
         response=MyResponse()
         try:
-            libs = Lib.objects.all()
+            libs = Lib.objects.all().order_by("-id")
             libs = LibSerializer(libs, many=True)
+
             for lib in libs.data:
                 path = lib.get("path")
+                print(path)
                 images = os.listdir(path)
+                images.sort()
+                print(path)
                 for image in images:
                     print(image)
                     match = re.match(r"(\d+)_p(\d+).(\w+)", image)
@@ -45,15 +49,23 @@ class initLib(APIView):
                         try:
                             resp = api.illust_detail(pid)
                             tags = resp.illust.tags
+                            author=resp.illust.user.name
+                            if tags==[]:
+                                print(resp)
+                                print(f"{Image.doExistImage(pid)} {resp}")
+                                print(1/0)
                             for _tag in tags:
                                 tagName = _tag.get("name")
                                 tag=Tag.saveTagWithoutRepeating(name=tagName)
-                                _image,created=Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag)
+                                _image,created=Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path,author=author)
                         except Exception as e:
+                            tag=Tag.objects.get(id=2)
+                            Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path)
                             print(f"{image}发生了一个错误：{e}")
-                        time.sleep(1)
+                        #time.sleep(1)
             response.success()
         except Exception as e:
+
             response.error(e)
         return Response(response.d)
 
@@ -126,3 +138,23 @@ class getImageTagsByPid(APIView):
             return response.success()
         except Exception as e:
             return response.error(e)
+
+class getAllTagsWithCount(APIView):
+    def post(self,request):
+        response=MyResponse()
+        try:
+            map=json.loads(request.body)
+            offset=map.get("offset",0)
+            limit=map.get("limit",20)
+            print("1111")
+            tags = Tag.getAllTagsWithLimitAndOffset(offset=offset,limit=limit)
+            print(tags)
+            response.put({"tags":list(tags)})
+            return response.success()
+        except Exception as e:
+            return response.error(e)
+
+class test(APIView):
+    def get(self,request):
+        response=MyResponse()
+        print(Image.doExistImage(pid=104802501))
