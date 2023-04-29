@@ -2,6 +2,8 @@ import random
 import time
 
 import json
+
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -24,7 +26,7 @@ api.set_auth(refresh_token="your",
 
 
 # Create your views here.
-class initLib(APIView):
+class LibInit(APIView):
     # 初始化已有的lib（往数据库）
     def get(self, request):
         response=MyResponse()
@@ -70,22 +72,42 @@ class initLib(APIView):
         return Response(response.d)
 
     # 添加新的lib
+
+
+from rest_framework.decorators import api_view
+
+
+class LibView(APIView):
+    def get(self, request):
+        response = MyResponse()
+        try:
+            libs = Lib.objects.all().values_list("path",flat=True)
+            response.put({"libs": libs})
+            return response.success()
+        except Exception as e:
+            return response.error(e)
+
+
     def post(self, request):
         response = MyResponse()
-        try :
-            map=json.loads(request.body)
+        try:
+            map = json.loads(request.body)
             newLib = Lib(path=map.get("path"))
             newLib.save()
-            response.success()
+            return response.success()
         except Exception as e:
-            response.error(e)
-        return Response(response.d)
+            return response.error(e)
 
+
+class deleteLibById(APIView):
     # 删除lib
-    def delete(self,request):
-        # TODO
-        pass
-
+    def delete(self,request,id):
+        response=MyResponse()
+        try:
+            Lib.objects.get(id=id).delete()
+            return response.success()
+        except Exception as e:
+            return response.error(e)
 
 class changeAllImage(APIView):
     def get(self,request):

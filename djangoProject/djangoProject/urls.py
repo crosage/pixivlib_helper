@@ -20,7 +20,9 @@ from pixiv_model.views import *
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/lib",initLib.as_view()),
+    path("api/lib/init",LibInit.as_view()),
+    path("api/lib",LibView.as_view()),
+    path("api/lib/<id>",deleteLibById.as_view()),
     path("api/lib/update",changeAllImage.as_view()),
     path("api/tag",getAllTagsWithCount.as_view()),
     path("api/image",getImages.as_view()),

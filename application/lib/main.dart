@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:tagselector/ImageWithInfo.dart';
@@ -68,24 +66,18 @@ class _MyAppState extends State<MyApp> {
     });
     final response = await http
         .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
-    //print(response.statusCode);
     if (response.statusCode == 200) {
       Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
       final List<dynamic> images = map['images'];
       List<dynamic> imageWithInfo = [];
-      //print(images);
       for (final image in images) {
         int pid = image['pid'];
         int page = image['page'];
-        String author=image['author'];
+        String author = image['author'];
         String imageUrl = image['path'] + "\\" + image['name'];
-        //print(pid);
         final resp = await http.get(
             Uri.parse('http://localhost:8000/api/image/' + pid.toString()));
-        //print(resp.statusCode);
-        //print("**************");
         List<dynamic> tags = json.decode(utf8.decode(resp.bodyBytes))['tags'];
-        //print(tags);
         imageWithInfo.add(ImageWithInfo(
           imageUrl: imageUrl,
           page: page,
@@ -192,7 +184,16 @@ class _MyAppState extends State<MyApp> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
-                Text((_index + 1).toString()),
+                Container(
+                    width: 50,
+                    child: TextField(
+                    //maxLength: 30,
+                    decoration:InputDecoration(
+                        contentPadding: EdgeInsets.all(8.0),
+                      hintText: (_index+1).toString()
+                    ),
+                  ),
+                ),
                 IconButton(
                     onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
               ],
