@@ -46,7 +46,6 @@ class _dropDownButtonState extends State<dropDownButton> {
           final data = json.decode(utf8.decode(response.bodyBytes));
           setState(() {
             tags = data["tags"];
-            print("*************************");
             for (int i = 0; i < tags.length; i++) {
               filterChips.add(FilterChip(
                 label: Text(tags[i]),
@@ -56,8 +55,6 @@ class _dropDownButtonState extends State<dropDownButton> {
                 },
               ));
             }
-            print("#############################");
-            print(filterChips);
           });
           showDialog(
             context: context,
@@ -87,7 +84,15 @@ class _dropDownButtonState extends State<dropDownButton> {
           );
         }
         if(value=="初始化仓库"){
-          final response = await http.get(Uri.parse('http://127.0.0.1:8000/api/lib'));
+          final response = await http.get(Uri.parse('http://127.0.0.1:8000/api/lib/init'));
+        }
+        if(value=="仓库列表"){
+          final response=await http.get(Uri.parse("http://127.0.0.1:8000/api/lib"));
+          Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
+          List<String> libs=map["libs"];
+          showDialog(context: context, builder: (BuildContext context){
+            return AlertDialog();
+          });
         }
       },
     );

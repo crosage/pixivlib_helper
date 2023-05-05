@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:tagselector/ImageWithInfo.dart';
+import 'package:tagselector/SearchTools.dart';
 import 'package:tagselector/SetupIcon.dart';
 import 'package:tagselector/utils.dart';
+import 'package:tagselector/ImageWithInfo.dart';
 
 void main() {
   runApp(MyApp());
@@ -104,8 +106,10 @@ class _MyAppState extends State<MyApp> {
           ),
           body: Column(
             children: [
+              Row(children: [SearchBar(),],),
               Row(
                 children: [
+
                   Expanded(
                     flex: 1,
                     child: Wrap(

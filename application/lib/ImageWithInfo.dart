@@ -3,7 +3,6 @@ import 'dart:math';
 import 'dart:io';
 import 'package:tagselector/utils.dart';
 
-
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
   final int page;
@@ -15,13 +14,13 @@ class ImageWithInfo extends StatefulWidget {
 
   const ImageWithInfo(
       {super.key,
-        required this.imageUrl,
-        required this.page,
-        required this.pid,
-        required this.author,
-        required this.tags,
-        required this.onSelectedTagsChanged,
-        required this.selectedTags});
+      required this.imageUrl,
+      required this.page,
+      required this.pid,
+      required this.author,
+      required this.tags,
+      required this.onSelectedTagsChanged,
+      required this.selectedTags});
 
   @override
   _ImageWithInfoState createState() => _ImageWithInfoState();
@@ -74,10 +73,23 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
             width: 20,
           ),
           Expanded(
-            child: Image.file(
-              File(widget.imageUrl),
-              //fit: BoxFit.fitHeight,
+            child: InkWell(
+              onTap: (){
+                showDialog(
+                    context: context,
+                    builder: (BuildContext context){
+                      return AlertDialog(
+                        content: Image.file(File(widget.imageUrl)),
+                      );
+                    }
+                );
+              },
+                child: Image.file(
+                  File(widget.imageUrl),
+                  //fit: BoxFit.fitHeight,
+                )
             ),
+
           ),
           SizedBox(width: 20),
           Expanded(
