@@ -10,15 +10,9 @@
 
 启动django
 
-![image-20230421190138857](C:\Users\crosa\AppData\Roaming\Typora\typora-user-images\image-20230421190138857.png)
-
 启动flutter
 
-![image-20230421185811697](C:\Users\crosa\AppData\Roaming\Typora\typora-user-images\image-20230421185811697.png)
-
 右上角仓库列表中添加本地图库路径，然后初始化仓库
+![image](https://user-images.githubusercontent.com/90540469/233620837-a9bd9502-b643-4751-a5d0-1dd26c78d7e9.png)
 
-
-
-单机tag即可对用tag进行图片筛选
-
+单击tag即可对用tag进行图片筛选
