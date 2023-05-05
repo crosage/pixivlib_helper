@@ -14,6 +14,9 @@
 
 启动flutter
 
+![スクリーンショット 2023-05-05 224402](https://user-images.githubusercontent.com/90540469/236491567-3e123749-1cda-48ca-838f-a5d42d28cbff.png)
+
+
 右上角仓库列表中添加本地图库路径，然后初始化仓库
 ![image](https://user-images.githubusercontent.com/90540469/236490607-5bbec482-1f80-4ee9-86b1-de197167b045.png)
 
