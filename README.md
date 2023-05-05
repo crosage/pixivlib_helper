@@ -18,6 +18,10 @@
 
 
 右上角仓库列表中添加本地图库路径，然后初始化仓库
+
+
+单击图片显示大图
 ![image](https://user-images.githubusercontent.com/90540469/236490607-5bbec482-1f80-4ee9-86b1-de197167b045.png)
 
 单击tag即可对用tag进行图片筛选
+![image](https://user-images.githubusercontent.com/90540469/236491863-0383eadf-fb14-4998-beb4-75269607b408.png)
