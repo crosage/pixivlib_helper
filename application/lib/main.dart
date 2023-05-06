@@ -58,7 +58,13 @@ class _MyAppState extends State<MyApp> {
           duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
     });
   }
-
+  //todo 应该添加对是否有该tag的判断
+  void _searchTag(String value){
+//    final response=await http.get(Uri.parse('http://127.0.0.1:8000/api/lib/i'));
+    setState(() {
+      selectedTags.add(value);
+    });
+  }
   Future<List<dynamic>> getImages() async {
     int limit = 20, offset = _index * 20;
     var jsonData = json.encode(<String, dynamic>{
@@ -106,7 +112,7 @@ class _MyAppState extends State<MyApp> {
           ),
           body: Column(
             children: [
-              Row(children: [SearchBar(),],),
+              Row(children: [SearchBar(onSearchTag: _searchTag),],),
               Row(
                 children: [
 
