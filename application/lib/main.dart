@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math';
+import 'dart:convert';
 import 'package:tagselector/ImageWithInfo.dart';
 import 'package:tagselector/SearchTools.dart';
 import 'package:tagselector/SetupIcon.dart';
@@ -23,6 +25,7 @@ class _MyAppState extends State<MyApp> {
   ScrollController _scrollController = ScrollController();
   late int total;
   late int _index;
+  TextEditingController bottomPageController = TextEditingController();
   bool isEdting = false;
   int pages = 0;
 
@@ -212,6 +215,7 @@ class _MyAppState extends State<MyApp> {
                       Container(
                           width: 50,
                           child: TextField(
+                            controller: bottomPageController,
                             decoration: InputDecoration(
                               hintText: (_index + 1).toString(),
                             ),
@@ -220,7 +224,9 @@ class _MyAppState extends State<MyApp> {
                               _index = int.parse(value) - 1;
                               print("index:now");
                               print(_index);
-                              setState(() {});
+                              setState(() {
+                                bottomPageController.clear();
+                              });
                             },
                           )),
                       IconButton(
