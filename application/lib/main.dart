@@ -23,6 +23,8 @@ class _MyAppState extends State<MyApp> {
   ScrollController _scrollController = ScrollController();
   late int total;
   late int _index;
+  bool isEdting = false;
+  int pages = 0;
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _MyAppState extends State<MyApp> {
 
   void _handleSelectedTags(String tag) {
     setState(() {
+      print("pages=" + pages.toString());
       _index = 0;
       if (selectedTags.contains(tag)) {
         selectedTags.removeWhere((item) => item == tag);
@@ -46,6 +49,8 @@ class _MyAppState extends State<MyApp> {
   void _lastPage() {
     setState(() {
       _index = _index > 0 ? _index - 1 : 0;
+      print(_index);
+      print("now:index");
       _scrollController.animateTo(0,
           duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
     });
@@ -54,17 +59,20 @@ class _MyAppState extends State<MyApp> {
   void _nextPage() {
     setState(() {
       _index = _index + 1;
+      print(_index);
       _scrollController.animateTo(0,
           duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
     });
   }
+
   //todo 应该添加对是否有该tag的判断
-  void _searchTag(String value){
+  void _searchTag(String value) {
 //    final response=await http.get(Uri.parse('http://127.0.0.1:8000/api/lib/i'));
     setState(() {
       selectedTags.add(value);
     });
   }
+
   Future<List<dynamic>> getImages() async {
     int limit = 20, offset = _index * 20;
     var jsonData = json.encode(<String, dynamic>{
@@ -77,6 +85,8 @@ class _MyAppState extends State<MyApp> {
     if (response.statusCode == 200) {
       Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
       final List<dynamic> images = map['images'];
+      pages = map["pages"];
+      print(pages);
       List<dynamic> imageWithInfo = [];
       for (final image in images) {
         int pid = image['pid'];
@@ -112,10 +122,9 @@ class _MyAppState extends State<MyApp> {
           ),
           body: Column(
             children: [
-              Row(children: [SearchBar(onSearchTag: _searchTag),],),
+              Container(height: 96, child: SearchBar(onSearchTag: _searchTag)),
               Row(
                 children: [
-
                   Expanded(
                     flex: 1,
                     child: Wrap(
@@ -127,6 +136,7 @@ class _MyAppState extends State<MyApp> {
                             selected: true,
                             onSelected: (isSelected) {
                               setState(() {
+                                print("pages=" + pages.toString());
                                 selectedTags.removeAt(i);
                               });
                             },
@@ -181,6 +191,7 @@ class _MyAppState extends State<MyApp> {
                       ),
                     );
                   }
+
                   // return other widget when snapshot does not have data yet
                   return Center(
                     child: CircularProgressIndicator(),
@@ -190,24 +201,38 @@ class _MyAppState extends State<MyApp> {
             ],
           ),
           bottomNavigationBar: BottomAppBar(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
-                Container(
-                    width: 50,
-                    child: TextField(
-                    //maxLength: 30,
-                    decoration:InputDecoration(
-                        contentPadding: EdgeInsets.all(8.0),
-                      hintText: (_index+1).toString()
-                    ),
-                  ),
-                ),
-                IconButton(
-                    onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
-              ],
-            ),
+            child: FutureBuilder(
+                future: getImages(),
+                builder: (context, snapshot) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                          onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
+                      Container(
+                          width: 50,
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: (_index + 1).toString(),
+                            ),
+                            textAlign: TextAlign.center,
+                            onSubmitted: (value) {
+                              _index = int.parse(value) - 1;
+                              print("index:now");
+                              print(_index);
+                              setState(() {});
+                            },
+                          )),
+                      IconButton(
+                          onPressed: _nextPage,
+                          icon: Icon(Icons.arrow_forward)),
+                      SizedBox(
+                        width: 233,
+                      ),
+                      Text("共" + pages.toString() + "页")
+                    ],
+                  );
+                }),
           ),
         ));
   }

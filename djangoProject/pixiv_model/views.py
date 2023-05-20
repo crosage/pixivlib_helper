@@ -21,8 +21,9 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(refresh_token="your",
-             access_token="your")
+api.set_auth(access_token="67jK1ZtbqqmMaQyjU5DHWMWvevI6Of1cHRfAU3hDadQ"
+             ,refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
+             )
 
 
 # Create your views here.
@@ -37,6 +38,7 @@ class LibInit(APIView):
             for lib in libs.data:
                 path = lib.get("path")
                 print(path)
+
                 images = os.listdir(path)
                 images.sort()
                 print(path)
@@ -81,8 +83,10 @@ class LibView(APIView):
     def get(self, request):
         response = MyResponse()
         try:
-            libs = Lib.objects.all().values_list("path",flat=True)
-            response.put({"libs": libs})
+            libs = Lib.objects.all()
+            libs=LibSerializer(libs,many=True)
+            print(libs.data)
+            response.put({"libs": libs.data})
             return response.success()
         except Exception as e:
             return response.error(e)
@@ -105,6 +109,17 @@ class deleteLibById(APIView):
         response=MyResponse()
         try:
             Lib.objects.get(id=id).delete()
+            return response.success()
+        except Exception as e:
+            return response.error(e)
+    def post(self,request,id):
+        response=MyResponse()
+        try:
+            map=json.loads(request.body)
+            path=map["path"]
+            record=Lib.objects.get(id=id)
+            record.path=path
+            record.save()
             return response.success()
         except Exception as e:
             return response.error(e)
@@ -143,10 +158,10 @@ class getImages(APIView):
             limit=map.get("limit",20)
             tag=map.get("tag",None)
             if tag==None or tag==[]:
-                image_list=Image.getImages(limit,offset)
+                image_list,pages=Image.getImages(limit,offset)
             else :
-                image_list=Image.filterTags(tags=tag,offset=offset,limit=limit)
-            response.put({"images":list(image_list)})
+                image_list,pages=Image.filterTags(tags=tag,offset=offset,limit=limit)
+            response.put({"images":list(image_list),"pages":pages})
             return response.success()
         except Exception as e:
             return response.error(e)

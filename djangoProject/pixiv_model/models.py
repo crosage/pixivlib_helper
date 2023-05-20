@@ -57,7 +57,7 @@ class Image(models.Model):
         paginator=Paginator(image_list,page_size)
         #print(paginator.page(1))
         image_list=paginator.page(page)
-        return image_list
+        return image_list,paginator.num_pages
     @classmethod
     def filterTags(cls,tags,limit,offset):
         print(tags)
@@ -71,7 +71,7 @@ class Image(models.Model):
         page=offset/limit+1
         paginator=Paginator(image_list,page_size)
         image_list=paginator.page(page)
-        return image_list
+        return image_list,paginator.num_pages
 
 
 
