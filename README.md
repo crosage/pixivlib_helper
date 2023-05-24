@@ -7,7 +7,7 @@
 ### 使用前的准备：
 - 文件夹中放好若干个名为123456_p0.png（\d+_p\d+\.\w+）的图片（未来可能写个ASCII2d识图爬虫就不需要严格命名了），
 
-- django环境和flutter环境（）（本来计划是给我自己用的未来可能有release？）
+- django环境
 
 - 获取你的pixiv refresh_token和access_token
 
