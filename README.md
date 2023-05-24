@@ -15,7 +15,7 @@
 
 启动django
 
-启动flutter
+单击exe启动flutter
 
 先添加仓库路径，再初始化仓库
 
