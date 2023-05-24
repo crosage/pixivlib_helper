@@ -1,7 +1,5 @@
 # pixiv_helper
 
-## tag列表没有写完，目前还有点bug
-
 基本页面：
 
 ![屏幕截图 2023-05-24 213805](https://github.com/crosage/pixivlib_helper/assets/90540469/0fdf2121-3856-4335-b269-6a8531fe9788)
