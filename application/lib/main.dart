@@ -60,8 +60,6 @@ class _MyAppState extends State<MyApp> {
   void _lastPage() {
     setState(() {
       _index = _index > 0 ? _index - 1 : 0;
-      print(_index);
-      print("now:index");
       _scrollController.animateTo(0,
           duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
     });
@@ -70,7 +68,6 @@ class _MyAppState extends State<MyApp> {
   void _nextPage() {
     setState(() {
       _index = _index + 1;
-      print(_index);
       _scrollController.animateTo(0,
           duration: Duration(milliseconds: 500), curve: Curves.easeInOut);
     });
