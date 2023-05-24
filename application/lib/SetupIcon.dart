@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:tagselector/SearchTools.dart';
 import 'dart:convert';
-
 import 'package:tagselector/utils.dart';
 
 class statefulDialog extends StatefulWidget {
@@ -119,12 +119,16 @@ class _dropDownButtonState extends State<dropDownButton> {
   late List<dynamic> tags;
   late List<dynamic> selectedTags;
   List<FilterChip> filterChips = [];
+  int _tagIndex = 0;
 
   void _handleTagSelection(int index) {}
+
+  void _onSelectTag(String s) {}
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
+      icon: Icon(Icons.settings),
       itemBuilder: (BuildContext context) {
         return [
           PopupMenuItem<String>(
@@ -149,6 +153,7 @@ class _dropDownButtonState extends State<dropDownButton> {
           final data = json.decode(utf8.decode(response.bodyBytes));
           setState(() {
             tags = data["tags"];
+            filterChips.clear();
             for (int i = 0; i < tags.length; i++) {
               filterChips.add(FilterChip(
                 label: Text(tags[i]),
@@ -165,16 +170,21 @@ class _dropDownButtonState extends State<dropDownButton> {
               return AlertDialog(
                 title: Text('Filters'),
                 content: Container(
-                  height: 200.0,
+                  width: 400,
                   // Set the height of the container to control the height of the AlertDialog
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: Wrap(
+                  child: ListView(shrinkWrap: true, children: [
+                    Container(
+                      height: 96,
+                      child: SearchBar(
+                        onSearchTag: _onSelectTag,
+                      ),
+                    ),
+                    Wrap(
                       spacing: 8.0,
                       runSpacing: 4.0,
                       children: filterChips,
                     ),
-                  ),
+                  ]),
                 ),
                 actions: [
                   TextButton(

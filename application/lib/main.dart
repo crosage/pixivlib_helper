@@ -1,7 +1,10 @@
+import 'dart:io';
+
+import "package:flutter/services.dart";
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:math';
+import 'dart:io';
 import 'dart:convert';
 import 'package:tagselector/ImageWithInfo.dart';
 import 'package:tagselector/SearchTools.dart';
@@ -9,8 +12,12 @@ import 'package:tagselector/SetupIcon.dart';
 import 'package:tagselector/utils.dart';
 import 'package:tagselector/ImageWithInfo.dart';
 
-void main() {
+void main() async {
+//  ProcessResult result = await Process.run("cmd", ["/c", "dir"]);
   runApp(MyApp());
+//  ProcessResult result = await Process.run(
+//      "python", ["..\\djangoProject\\manage.py", "runserver", "8000"]);
+//  print(result.stdout);
 }
 
 //一行展示已选择的Tag
@@ -28,6 +35,7 @@ class _MyAppState extends State<MyApp> {
   TextEditingController bottomPageController = TextEditingController();
   bool isEdting = false;
   int pages = 0;
+  String searchHelperForWindows = "";
 
   @override
   void initState() {
@@ -76,6 +84,23 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  Future<int> getCountAndPages() async {
+    int limit = 20, offset = _index * 20, pages = 0;
+    var jsonData = json.encode(<String, dynamic>{
+      "limit": limit,
+      "offset": offset,
+      "tag": selectedTags
+    });
+    final response = await http
+        .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
+    if (response.statusCode == 200) {
+      Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
+      final List<dynamic> images = map['images'];
+      pages = map["pages"];
+    }
+    return pages;
+  }
+
   Future<List<dynamic>> getImages() async {
     int limit = 20, offset = _index * 20;
     var jsonData = json.encode(<String, dynamic>{
@@ -89,10 +114,12 @@ class _MyAppState extends State<MyApp> {
       Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
       final List<dynamic> images = map['images'];
       pages = map["pages"];
-      print(pages);
+      searchHelperForWindows = "";
       List<dynamic> imageWithInfo = [];
       for (final image in images) {
         int pid = image['pid'];
+        searchHelperForWindows =
+            searchHelperForWindows + pid.toString() + " OR ";
         int page = image['page'];
         String author = image['author'];
         String imageUrl = image['path'] + "\\" + image['name'];
@@ -151,6 +178,16 @@ class _MyAppState extends State<MyApp> {
                   ),
                   Expanded(
                     flex: 0,
+                    child: IconButton(
+                      icon: Icon(Icons.copy),
+                      onPressed: () {
+                        Clipboard.setData(
+                            ClipboardData(text: searchHelperForWindows));
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    flex: 0,
                     child: dropDownButton(),
                   ),
                 ],
@@ -205,7 +242,7 @@ class _MyAppState extends State<MyApp> {
           ),
           bottomNavigationBar: BottomAppBar(
             child: FutureBuilder(
-                future: getImages(),
+                future: getCountAndPages(),
                 builder: (context, snapshot) {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -232,10 +269,8 @@ class _MyAppState extends State<MyApp> {
                       IconButton(
                           onPressed: _nextPage,
                           icon: Icon(Icons.arrow_forward)),
-                      SizedBox(
-                        width: 233,
-                      ),
-                      Text("共" + pages.toString() + "页")
+                      Expanded(
+                          flex: 0, child: Text("共" + pages.toString() + "页"))
                     ],
                   );
                 }),
