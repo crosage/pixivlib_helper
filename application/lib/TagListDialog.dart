@@ -75,6 +75,7 @@ class _TagListDialogState extends State<TagListDialog> {
                     children: filterChips,
                   ),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
                           onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
@@ -93,13 +94,9 @@ class _TagListDialogState extends State<TagListDialog> {
                               });
                             },
                           )),
-                      Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            IconButton(
-                                onPressed: _nextPage,
-                                icon: Icon(Icons.arrow_forward))
-                          ]),
+                      IconButton(
+                          onPressed: _nextPage,
+                          icon: Icon(Icons.arrow_forward)),
                     ],
                   )
                 ]);
