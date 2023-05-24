@@ -41,4 +41,7 @@
 
 ![屏幕截图 2023-05-24 213837](https://github.com/crosage/pixivlib_helper/assets/90540469/bbd6dae2-d352-4167-ab15-031d25e17f6e)
 
+![image](https://github.com/crosage/pixivlib_helper/assets/90540469/b033a0e2-d09b-423a-b6ed-6ce3f0717969)
+
+
 同样的，单击上面的tag可以取消选择，
