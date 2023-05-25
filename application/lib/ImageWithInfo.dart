@@ -74,22 +74,23 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
           ),
           Expanded(
             child: InkWell(
-              onTap: (){
-                showDialog(
-                    context: context,
-                    builder: (BuildContext context){
-                      return AlertDialog(
-                        content: Image.file(File(widget.imageUrl)),
-                      );
-                    }
-                );
-              },
+                onTap: () {
+                  showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          content: InteractiveViewer(
+                              scaleEnabled: true,
+                              maxScale: 4.0,
+                              minScale: 1.0,
+                              child: Image.file(File(widget.imageUrl))),
+                        );
+                      });
+                },
                 child: Image.file(
                   File(widget.imageUrl),
                   //fit: BoxFit.fitHeight,
-                )
-            ),
-
+                )),
           ),
           SizedBox(width: 20),
           Expanded(
