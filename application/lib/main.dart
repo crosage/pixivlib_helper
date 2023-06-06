@@ -1,10 +1,6 @@
-import 'dart:io';
-
 import "package:flutter/services.dart";
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:io';
 import 'dart:convert';
 import 'package:tagselector/ImageWithInfo.dart';
 import 'package:tagselector/SearchTools.dart';
@@ -149,7 +145,7 @@ class _MyAppState extends State<MyApp> {
           ),
           body: Column(
             children: [
-              Container(height: 96, child: SearchBar(onSearchTag: _searchTag)),
+              Container(height: 96, child: SearchTool(onSearchTag: _searchTag)),
               Row(
                 children: [
                   Expanded(

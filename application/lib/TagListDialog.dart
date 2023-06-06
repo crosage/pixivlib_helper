@@ -65,7 +65,7 @@ class _TagListDialogState extends State<TagListDialog> {
                 return ListView(shrinkWrap: true, children: [
                   Container(
                     height: 96,
-                    child: SearchBar(
+                    child: SearchTool(
                       onSearchTag: _onSearchTag,
                     ),
                   ),

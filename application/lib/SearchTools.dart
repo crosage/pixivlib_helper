@@ -4,16 +4,16 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-class SearchBar extends StatefulWidget {
+class SearchTool extends StatefulWidget {
   final Function(String) onSearchTag;
 
-  const SearchBar({super.key, required this.onSearchTag});
+  const SearchTool({super.key, required this.onSearchTag});
 
   @override
   _SearchBarState createState() => _SearchBarState();
 }
 
-class _SearchBarState extends State<SearchBar> {
+class _SearchBarState extends State<SearchTool> {
   TextEditingController _searchController = TextEditingController();
   List<dynamic> _options = [];
   List<dynamic> _filteredOptions = [];
