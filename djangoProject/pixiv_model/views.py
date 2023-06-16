@@ -21,8 +21,8 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(access_token="67jK1ZtbqqmMaQyjU5DHWMWvevI6Of1cHRfAU3hDadQ"
-             ,refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
+api.set_auth(access_token=""
+             ,refresh_token=""
              )
 
 
@@ -34,7 +34,7 @@ class LibInit(APIView):
         try:
             libs = Lib.objects.all().order_by("-id")
             libs = LibSerializer(libs, many=True)
-
+            # print(libs)
             for lib in libs.data:
                 path = lib.get("path")
                 print(path)
@@ -64,7 +64,7 @@ class LibInit(APIView):
                                 _image,created=Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path,author=author)
                         except Exception as e:
                             tag=Tag.objects.get(id=2)
-                            Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path)
+                            # Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path)
                             print(f"{image}发生了一个错误：{e}")
                         #time.sleep(1)
             response.success()
@@ -102,8 +102,7 @@ class LibView(APIView):
         except Exception as e:
             return response.error(e)
 
-
-class deleteLibById(APIView):
+class deleteAndUpdateLibById(APIView):
     # 删除lib
     def delete(self,request,id):
         response=MyResponse()
@@ -117,17 +116,11 @@ class deleteLibById(APIView):
         try:
             map=json.loads(request.body)
             path=map["path"]
-            record=Lib.objects.get(id=id)
-            record.path=path
-            record.save()
+            record=Lib.objects.filter(id=id)
+            record.update(path=path)
             return response.success()
         except Exception as e:
             return response.error(e)
-
-class changeAllImage(APIView):
-    def get(self,request):
-        images=Image.objects.all()
-        images.update(path="D:\\bot\\awesomebot\\mylibrary")
 
 class changeImageByPid(APIView):
     def get(self,request):

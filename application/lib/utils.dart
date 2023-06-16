@@ -9,10 +9,5 @@ Color getRandomColor(int seed) {
     g = random.nextInt(256);
     b = random.nextInt(256);
   } while (r + g + b <= 600);
-  return Color.fromARGB(
-    255,
-    r,
-    g,
-    b,
-  );
+  return Color.fromARGB(255, r, g, b,);
 }

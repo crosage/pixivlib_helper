@@ -20,12 +20,23 @@ from pixiv_model.views import *
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    #初始化仓库
     path("api/lib/init",LibInit.as_view()),
+    #获取仓库列表与新增仓库
     path("api/lib",LibView.as_view()),
-    path("api/lib/<id>",deleteLibById.as_view()),
-    path("api/lib/update",changeAllImage.as_view()),
+    #删除仓库与更新仓库
+    path("api/lib/<id>",deleteAndUpdateLibById.as_view()),
+    #获取tag
     path("api/tag",getAllTagsWithCount.as_view()),
+    #获取图片
     path("api/image",getImages.as_view()),
+    #获取图片tag
     path("api/image/<int:pid>",getImageTagsByPid.as_view()),
-    path("api/test",test.as_view())
+
+    path("api/test",test.as_view()),
+    #刷新token
+    path("api/utils/login/{refresh_token}",refreshToken.as_view()),
+    #获取token
+    path("/api/utils/login",getRefreshToken.as_view()),
+    path("/api/utils/delete_multi"),
 ]
