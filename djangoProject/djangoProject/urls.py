@@ -38,5 +38,5 @@ urlpatterns = [
     path("api/utils/login/{refresh_token}",refreshToken.as_view()),
     #获取token
     path("/api/utils/login",getRefreshToken.as_view()),
-    path("/api/utils/delete_multi"),
+    # path("/api/utils/delete_multi"),
 ]
