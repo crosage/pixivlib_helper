@@ -2,18 +2,15 @@ import "package:flutter/services.dart";
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:tagselector/ImageWithInfo.dart';
-import 'package:tagselector/SearchTools.dart';
-import 'package:tagselector/SetupIcon.dart';
+import 'package:tagselector/components/image_with_info.dart';
+import 'package:tagselector/components/search_tool.dart';
+import 'package:tagselector/components/setting_button.dart';
+import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
-import 'package:tagselector/ImageWithInfo.dart';
+import 'package:tagselector/components/image_with_info.dart';
 
 void main() async {
-//  ProcessResult result = await Process.run("cmd", ["/c", "dir"]);
   runApp(MyApp());
-//  ProcessResult result = await Process.run(
-//      "python", ["..\\djangoProject\\manage.py", "runserver", "8000"]);
-//  print(result.stdout);
 }
 
 //一行展示已选择的Tag
@@ -138,136 +135,150 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        title: 'pixiv_helper',
-        home: Scaffold(
-          appBar: AppBar(
-            title: Text('pixiv_helper'),
-          ),
-          body: Column(
-            children: [
-              Container(height: 96, child: SearchTool(onSearchTag: _searchTag)),
-              Row(
+      theme: ThemeData(
+        primaryColor: Color(0xFF5bc2e7),
+      ),
+      title: 'pixiv_helper',
+      home: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Color(0xFF5bc2e7),
+          title: Text('pixiv_helper'),
+        ),
+        body: Row(
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 500,
+                  height: 500,
+                  child: SearchTool(onSearchTag: _searchTag),
+                ),
+                Row(
+                  children: [Text("data")],
+                ),
+                // Row(
+                //   children: [
+                //     Expanded(
+                //       flex: 1,
+                //       child: Wrap(
+                //         spacing: 5,
+                //         children: [
+                //           for (int i = 0; i < selectedTags.length; i++)
+                //             FilterChip(
+                //               label: Text(selectedTags[i]),
+                //               selected: true,
+                //               onSelected: (isSelected) {
+                //                 setState(() {
+                //                   print("pages=" + pages.toString());
+                //                   selectedTags.removeAt(i);
+                //                 });
+                //               },
+                //               selectedColor:
+                //                   getRandomColor(selectedTags[i].hashCode),
+                //             ),
+                //         ],
+                //       ),
+                //     ),
+                //     // Expanded(
+                //     //   flex: 0,
+                //     //   child: IconButton(
+                //     //     icon: Icon(Icons.copy),
+                //     //     onPressed: () {
+                //     //       Clipboard.setData(
+                //     //         ClipboardData(text: searchHelperForWindows),
+                //     //       );
+                //     //     },
+                //     //   ),
+                //     // ),
+                //   ],
+                // ),
+                SizedBox(
+                  height: 5,
+                ),
+//                   FutureBuilder<List<dynamic>>(
+//                     future: getImages(),
+//                     builder: (context, snapshot) {
+//                       if (snapshot.hasData) {
+//                         return Expanded(
+//                           child: ListView(
+//                             controller: _scrollController,
+//                             children: [
+//                               Row(
+//                                 children: [
+//                                   RawChip(
+//                                     avatar: Icon(
+//                                       Icons.access_alarm,
+//                                       color: Colors.blue,
+//                                     ),
+//                                     label: Text(
+//                                       "Cnt:" + snapshot.data!.length.toString(),
+// //                        style: TextStyle(color: Colors.blue),
+//                                     ),
+//                                   ),
+//                                 ],
+//                               ),
+//                               for (final i in snapshot.data!)
+//                                 ImageWithInfo(
+//                                   imageUrl: i.imageUrl,
+//                                   page: i.page,
+//                                   pid: i.pid,
+//                                   tags: i.tags,
+//                                   author: i.author,
+//                                   onSelectedTagsChanged: _handleSelectedTags,
+//                                   selectedTags: selectedTags,
+//                                 ),
+//                             ],
+//                           ),
+//                         );
+//                       }
+//
+//                       // return other widget when snapshot does not have data yet
+//                       return Center(
+//                         child: CircularProgressIndicator(),
+//                       );
+//                     },
+//                   ),
+              ],
+            ),
+            Sidebar()
+          ],
+        ),
+        bottomNavigationBar: BottomAppBar(
+          // color: Color(0xFF5bc2e7),
+          child: FutureBuilder(
+            future: getCountAndPages(),
+            builder: (context, snapshot) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: Wrap(
-                      spacing: 5,
-                      children: [
-                        for (int i = 0; i < selectedTags.length; i++)
-                          FilterChip(
-                            label: Text(selectedTags[i]),
-                            selected: true,
-                            onSelected: (isSelected) {
-                              setState(() {
-                                print("pages=" + pages.toString());
-                                selectedTags.removeAt(i);
-                              });
-                            },
-                            selectedColor:
-                                getRandomColor(selectedTags[i].hashCode),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    flex: 0,
-                    child: IconButton(
-                      icon: Icon(Icons.copy),
-                      onPressed: () {
-                        Clipboard.setData(
-                            ClipboardData(text: searchHelperForWindows));
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    flex: 0,
-                    child: dropDownButton(),
-                  ),
+                  IconButton(
+                      onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
+                  Container(
+                      width: 50,
+                      child: TextField(
+                        controller: bottomPageController,
+                        decoration: InputDecoration(
+                          hintText: (_index + 1).toString(),
+                        ),
+                        textAlign: TextAlign.center,
+                        onSubmitted: (value) {
+                          _index = int.parse(value) - 1;
+                          print("index:now");
+                          print(_index);
+                          setState(() {
+                            bottomPageController.clear();
+                          });
+                        },
+                      )),
+                  IconButton(
+                      onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
+                  Expanded(flex: 0, child: Text("共" + pages.toString() + "页"))
                 ],
-              ),
-              SizedBox(
-                height: 5,
-              ),
-              FutureBuilder<List<dynamic>>(
-                future: getImages(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return Expanded(
-                      child: ListView(
-                        controller: _scrollController,
-                        children: [
-                          Row(
-                            children: [
-                              RawChip(
-                                avatar: Icon(
-                                  Icons.access_alarm,
-                                  color: Colors.blue,
-                                ),
-                                label: Text(
-                                  "Cnt:" + snapshot.data!.length.toString(),
-//                        style: TextStyle(color: Colors.blue),
-                                ),
-                              ),
-                            ],
-                          ),
-                          for (final i in snapshot.data!)
-                            ImageWithInfo(
-                              imageUrl: i.imageUrl,
-                              page: i.page,
-                              pid: i.pid,
-                              tags: i.tags,
-                              author: i.author,
-                              onSelectedTagsChanged: _handleSelectedTags,
-                              selectedTags: selectedTags,
-                            ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  // return other widget when snapshot does not have data yet
-                  return Center(
-                    child: CircularProgressIndicator(),
-                  );
-                },
-              ),
-            ],
+              );
+            },
           ),
-          bottomNavigationBar: BottomAppBar(
-            child: FutureBuilder(
-                future: getCountAndPages(),
-                builder: (context, snapshot) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                          onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
-                      Container(
-                          width: 50,
-                          child: TextField(
-                            controller: bottomPageController,
-                            decoration: InputDecoration(
-                              hintText: (_index + 1).toString(),
-                            ),
-                            textAlign: TextAlign.center,
-                            onSubmitted: (value) {
-                              _index = int.parse(value) - 1;
-                              print("index:now");
-                              print(_index);
-                              setState(() {
-                                bottomPageController.clear();
-                              });
-                            },
-                          )),
-                      IconButton(
-                          onPressed: _nextPage,
-                          icon: Icon(Icons.arrow_forward)),
-                      Expanded(
-                          flex: 0, child: Text("共" + pages.toString() + "页"))
-                    ],
-                  );
-                }),
-          ),
-        ));
+        ),
+      ),
+    );
   }
 }

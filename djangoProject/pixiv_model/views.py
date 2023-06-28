@@ -21,8 +21,8 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(access_token=""
-             ,refresh_token=""
+api.set_auth(access_token="at2Qdoh9uLcDO0mntnFAoqQwtVF8WCWNwN-LcTiC36o"
+             ,refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
              )
 
 
@@ -150,6 +150,7 @@ class getImages(APIView):
             offset=map.get("offset",0)
             limit=map.get("limit",20)
             tag=map.get("tag",None)
+            print(f"{offset} {tag} *********")
             if tag==None or tag==[]:
                 image_list,pages=Image.getImages(limit,offset)
             else :
@@ -158,7 +159,8 @@ class getImages(APIView):
             return response.success()
         except Exception as e:
             return response.error(e)
-
+    def get(self):
+        print("##############")
 class getImageTagsByPid(APIView):
     def get(self,request,pid):
         response=MyResponse()
