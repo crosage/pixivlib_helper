@@ -79,11 +79,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
-                          content: InteractiveViewer(
-                              scaleEnabled: true,
-                              maxScale: 4.0,
-                              minScale: 1.0,
-                              child: Image.file(File(widget.imageUrl))),
+                          content: Container(
+                            width: 2000,
+                            child: InteractiveViewer(
+                                scaleEnabled: true,
+                                maxScale: 20.0,
+                                minScale: 0.1,
+                                child: Image.file(File(widget.imageUrl))),
+                          ),
                         );
                       });
                 },
