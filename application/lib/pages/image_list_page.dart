@@ -213,6 +213,9 @@ class _ImageListPageState extends State<ImageListPage> {
               onPageChange: (value) {
                 setState(() {
                   _index = value;
+                  _scrollController.animateTo(0,
+                      duration: Duration(milliseconds: 500),
+                      curve: Curves.easeInOut);
                 });
               },
               totalPages: pages);
