@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tagselector/components/image_with_info.dart';
+import 'package:tagselector/components/pageview_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
 import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
@@ -21,10 +23,35 @@ class _ImageListPageState extends State<ImageListPage> {
   int pages = 0;
   String searchHelperForWindows = "";
 
+  @override
+  void initState() {
+    super.initState();
+    selectedTags = [];
+    _index = 0;
+    _scrollController = ScrollController();
+  }
+
   void _searchTag(String value) {
     setState(() {
       selectedTags.add(value);
     });
+  }
+
+  Future<int> getCountAndPages() async {
+    int limit = 20, offset = _index * 20, pages = 0;
+    var jsonData = json.encode(<String, dynamic>{
+      "limit": limit,
+      "offset": offset,
+      "tag": selectedTags
+    });
+    final response = await http
+        .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
+    if (response.statusCode == 200) {
+      Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
+      final List<dynamic> images = map['images'];
+      pages = map["pages"];
+    }
+    return pages;
   }
 
   void _handleSelectedTags(String tag) {
@@ -83,20 +110,18 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Color(0xFF5bc2e7),
+        title: Text('pixiv_helper'),
+      ),
+      //一个Row左侧是Stack，右面是
       body: Row(
         children: [
           Container(
             width: MediaQuery.of(context).size.width - 50,
             child: Column(
               children: [
-                Container(
-                  width: 500,
-                  // height: 500,
-                  child: SearchTool(onSearchTag: _searchTag),
-                ),
-                Row(
-                  children: [Text("data")],
-                ),
+                SearchTool(onSearchTag: _searchTag),
                 Row(
                   children: [
                     Flexible(
@@ -120,17 +145,17 @@ class _ImageListPageState extends State<ImageListPage> {
                         ],
                       ),
                     ),
-                    // Flexible(
-                    //   flex: 0,
-                    //   child: IconButton(
-                    //     icon: Icon(Icons.copy),
-                    //     onPressed: () {
-                    //       Clipboard.setData(
-                    //         ClipboardData(text: searchHelperForWindows),
-                    //       );
-                    //     },
-                    //   ),
-                    // ),
+                    Flexible(
+                      flex: 0,
+                      child: IconButton(
+                        icon: Icon(Icons.copy),
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: searchHelperForWindows),
+                          );
+                        },
+                      ),
+                    ),
                   ],
                 ),
                 SizedBox(
@@ -153,7 +178,6 @@ class _ImageListPageState extends State<ImageListPage> {
                                   ),
                                   label: Text(
                                     "Cnt:" + snapshot.data!.length.toString(),
-//                        style: TextStyle(color: Colors.blue),
                                   ),
                                 ),
                               ],
@@ -182,6 +206,18 @@ class _ImageListPageState extends State<ImageListPage> {
           ),
           Sidebar()
         ],
+      ),
+      bottomNavigationBar: FutureBuilder(
+        future: getCountAndPages(),
+        builder: (context, snapshot) {
+          return PageBottomBar(
+              onPageChange: (value) {
+                setState(() {
+                  _index = value;
+                });
+              },
+              totalPages: pages);
+        },
       ),
     );
   }
