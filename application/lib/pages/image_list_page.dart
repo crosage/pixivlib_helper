@@ -114,7 +114,6 @@ class _ImageListPageState extends State<ImageListPage> {
         backgroundColor: Color(0xFF5bc2e7),
         title: Text('pixiv_helper'),
       ),
-      //一个Row左侧是Stack，右面是
       body: Row(
         children: [
           Container(

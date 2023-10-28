@@ -5,12 +5,12 @@ import 'package:tagselector/pages/setting_page.dart';
 class AscentRoutes {
   static final List<GetPage> getPages = [
     GetPage(
-      name: "/",
-      page: () => ImageListPage(),
-    ),
+        name: "/",
+        page: () => ImageListPage(),
+        transition: Transition.leftToRight),
     GetPage(
-      name: "/setting",
-      page: () => SettingPage(),
-    ),
+        name: "/setting",
+        page: () => SettingPage(),
+        transition: Transition.rightToLeft),
   ];
 }
