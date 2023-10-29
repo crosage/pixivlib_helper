@@ -85,23 +85,12 @@ class _ImageListPageState extends State<ImageListPage> {
         int pid = image['pid'];
         searchHelperForWindows =
             searchHelperForWindows + pid.toString() + " OR ";
-        int page = image['page'];
-        String author = image['author'];
-        String imageUrl = image['path'] + "\\" + image['name'];
         final resp = await http.get(
             Uri.parse('http://localhost:8000/api/image/' + pid.toString()));
         List<dynamic> tags = json.decode(utf8.decode(resp.bodyBytes))['tags'];
-        imageWithInfo.add(ImageWithInfo(
-          imageUrl: imageUrl,
-          page: page,
-          pid: pid,
-          tags: tags,
-          author: author,
-          onSelectedTagsChanged: _handleSelectedTags,
-          selectedTags: selectedTags,
-        ));
+        image["tags"] = tags;
       }
-      return imageWithInfo;
+      return images;
     } else {
       return [];
     }
@@ -183,11 +172,11 @@ class _ImageListPageState extends State<ImageListPage> {
                             ),
                             for (final i in snapshot.data!)
                               ImageWithInfo(
-                                imageUrl: i.imageUrl,
-                                page: i.page,
-                                pid: i.pid,
-                                tags: i.tags,
-                                author: i.author,
+                                imageUrl: i["path"] + "\\" + i["name"],
+                                page: i["page"],
+                                pid: i["pid"],
+                                tags: i["tags"],
+                                author: i["author"],
                                 onSelectedTagsChanged: _handleSelectedTags,
                                 selectedTags: selectedTags,
                               ),
