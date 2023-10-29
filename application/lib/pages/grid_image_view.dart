@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:tagselector/components/pageview_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
+import 'package:tagselector/utils.dart';
 
 class ImageGrid extends StatefulWidget {
   @override
@@ -36,6 +37,7 @@ class _ImageGridState extends State<ImageGrid> {
       final List<dynamic> images = map['images'];
       pages = map["pages"];
     }
+    print(pages);
     return pages;
   }
 
@@ -59,6 +61,12 @@ class _ImageGridState extends State<ImageGrid> {
     }
   }
 
+  void _searchTag(String value) {
+    setState(() {
+      selectedTags.add(value);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,7 +76,24 @@ class _ImageGridState extends State<ImageGrid> {
       ),
       body: Column(
         children: [
-          SearchTool(onSearchTag: (value) {}),
+          SearchTool(onSearchTag: _searchTag),
+          Wrap(
+            spacing: 5,
+            children: [
+              for (int i = 0; i < selectedTags.length; i++)
+                FilterChip(
+                  label: Text(selectedTags[i]),
+                  selected: true,
+                  onSelected: (isSelected) {
+                    setState(() {
+                      print("pages=" + pages.toString());
+                      selectedTags.removeAt(i);
+                    });
+                  },
+                  selectedColor: getRandomColor(selectedTags[i].hashCode),
+                ),
+            ],
+          ),
           Container(
             height: MediaQuery.of(context).size.height - 200,
             child: FutureBuilder<List<dynamic>>(
@@ -83,7 +108,7 @@ class _ImageGridState extends State<ImageGrid> {
                   return GridView.builder(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 8),
-                      itemCount: 8 * 3,
+                      itemCount: snapshot.data!.length,
                       itemBuilder: (BuildContext context, int index) {
                         // final now = index;
                         print(snapshot.data![index]);
@@ -129,6 +154,7 @@ class _ImageGridState extends State<ImageGrid> {
               ),
             );
           } else {
+            print(pages);
             return PageBottomBar(
                 onPageChange: (value) {
                   setState(() {
