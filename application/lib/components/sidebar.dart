@@ -14,6 +14,12 @@ class Sidebar extends StatelessWidget {
           },
           icon: Icon(Icons.settings),
         ),
+        IconButton(
+          onPressed: () {
+            Get.toNamed("/gridView");
+          },
+          icon: Icon(Icons.apps_outlined),
+        )
       ],
     );
   }

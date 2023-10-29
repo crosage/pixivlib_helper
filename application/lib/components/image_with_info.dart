@@ -67,107 +67,109 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     }
     return Container(
       height: 300,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 20,
-          ),
-          Expanded(
-            child: InkWell(
-                onTap: () {
-                  showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          content: Container(
-                            width: 2000,
-                            child: InteractiveViewer(
-                                scaleEnabled: true,
-                                maxScale: 20.0,
-                                minScale: 0.1,
-                                child: Image.file(File(widget.imageUrl))),
-                          ),
-                        );
-                      });
-                },
-                child: Image.file(
-                  File(widget.imageUrl),
-                  //fit: BoxFit.fitHeight,
-                )),
-          ),
-          SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                RawChip(
-                  avatar: Icon(
-                    Icons.image,
-                    color: Colors.blue,
-                  ),
-                  label: Text(
-                    "pid:" + widget.pid.toString(),
-//                    style: TextStyle(color: Colors.blue),
-                  ),
-                ),
-                SizedBox(
-                  height: 5,
-                ),
-                RawChip(
-                  avatar: Icon(
-                    Icons.find_in_page,
-                    color: Colors.blue,
-                  ),
-                  label: Text(
-                    "page:" + widget.page.toString(),
-//                    style: TextStyle(color: Colors.blue),
-                  ),
-                ),
-                SizedBox(
-                  height: 5,
-                ),
-                RawChip(
-                  avatar: Icon(
-                    Icons.person,
-                    color: Colors.blue,
-                  ),
-                  label: Text(
-                    "author:" + widget.author.toString(),
-//                    style: TextStyle(color: Colors.blue),
-                  ),
-                ),
-                SizedBox(
-                  height: 5,
-                ),
-                Wrap(
-                  spacing: 5,
-                  runSpacing: 10,
-                  children: [
-                    RawChip(
-                      avatar: Icon(
-                        Icons.tag,
-                        color: Colors.blue,
-                      ),
-                      label: Text(
-                        "Tags:",
-//                        style: TextStyle(color: Colors.blue),
-                      ),
-                    ),
-                    for (int i = 0; i < widget.tags.length; i++)
-                      FilterChip(
-                        label: Text(widget.tags[i]),
-                        selected: _isSelected[i],
-                        onSelected: (isSelected) {
-                          _handleTagSelection(i, isSelected);
-                        },
-                        selectedColor: _colors[i],
-                      ),
-                  ],
-                )
-              ],
+      child: Card(
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
             ),
-          )
-        ],
+            Expanded(
+              child: InkWell(
+                  onTap: () {
+                    showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            content: Container(
+                              width: 2000,
+                              child: InteractiveViewer(
+                                  scaleEnabled: true,
+                                  maxScale: 20.0,
+                                  minScale: 0.1,
+                                  child: Image.file(File(widget.imageUrl))),
+                            ),
+                          );
+                        });
+                  },
+                  child: Image.file(
+                    File(widget.imageUrl),
+                    //fit: BoxFit.fitHeight,
+                  )),
+            ),
+            SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RawChip(
+                    avatar: Icon(
+                      Icons.image,
+                      color: Colors.blue,
+                    ),
+                    label: Text(
+                      "pid:" + widget.pid.toString(),
+//                    style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 5,
+                  ),
+                  RawChip(
+                    avatar: Icon(
+                      Icons.find_in_page,
+                      color: Colors.blue,
+                    ),
+                    label: Text(
+                      "page:" + widget.page.toString(),
+//                    style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 5,
+                  ),
+                  RawChip(
+                    avatar: Icon(
+                      Icons.person,
+                      color: Colors.blue,
+                    ),
+                    label: Text(
+                      "author:" + widget.author.toString(),
+//                    style: TextStyle(color: Colors.blue),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 5,
+                  ),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 10,
+                    children: [
+                      RawChip(
+                        avatar: Icon(
+                          Icons.tag,
+                          color: Colors.blue,
+                        ),
+                        label: Text(
+                          "Tags:",
+//                        style: TextStyle(color: Colors.blue),
+                        ),
+                      ),
+                      for (int i = 0; i < widget.tags.length; i++)
+                        FilterChip(
+                          label: Text(widget.tags[i]),
+                          selected: _isSelected[i],
+                          onSelected: (isSelected) {
+                            _handleTagSelection(i, isSelected);
+                          },
+                          selectedColor: _colors[i],
+                        ),
+                    ],
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
       ),
     );
   }
