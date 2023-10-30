@@ -155,6 +155,8 @@ class getImages(APIView):
                 image_list,pages=Image.getImages(limit,offset)
             else :
                 image_list,pages=Image.filterTags(tags=tag,offset=offset,limit=limit)
+            # print(image_list)
+            # print(list(image_list))
             response.put({"images":list(image_list),"pages":pages})
             return response.success()
         except Exception as e:

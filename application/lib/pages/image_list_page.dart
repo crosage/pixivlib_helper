@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:tagselector/components/image_with_info.dart';
-import 'package:tagselector/components/pageview_bottombar.dart';
+import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
 import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
@@ -16,19 +17,29 @@ class ImageListPage extends StatefulWidget {
 class _ImageListPageState extends State<ImageListPage> {
   late List<String> selectedTags;
   ScrollController _scrollController = ScrollController();
-  late int total;
   late int _index;
   TextEditingController bottomPageController = TextEditingController();
-  bool isEdting = false;
   int pages = 0;
   String searchHelperForWindows = "";
+  late Future<List<dynamic>> values;
+  List<String> suggestions = [];
 
   @override
   void initState() {
     super.initState();
     selectedTags = [];
     _index = 0;
+    pages = 0;
     _scrollController = ScrollController();
+    values = getImages();
+    Future.microtask(() async {
+      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
+      final response = await http
+          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
+      final data = json.decode(utf8.decode(response.bodyBytes));
+      suggestions = List<String>.from(data["tags"]);
+      print(suggestions);
+    });
   }
 
   void _searchTag(String value) {
@@ -80,7 +91,6 @@ class _ImageListPageState extends State<ImageListPage> {
       final List<dynamic> images = map['images'];
       pages = map["pages"];
       searchHelperForWindows = "";
-      List<dynamic> imageWithInfo = [];
       for (final image in images) {
         int pid = image['pid'];
         searchHelperForWindows =
@@ -109,7 +119,10 @@ class _ImageListPageState extends State<ImageListPage> {
             width: MediaQuery.of(context).size.width - 50,
             child: Column(
               children: [
-                SearchTool(onSearchTag: _searchTag),
+                SearchTool(
+                  onSelected: _searchTag,
+                  suggestions: suggestions,
+                ),
                 Row(
                   children: [
                     Flexible(
@@ -192,7 +205,28 @@ class _ImageListPageState extends State<ImageListPage> {
               ],
             ),
           ),
-          Sidebar()
+          Sidebar(
+            iconButtons: [
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/setting");
+                },
+                icon: Icon(Icons.settings),
+              ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/");
+                },
+                icon: Icon(Icons.list),
+              ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/gridView");
+                },
+                icon: Icon(Icons.apps_outlined),
+              ),
+            ],
+          ),
         ],
       ),
       bottomNavigationBar: FutureBuilder(

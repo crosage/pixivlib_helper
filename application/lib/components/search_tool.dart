@@ -3,9 +3,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class SearchTool extends StatefulWidget {
-  final Function(String) onSearchTag;
+  final Function(String) onSelected;
+  final List<String> suggestions;
 
-  const SearchTool({Key? key, required this.onSearchTag}) : super(key: key);
+  const SearchTool(
+      {Key? key, required this.onSelected, required this.suggestions})
+      : super(key: key);
 
   @override
   _SearchBarState createState() => _SearchBarState();
@@ -15,20 +18,12 @@ class _SearchBarState extends State<SearchTool> {
   TextEditingController _searchController = TextEditingController();
   List<dynamic> _options = [];
   List<dynamic> _filteredOptions = [];
-  bool showOverlay = false;
   OverlayEntry? _overlayEntry;
   List<OverlayEntry> _overlayEntries = [];
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() async {
-      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
-      final response = await http
-          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
-      final data = json.decode(utf8.decode(response.bodyBytes));
-      _options = data["tags"];
-    });
   }
 
   void removeAllOverlays() {
@@ -96,7 +91,7 @@ class _SearchBarState extends State<SearchTool> {
                 title: Text(_filteredOptions[index]),
                 onTap: () {
                   _searchController.text = _filteredOptions[index];
-                  widget.onSearchTag(_filteredOptions[index]);
+                  widget.onSelected(_filteredOptions[index]);
                   _updateFilteredOptions('');
                 },
               );
@@ -132,7 +127,7 @@ class _SearchBarState extends State<SearchTool> {
                     removeAllOverlays();
                     _overlayEntry = null;
                   }
-                  widget.onSearchTag(value);
+                  widget.onSelected(value);
                 },
               ),
             ),

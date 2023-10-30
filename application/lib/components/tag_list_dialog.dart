@@ -12,8 +12,23 @@ class _TagListDialogState extends State<TagListDialog> {
   late List<dynamic> tags;
   late List<dynamic> selectedTags;
   List<FilterChip> filterChips = [];
+  late List<String> suggestions;
+
   int _tagIndex = 0;
   TextEditingController bottomPageController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.microtask(() async {
+      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
+      final response = await http
+          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
+      final data = json.decode(utf8.decode(response.bodyBytes));
+      suggestions = data["tags"];
+    });
+  }
 
   void _onSelectTag(int i) {}
 
@@ -66,7 +81,8 @@ class _TagListDialogState extends State<TagListDialog> {
                   Container(
                     height: 96,
                     child: SearchTool(
-                      onSearchTag: _onSearchTag,
+                      onSelected: _onSearchTag,
+                      suggestions: suggestions,
                     ),
                   ),
                   Wrap(

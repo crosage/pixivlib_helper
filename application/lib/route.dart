@@ -18,6 +18,7 @@ class AscentRoutes {
     GetPage(
       name: "/gridView",
       page: () => ImageGrid(),
+      transition: Transition.rightToLeft,
     )
   ];
 }

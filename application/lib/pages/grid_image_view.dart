@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:tagselector/components/pageview_bottombar.dart';
+import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
+import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
 
 class ImageGrid extends StatefulWidget {
@@ -15,12 +17,21 @@ class _ImageGridState extends State<ImageGrid> {
   late int _index;
   late int pages;
   late List<String> selectedTags;
+  List<String> suggestions = [];
 
   @override
   void initState() {
     super.initState();
     selectedTags = [];
     _index = 0;
+    pages = 0;
+    Future.microtask(() async {
+      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
+      final response = await http
+          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
+      final data = json.decode(utf8.decode(response.bodyBytes));
+      suggestions = data["tags"];
+    });
   }
 
   Future<int> getCountAndPages() async {
@@ -74,71 +85,104 @@ class _ImageGridState extends State<ImageGrid> {
         backgroundColor: Color(0xFF5bc2e7),
         title: Text('Grid View'),
       ),
-      body: Column(
+      body: Row(
         children: [
-          SearchTool(onSearchTag: _searchTag),
-          Wrap(
-            spacing: 5,
-            children: [
-              for (int i = 0; i < selectedTags.length; i++)
-                FilterChip(
-                  label: Text(selectedTags[i]),
-                  selected: true,
-                  onSelected: (isSelected) {
-                    setState(() {
-                      print("pages=" + pages.toString());
-                      selectedTags.removeAt(i);
-                    });
-                  },
-                  selectedColor: getRandomColor(selectedTags[i].hashCode),
-                ),
+          Sidebar(
+            iconButtons: [
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/setting");
+                },
+                icon: Icon(Icons.settings),
+              ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/");
+                },
+                icon: Icon(Icons.list),
+              ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/gridView");
+                },
+                icon: Icon(Icons.apps_outlined),
+              ),
             ],
           ),
           Container(
-            height: MediaQuery.of(context).size.height - 200,
-            child: FutureBuilder<List<dynamic>>(
-              future: getImages(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return Center(
-                    child: CircularProgressIndicator(),
-                  );
-                } else {
-                  // print(snapshot.data);
-                  return GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 8),
-                      itemCount: snapshot.data!.length,
-                      itemBuilder: (BuildContext context, int index) {
-                        // final now = index;
-                        print(snapshot.data![index]);
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Flexible(
-                                child: Image.file(File(snapshot.data![index]
-                                        ["path"] +
-                                    "\\" +
-                                    snapshot.data![index]["name"]))),
-                            TextButton(
-                              onPressed: () {},
-                              child: Text(
-                                "pid:${snapshot.data![index]["pid"]}",
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {},
-                              child: Text(
-                                "auther:${snapshot.data![index]["author"]}",
-                                style: TextStyle(color: Colors.black),
-                              ),
-                            ),
-                          ],
+            width: MediaQuery.of(context).size.width - 50,
+            child: Column(
+              children: [
+                SearchTool(
+                  onSelected: _searchTag,
+                  suggestions: suggestions,
+                ),
+                Wrap(
+                  spacing: 5,
+                  children: [
+                    for (int i = 0; i < selectedTags.length; i++)
+                      FilterChip(
+                        label: Text(selectedTags[i]),
+                        selected: true,
+                        onSelected: (isSelected) {
+                          setState(() {
+                            print("pages=" + pages.toString());
+                            selectedTags.removeAt(i);
+                          });
+                        },
+                        selectedColor: getRandomColor(selectedTags[i].hashCode),
+                      ),
+                  ],
+                ),
+                Container(
+                  height: MediaQuery.of(context).size.height - 200,
+                  child: FutureBuilder<List<dynamic>>(
+                    future: getImages(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Center(
+                          child: CircularProgressIndicator(),
                         );
-                      });
-                }
-              },
+                      } else {
+                        // print(snapshot.data);
+                        return GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 8),
+                            itemCount: snapshot.data!.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              // final now = index;
+                              print(snapshot.data![index]);
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                      child: Image.file(File(
+                                          snapshot.data![index]["path"] +
+                                              "\\" +
+                                              snapshot.data![index]["name"]))),
+                                  TextButton(
+                                    onPressed: () {},
+                                    child: Text(
+                                      "pid:${snapshot.data![index]["pid"]}",
+                                      style: TextStyle(color: Colors.black),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {},
+                                    child: Text(
+                                      "auther:${snapshot.data![index]["author"]}",
+                                      style: TextStyle(color: Colors.black),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            });
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],

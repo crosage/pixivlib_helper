@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:tagselector/components/elevated_button.dart';
+import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/pages/image_list_page.dart';
 
 class SettingPage extends StatefulWidget {
@@ -17,18 +19,53 @@ class _SettingPageState extends State<SettingPage> {
       ),
       body: Row(
         children: [
-          Column(
-            children: [
+          Sidebar(
+            iconButtons: [
               IconButton(
                 onPressed: () {
-                  Get.to(
-                    () => ImageListPage(),
-                    transition: Transition.leftToRight,
-                    duration: Duration(milliseconds: 500),
-                  );
+                  Get.toNamed("/setting");
                 },
                 icon: Icon(Icons.settings),
               ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/");
+                },
+                icon: Icon(Icons.list),
+              ),
+              IconButton(
+                onPressed: () {
+                  Get.toNamed("/gridView");
+                },
+                icon: Icon(Icons.apps_outlined),
+              ),
+            ],
+          ),
+          Column(
+            children: [
+              IconLabelButton(
+                  onPress: () {},
+                  icon: Icon(
+                    Icons.label,
+                    color: Colors.blueAccent,
+                  ),
+                  text: "Tag列表"),
+              Divider(),
+              IconLabelButton(
+                  onPress: () {},
+                  icon: Icon(
+                    Icons.warehouse,
+                    color: Colors.blueAccent,
+                  ),
+                  text: "仓库列表"),
+              Divider(),
+              IconLabelButton(
+                  onPress: () {},
+                  icon: Icon(
+                    Icons.cookie,
+                    color: Colors.blueAccent,
+                  ),
+                  text: "Pixiv token"),
             ],
           ),
           Column(
