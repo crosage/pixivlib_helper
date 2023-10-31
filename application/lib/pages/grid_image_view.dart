@@ -108,16 +108,16 @@ class _ImageGridState extends State<ImageGrid> {
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
-                    future: getTagSuggestions(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return Center(child: CircularProgressIndicator());
-                      } else {
-                        return SearchTool(
-                            onSelected: _searchTag,
-                            suggestions: snapshot.data!);
-                      }
-                    }),
+                  future: getTagSuggestions(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return Center(child: CircularProgressIndicator());
+                    } else {
+                      return SearchTool(
+                          onSelected: _searchTag, suggestions: snapshot.data!);
+                    }
+                  },
+                ),
                 Wrap(
                   spacing: 5,
                   children: [

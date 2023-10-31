@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-class LibListDialog extends StatefulWidget {
+class LibList extends StatefulWidget {
   @override
-  _LibListDialogState createState() => _LibListDialogState();
+  _LibListState createState() => _LibListState();
 }
 
-class _LibListDialogState extends State<LibListDialog> {
+class _LibListState extends State<LibList> {
   List<dynamic> libs = [];
   List<bool> isEdting = [];
 
@@ -25,13 +25,24 @@ class _LibListDialogState extends State<LibListDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-        title: Text("lib"),
-        content: FutureBuilder(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Divider(),
+        Text(
+          "Tag列表",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20.0,
+          ),
+        ),
+        Divider(),
+        FutureBuilder(
           future: getlibs(),
           builder: (context, snapshot) {
             return Container(
-              width: 400,
+              width: MediaQuery.of(context).size.width - 400,
+              height: MediaQuery.of(context).size.height - 200,
               child: ListView(
                   //shrinkWrap: true,
                   children: [
@@ -102,6 +113,8 @@ class _LibListDialogState extends State<LibListDialog> {
                   ]),
             );
           },
-        ));
+        ),
+      ],
+    );
   }
 }

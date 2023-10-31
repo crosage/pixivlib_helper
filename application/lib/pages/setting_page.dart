@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:tagselector/components/elevated_button.dart';
 import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/pages/image_list_page.dart';
+import 'package:tagselector/pages/setting_liblist.dart';
+import 'package:tagselector/pages/setting_taglist.dart';
 
 class SettingPage extends StatefulWidget {
   @override
@@ -10,6 +12,12 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
+  final List<Widget> _pages = [
+    TagList(),
+    LibList(),
+  ];
+  int index = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,38 +45,49 @@ class _SettingPageState extends State<SettingPage> {
           ),
           VerticalDivider(),
           Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconLabelButton(
-                  onPress: () {},
+                  onPress: () {
+                    setState(() {
+                      print("******");
+                      index = 0;
+                    });
+                  },
                   icon: Icon(
                     Icons.label,
-                    color: Colors.blueAccent,
+                    // color: Colors.blueAccent,
                   ),
                   text: "Tag列表"),
               Divider(),
               IconLabelButton(
-                  onPress: () {},
+                  onPress: () {
+                    setState(() {
+                      index = 1;
+                    });
+                  },
                   icon: Icon(
                     Icons.warehouse,
-                    color: Colors.blueAccent,
+                    // color: Colors.blueAccent,
                   ),
                   text: "仓库列表"),
               Divider(),
               IconLabelButton(
-                  onPress: () {},
+                  onPress: () {
+                    setState(() {
+                      index = 2;
+                    });
+                  },
                   icon: Icon(
                     Icons.cookie,
-                    color: Colors.blueAccent,
+                    // color: Colors.blueAccent,
                   ),
                   text: "Pixiv token"),
             ],
           ),
           VerticalDivider(),
-          Column(
-            children: [
-              Text("data"),
-            ],
-          )
+          _pages[index]
         ],
       ),
     );

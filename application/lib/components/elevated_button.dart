@@ -16,7 +16,7 @@ class IconLabelButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        onPress;
+        onPress();
       },
       child: Container(
         height: height,
