@@ -101,12 +101,6 @@ class _ImageGridState extends State<ImageGrid> {
                 },
                 icon: Icon(Icons.list),
               ),
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/gridView");
-                },
-                icon: Icon(Icons.apps_outlined),
-              ),
             ],
           ),
           Container(

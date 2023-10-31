@@ -23,12 +23,6 @@ class _SettingPageState extends State<SettingPage> {
             iconButtons: [
               IconButton(
                 onPressed: () {
-                  Get.toNamed("/setting");
-                },
-                icon: Icon(Icons.settings),
-              ),
-              IconButton(
-                onPressed: () {
                   Get.toNamed("/");
                 },
                 icon: Icon(Icons.list),
@@ -41,6 +35,7 @@ class _SettingPageState extends State<SettingPage> {
               ),
             ],
           ),
+          VerticalDivider(),
           Column(
             children: [
               IconLabelButton(
@@ -68,6 +63,7 @@ class _SettingPageState extends State<SettingPage> {
                   text: "Pixiv token"),
             ],
           ),
+          VerticalDivider(),
           Column(
             children: [
               Text("data"),

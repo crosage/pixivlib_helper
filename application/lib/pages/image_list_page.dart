@@ -116,7 +116,7 @@ class _ImageListPageState extends State<ImageListPage> {
       body: Row(
         children: [
           Container(
-            width: MediaQuery.of(context).size.width - 50,
+            width: MediaQuery.of(context).size.width - 60,
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
@@ -213,6 +213,7 @@ class _ImageListPageState extends State<ImageListPage> {
               ],
             ),
           ),
+          VerticalDivider(),
           Sidebar(
             iconButtons: [
               IconButton(
@@ -220,12 +221,6 @@ class _ImageListPageState extends State<ImageListPage> {
                   Get.toNamed("/setting");
                 },
                 icon: Icon(Icons.settings),
-              ),
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/");
-                },
-                icon: Icon(Icons.list),
               ),
               IconButton(
                 onPressed: () {
