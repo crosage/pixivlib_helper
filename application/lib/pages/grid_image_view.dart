@@ -99,7 +99,7 @@ class _ImageGridState extends State<ImageGrid> {
                 onPressed: () {
                   Get.toNamed("/");
                 },
-                icon: Icon(Icons.list),
+                icon: Icon(Icons.table_rows),
               ),
             ],
           ),

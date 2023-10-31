@@ -25,7 +25,7 @@ class _SettingPageState extends State<SettingPage> {
                 onPressed: () {
                   Get.toNamed("/");
                 },
-                icon: Icon(Icons.list),
+                icon: Icon(Icons.table_rows),
               ),
               IconButton(
                 onPressed: () {
