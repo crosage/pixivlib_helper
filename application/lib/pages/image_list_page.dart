@@ -22,7 +22,15 @@ class _ImageListPageState extends State<ImageListPage> {
   int pages = 0;
   String searchHelperForWindows = "";
   late Future<List<dynamic>> values;
-  List<String> suggestions = [];
+
+  // List<String> suggestions = [];
+  Future<List<String>> getTagSuggestions() async {
+    var jsonData = json.encode(<String, dynamic>{"limit": 10000});
+    final response = await http.post(Uri.parse('http://127.0.0.1:8000/api/tag'),
+        body: jsonData);
+    final data = json.decode(utf8.decode(response.bodyBytes));
+    return List<String>.from(data["tags"]);
+  }
 
   @override
   void initState() {
@@ -32,14 +40,6 @@ class _ImageListPageState extends State<ImageListPage> {
     pages = 0;
     _scrollController = ScrollController();
     values = getImages();
-    Future.microtask(() async {
-      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
-      final response = await http
-          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
-      final data = json.decode(utf8.decode(response.bodyBytes));
-      suggestions = List<String>.from(data["tags"]);
-      print(suggestions);
-    });
   }
 
   void _searchTag(String value) {
@@ -119,10 +119,18 @@ class _ImageListPageState extends State<ImageListPage> {
             width: MediaQuery.of(context).size.width - 50,
             child: Column(
               children: [
-                SearchTool(
-                  onSelected: _searchTag,
-                  suggestions: suggestions,
-                ),
+                FutureBuilder<List<String>>(
+                    future: getTagSuggestions(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Center(child: CircularProgressIndicator());
+                      } else {
+                        print(snapshot.data!);
+                        return SearchTool(
+                            onSelected: _searchTag,
+                            suggestions: snapshot.data!);
+                      }
+                    }),
                 Row(
                   children: [
                     Flexible(

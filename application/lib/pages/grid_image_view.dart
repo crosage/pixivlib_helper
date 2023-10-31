@@ -17,7 +17,6 @@ class _ImageGridState extends State<ImageGrid> {
   late int _index;
   late int pages;
   late List<String> selectedTags;
-  List<String> suggestions = [];
 
   @override
   void initState() {
@@ -25,13 +24,6 @@ class _ImageGridState extends State<ImageGrid> {
     selectedTags = [];
     _index = 0;
     pages = 0;
-    Future.microtask(() async {
-      var jsonData = json.encode(<String, dynamic>{"limit": 10000});
-      final response = await http
-          .post(Uri.parse('http://127.0.0.1:8000/api/tag'), body: jsonData);
-      final data = json.decode(utf8.decode(response.bodyBytes));
-      suggestions = data["tags"];
-    });
   }
 
   Future<int> getCountAndPages() async {
@@ -50,6 +42,14 @@ class _ImageGridState extends State<ImageGrid> {
     }
     print(pages);
     return pages;
+  }
+
+  Future<List<String>> getTagSuggestions() async {
+    var jsonData = json.encode(<String, dynamic>{"limit": 10000});
+    final response = await http.post(Uri.parse('http://127.0.0.1:8000/api/tag'),
+        body: jsonData);
+    final data = json.decode(utf8.decode(response.bodyBytes));
+    return List<String>.from(data["tags"]);
   }
 
   Future<List<dynamic>> getImages() async {
@@ -113,10 +113,17 @@ class _ImageGridState extends State<ImageGrid> {
             width: MediaQuery.of(context).size.width - 50,
             child: Column(
               children: [
-                SearchTool(
-                  onSelected: _searchTag,
-                  suggestions: suggestions,
-                ),
+                FutureBuilder<List<String>>(
+                    future: getTagSuggestions(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Center(child: CircularProgressIndicator());
+                      } else {
+                        return SearchTool(
+                            onSelected: _searchTag,
+                            suggestions: snapshot.data!);
+                      }
+                    }),
                 Wrap(
                   spacing: 5,
                   children: [

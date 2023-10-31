@@ -16,7 +16,6 @@ class SearchTool extends StatefulWidget {
 
 class _SearchBarState extends State<SearchTool> {
   TextEditingController _searchController = TextEditingController();
-  List<dynamic> _options = [];
   List<dynamic> _filteredOptions = [];
   OverlayEntry? _overlayEntry;
   List<OverlayEntry> _overlayEntries = [];
@@ -47,7 +46,7 @@ class _SearchBarState extends State<SearchTool> {
         }
       } else {
         print(2);
-        _filteredOptions = _options
+        _filteredOptions = widget.suggestions
             .where(
                 (option) => option.toLowerCase().contains(query.toLowerCase()))
             .toList();
