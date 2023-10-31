@@ -154,17 +154,6 @@ class _ImageListPageState extends State<ImageListPage> {
                         ],
                       ),
                     ),
-                    Flexible(
-                      flex: 0,
-                      child: IconButton(
-                        icon: Icon(Icons.copy),
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: searchHelperForWindows),
-                          );
-                        },
-                      ),
-                    ),
                   ],
                 ),
                 SizedBox(
@@ -227,6 +216,14 @@ class _ImageListPageState extends State<ImageListPage> {
                   Get.toNamed("/gridView");
                 },
                 icon: Icon(Icons.apps_outlined),
+              ),
+              IconButton(
+                icon: Icon(Icons.copy),
+                onPressed: () {
+                  Clipboard.setData(
+                    ClipboardData(text: searchHelperForWindows),
+                  );
+                },
               ),
             ],
           ),
