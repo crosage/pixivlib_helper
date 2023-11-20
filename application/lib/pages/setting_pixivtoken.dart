@@ -30,7 +30,7 @@ class _LibListState extends State<LibList> {
       children: [
         Divider(),
         Text(
-          "仓库列表",
+          "Tag列表",
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 20.0,

@@ -21,7 +21,7 @@ proxies = {
     "https": "http://127.0.0.1:7890",
 }
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(access_token="at2Qdoh9uLcDO0mntnFAoqQwtVF8WCWNwN-LcTiC36o"
+api.set_auth(access_token="WFEFCOhqCYsxHwUJYir-0brgnz8S5SyhKBRIvy7FIoc"
              ,refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
              )
 
@@ -43,15 +43,16 @@ class LibInit(APIView):
                 images.sort()
                 print(path)
                 for image in images:
-                    print(image)
+                    # print(image)
                     match = re.match(r"(\d+)_p(\d+).(\w+)", image)
                     if match:
                         pid = match.group(1)
                         page = match.group(2)
-                        if Image.doExistImage(pid):
+                        if Image.doExistImage(pid,page):
                             continue
+                        resp = api.illust_detail(pid)
                         try:
-                            resp = api.illust_detail(pid)
+
                             tags = resp.illust.tags
                             author=resp.illust.user.name
                             if tags==[]:
@@ -64,9 +65,10 @@ class LibInit(APIView):
                                 _image,created=Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path,author=author)
                         except Exception as e:
                             tag=Tag.objects.get(id=2)
-                            # Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path)
+                            print(resp)
+                            Image.objects.get_or_create(pid=pid,name=image,page=page,tid=tag,path=path)
                             print(f"{image}发生了一个错误：{e}")
-                        #time.sleep(1)
+                        time.sleep(1)
             response.success()
         except Exception as e:
 
@@ -191,4 +193,4 @@ class getAllTagsWithCount(APIView):
 class test(APIView):
     def get(self,request):
         response=MyResponse()
-        print(Image.doExistImage(pid=104802501))
+        print(Image.doExistImage(pid=104802501,page=0))

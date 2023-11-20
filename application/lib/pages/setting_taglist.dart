@@ -28,6 +28,7 @@ class _TagListState extends State<TagList> {
   @override
   void initState() {
     super.initState();
+    getTags();
   }
 
   void _onSelectTag(String s) {}
@@ -51,6 +52,7 @@ class _TagListState extends State<TagList> {
         ));
       }
     });
+    print("111111111111111111");
   }
 
   void _lastPage() {
@@ -58,8 +60,6 @@ class _TagListState extends State<TagList> {
       _tagIndex = _tagIndex > 0 ? _tagIndex - 1 : 0;
     });
   }
-
-  void _onSearchTag(String s) {}
 
   void _nextPage() {
     setState(() {
@@ -73,54 +73,47 @@ class _TagListState extends State<TagList> {
       children: [
         Container(
           width: 1000,
-          child: FutureBuilder(
-            future: getTags(),
-            builder: (context, snapshot) {
-              return ListView(shrinkWrap: true, children: [
-                FutureBuilder<List<String>>(
-                  future: getTagSuggestions(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return Center(child: CircularProgressIndicator());
-                    } else {
-                      return SearchTool(
-                          onSelected: _onSelectTag,
-                          suggestions: snapshot.data!);
-                    }
-                  },
-                ),
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 4.0,
-                  children: filterChips,
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                        onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
-                    Container(
-                        width: 50,
-                        child: TextField(
-                          controller: bottomPageController,
-                          decoration: InputDecoration(
-                            hintText: (_tagIndex + 1).toString(),
-                          ),
-                          textAlign: TextAlign.center,
-                          onSubmitted: (value) {
-                            _tagIndex = int.parse(value) - 1;
-                            setState(() {
-                              bottomPageController.clear();
-                            });
-                          },
-                        )),
-                    IconButton(
-                        onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
-                  ],
-                )
-              ]);
-            },
-          ),
+          child: ListView(shrinkWrap: true, children: [
+            FutureBuilder<List<String>>(
+              future: getTagSuggestions(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return Center(child: CircularProgressIndicator());
+                } else {
+                  return SearchTool(
+                      onSelected: _onSelectTag, suggestions: snapshot.data!);
+                }
+              },
+            ),
+            Wrap(
+              spacing: 8.0,
+              runSpacing: 4.0,
+              children: filterChips,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(onPressed: _lastPage, icon: Icon(Icons.arrow_back)),
+                Container(
+                    width: 50,
+                    child: TextField(
+                      controller: bottomPageController,
+                      decoration: InputDecoration(
+                        hintText: (_tagIndex + 1).toString(),
+                      ),
+                      textAlign: TextAlign.center,
+                      onSubmitted: (value) {
+                        _tagIndex = int.parse(value) - 1;
+                        setState(() {
+                          bottomPageController.clear();
+                        });
+                      },
+                    )),
+                IconButton(
+                    onPressed: _nextPage, icon: Icon(Icons.arrow_forward)),
+              ],
+            )
+          ]),
         ),
       ],
     );

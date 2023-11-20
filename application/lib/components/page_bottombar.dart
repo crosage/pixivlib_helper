@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /**
  * 传入总页数，以及改变的回调函数
- * 页数为自己的currentPage
+ * 页数为totalPages
  * */
 class PageBottomBar extends StatefulWidget {
   final Function(int) onPageChange;
