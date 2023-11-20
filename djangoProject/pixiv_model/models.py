@@ -38,8 +38,8 @@ class Image(models.Model):
     path=models.CharField(max_length=100,default="D:\\bot\\awesomebot\\mylibrary")
 
     @classmethod
-    def doExistImage(cls,pid):
-        image=Image.objects.filter(pid=pid)
+    def doExistImage(cls,pid,page):
+        image=Image.objects.filter(pid=pid,page=page)
         return image.exists()
 
     @classmethod
@@ -50,12 +50,16 @@ class Image(models.Model):
 
     @classmethod
     def getImages(cls,limit,offset):
+        # print("11111111111")
+        # print(Image.objects.values("pid","page").order_by("-pid"))
+        # print("22222222222")
+        # print(Image.objects.values("pid","page").order_by("-pid").distinct())
         image_list=Image.objects.values("pid","page","name","path","author").distinct().order_by("-pid")
         page_size=limit
         page=offset/limit+1
-#        print(image_list)
+        # print(image_list)
         paginator=Paginator(image_list,page_size)
-        #print(paginator.page(1))
+        # print(paginator.page(1))
         image_list=paginator.page(page)
         return image_list,paginator.num_pages
     @classmethod
@@ -65,8 +69,14 @@ class Image(models.Model):
         q = Q()
         for tag in id_list:
             q |= Q(tid__id=tag)
-        image_list = Image.objects.filter(q).values("pid","page","name","path","author").order_by("-pid").annotate(count=Count('pid')).filter(
-            count=len(id_list))
+        image_list = (
+            Image.objects.filter(q)
+            .values("pid","page","name","path","author")
+            .order_by("-pid")
+            .annotate(count=Count('pid'))
+            .filter(count=len(id_list))
+        )
+        # print(image_list)
         page_size=limit
         page=offset/limit+1
         paginator=Paginator(image_list,page_size)
@@ -78,3 +88,14 @@ class Image(models.Model):
 class Lib(models.Model):
     id = models.IntegerField(primary_key=True)
     path = models.CharField(max_length=100)
+
+class PixivToken(models.Model):
+    def updateRefreshToken(self,refreshToken):
+        self.refresh_token=refreshToken
+        self.save()
+    def updateAccessToken(self,accessToken):
+        self.access_token=accessToken
+        self.save()
+    id=models.IntegerField(primary_key=True)
+    refresh_token=models.CharField(max_length=100)
+    access_token=models.CharField(max_length=100)

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import 'package:tagselector/components/modify_text.dart';
+
 class LibList extends StatefulWidget {
   @override
   _LibListState createState() => _LibListState();
@@ -21,6 +23,7 @@ class _LibListState extends State<LibList> {
     final response = await http.get(Uri.parse("http://127.0.0.1:8000/api/lib"));
     Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
     libs = map["libs"];
+    print("222222");
   }
 
   @override
@@ -47,38 +50,18 @@ class _LibListState extends State<LibList> {
                   //shrinkWrap: true,
                   children: [
                     for (int index = 0; index < libs.length; index++)
-                      Row(children: [
-                        if (isEdting[index] == true)
-                          SizedBox(
-                              width: 300,
-                              child: TextField(
-                                decoration: InputDecoration(
-                                    hintText: libs[index]["path"].toString()),
-                              ))
-                        else
-                          Text(libs[index]["path"].toString()),
-                        IconButton(
-                          onPressed: () async {
-                            isEdting[index] = !isEdting[index];
-                            setState(() {
-                              for (int i = 1; i <= 10; i++) print(isEdting[i]);
-                            });
-//                            final response=await http.post()
-                          },
-                          icon: Icon(Icons.edit),
-                        ),
-                        IconButton(
-                          onPressed: () async {
-                            print("http://127.0.0.1:8000/api/lib/" +
-                                libs[index]["id"].toString());
-                            final response = await http.delete(Uri.parse(
-                                "http://127.0.0.1:8000/api/lib/" +
-                                    libs[index]["id"].toString()));
-                            setState(() {});
-                          },
-                          icon: Icon(Icons.delete),
-                        ),
-                      ]),
+                      ModifyText(
+                        hintText: libs[index]["path"].toString(),
+                        onDelete: () async {
+                          print("http://127.0.0.1:8000/api/lib/" +
+                              libs[index]["id"].toString());
+                          final response = await http.delete(Uri.parse(
+                              "http://127.0.0.1:8000/api/lib/" +
+                                  libs[index]["id"].toString()));
+                          setState(() {});
+                        },
+                        onUpdate: () {},
+                      ),
                     Align(
                       alignment: Alignment.bottomRight,
                       child: IconButton(

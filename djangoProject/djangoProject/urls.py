@@ -35,8 +35,6 @@ urlpatterns = [
 
     path("api/test",test.as_view()),
     #刷新token
-    path("api/utils/login/{refresh_token}",refreshToken.as_view()),
-    #获取token
-    path("/api/utils/login",getRefreshToken.as_view()),
-    # path("/api/utils/delete_multi"),
+    path("api/utils/token/{refresh_token}",refreshToken.as_view()),
+    path("api/utils/token",TokenManagementView.as_view())
 ]

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from response.models import MyResponse
-from .models import Lib
+from .models import Lib, PixivToken
 from .models import Tag
 from .models import Image
 from .serializers import LibSerializer, ImageSerializer,ImageWithTidSerializer
@@ -20,12 +20,25 @@ proxies = {
     "http": "http://127.0.0.1:7890",
     "https": "http://127.0.0.1:7890",
 }
+
+
+def get_refresh_token():
+    refresh_token=PixivToken.objects.all()
+    return refresh_token
+
+def get_access_token():
+    access_token=PixivToken.objects.all()
+    return access_token
+
 api = pixivpy3.AppPixivAPI(proxies=proxies)
-api.set_auth(access_token="WFEFCOhqCYsxHwUJYir-0brgnz8S5SyhKBRIvy7FIoc"
-             ,refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
-             )
+api.set_auth(
+    access_token="WFEFCOhqCYsxHwUJYir-0brgnz8S5SyhKBRIvy7FIoc",
+    refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
+)
 
-
+class refresh_the_token(APIView):
+    def get(self,request):
+        pass
 # Create your views here.
 class LibInit(APIView):
     # 初始化已有的lib（往数据库）
