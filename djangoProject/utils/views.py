@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 
@@ -7,7 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 
 from pixiv_model.models import PixivToken
-from pixiv_model.views import get_refresh_token, get_access_token
+# from pixiv_model.views import getRefreshToken, getAccessToken
 from response.models import MyResponse
 from argparse import ArgumentParser
 from base64 import urlsafe_b64encode
@@ -89,6 +90,7 @@ def login():
     )
 
     print_auth_token_response(response)
+    return response.json()
 
 def refresh(refresh_token):
     response = requests.post(
@@ -107,6 +109,7 @@ def refresh(refresh_token):
         }
     )
     print_auth_token_response(response)
+    return response.json()
 
 def main():
     parser = ArgumentParser()
@@ -141,10 +144,9 @@ class TokenManagementView(APIView):
     def get(self,request):
         response=MyResponse()
         try:
-            refresh=get_refresh_token()
-            access=get_access_token()
-            response.put({"refresh":refresh})
-            response.put({"access": access})
+            refresh=PixivToken.getRefreshToken()
+            access=PixivToken.getAccessToken()
+            response.put({"refresh":refresh,"access":access,"expired_in":PixivToken.getExpiresIn(),"update_time":PixivToken.getUpdateTime()})
             return response.success()
         except Exception as e:
             return response.error(e)
@@ -167,17 +169,22 @@ class TokenManagementView(APIView):
 
     def put(self, request):
         response = MyResponse()
-        # try:
-        #     # 更新操作
-        #     token_id = request.data.get('token_id')
-        #     token_model = TokenCookieModel.objects.get(pk=token_id)
-        #     token_model.token = get_refresh_token()
-        #     token_model.cookie = get_access_token()
-        #     token_model.save()
-        #     serialized_token = TokenCookieModelSerializer(token_model)
-        #     return response.put(serialized_token.data)
-        # except Exception as e:
-        #     return response.error(e)
+        try:
+            refresh_token=PixivToken.getRefreshToken()
+            data=refresh(refresh_token)
+            access_token = data["access_token"]
+            refresh_token = data["refresh_token"]
+            print(access_token)
+            instance, create = PixivToken.objects.get_or_create(id=1)
+            if create:
+                instance.refresh_token=""
+                instance.access_token=""
+            instance.access_token=access_token
+            instance.update_time=datetime.datetime.now()
+            instance.save()
+            return response.success()
+        except Exception as e:
+            return response.error(e)
 
     def delete(self, request):
         response = MyResponse()

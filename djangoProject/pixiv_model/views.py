@@ -22,18 +22,12 @@ proxies = {
 }
 
 
-def get_refresh_token():
-    refresh_token=PixivToken.objects.all()
-    return refresh_token
 
-def get_access_token():
-    access_token=PixivToken.objects.all()
-    return access_token
 
 api = pixivpy3.AppPixivAPI(proxies=proxies)
 api.set_auth(
-    access_token="WFEFCOhqCYsxHwUJYir-0brgnz8S5SyhKBRIvy7FIoc",
-    refresh_token="3wKQn5MDKEU7FiI1MaJ0earY7F1lOdRI5eFkthOGqSw"
+    access_token=PixivToken.getAccessToken(),
+    refresh_token=PixivToken.getRefreshToken()
 )
 
 class refresh_the_token(APIView):
@@ -195,9 +189,7 @@ class getAllTagsWithCount(APIView):
             map=json.loads(request.body)
             offset=map.get("offset",0)
             limit=map.get("limit",20)
-            print("1111")
             tags = Tag.getAllTagsWithLimitAndOffset(offset=offset,limit=limit)
-            print(tags)
             response.put({"tags":list(tags)})
             return response.success()
         except Exception as e:
