@@ -36,7 +36,7 @@ class _LibListState extends State<LibList> {
           "仓库列表",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 20.0,
+            fontSize: 30.0,
           ),
         ),
         Divider(),
@@ -50,20 +50,23 @@ class _LibListState extends State<LibList> {
                   //shrinkWrap: true,
                   children: [
                     for (int index = 0; index < libs.length; index++)
-                      ModifyText(
-                        hintText: libs[index]["path"].toString(),
-                        onDelete: () async {
-                          print("http://127.0.0.1:8000/api/lib/" +
-                              libs[index]["id"].toString());
-                          final response = await http.delete(Uri.parse(
-                              "http://127.0.0.1:8000/api/lib/" +
-                                  libs[index]["id"].toString()));
-                          setState(() {});
-                        },
-                        onUpdate: () {},
+                      Padding(
+                        padding: EdgeInsets.only(left: 16.0),
+                        child: ModifyText(
+                          hintText: libs[index]["path"].toString(),
+                          onDelete: () async {
+                            print("http://127.0.0.1:8000/api/lib/" +
+                                libs[index]["id"].toString());
+                            final response = await http.delete(Uri.parse(
+                                "http://127.0.0.1:8000/api/lib/" +
+                                    libs[index]["id"].toString()));
+                            setState(() {});
+                          },
+                          onUpdate: () {},
+                        ),
                       ),
                     Align(
-                      alignment: Alignment.bottomRight,
+                      alignment: Alignment.bottomLeft,
                       child: IconButton(
                         icon: Icon(Icons.add),
                         onPressed: () {
@@ -93,6 +96,19 @@ class _LibListState extends State<LibList> {
                         },
                       ),
                     ),
+                    Row(children: [
+                      Icon(Icons.accessible_forward),
+                      InkWell(
+                        onTap: () async {
+                          final response = await http.get(
+                              Uri.parse("http://127.0.0.1:8000/api/lib/init"));
+                        },
+                        child: Text(
+                          "爬取图片tag",
+                          style: TextStyle(fontSize: 30.0),
+                        ),
+                      ),
+                    ]),
                   ]),
             );
           },
