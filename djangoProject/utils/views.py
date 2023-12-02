@@ -182,6 +182,7 @@ class TokenManagementView(APIView):
             instance.access_token=access_token
             instance.update_time=datetime.datetime.now()
             instance.save()
+            response.put({"refresh":refresh_token,"access":access_token,"expired_in":PixivToken.getExpiresIn(),"update_time":PixivToken.getUpdateTime()})
             return response.success()
         except Exception as e:
             return response.error(e)

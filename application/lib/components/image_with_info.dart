@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'dart:io';
 import 'package:tagselector/utils.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
@@ -101,14 +103,20 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RawChip(
-                    avatar: Icon(
-                      Icons.image,
-                      color: Colors.blue,
-                    ),
-                    label: Text(
-                      "pid:" + widget.pid.toString(),
+                  InkWell(
+                    onTap: () {
+                      launchUrlString(
+                          "https://www.pixiv.net/artworks/${widget.pid.toString()}");
+                    },
+                    child: RawChip(
+                      avatar: Icon(
+                        Icons.image,
+                        color: Colors.blue,
+                      ),
+                      label: Text(
+                        "pid:" + widget.pid.toString(),
 //                    style: TextStyle(color: Colors.blue),
+                      ),
                     ),
                   ),
                   SizedBox(

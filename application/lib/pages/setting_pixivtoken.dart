@@ -12,6 +12,7 @@ class TokenSetting extends StatefulWidget {
 class _TokenSettingState extends State<TokenSetting> {
   String access = "";
   String refresh = "";
+  String updateTime = "";
   List<bool> isEdting = [];
 
   @override
@@ -26,6 +27,7 @@ class _TokenSettingState extends State<TokenSetting> {
     Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
     access = map["access"];
     refresh = map["refresh"];
+    updateTime = map["update_time"];
   }
 
   @override
@@ -78,7 +80,7 @@ class _TokenSettingState extends State<TokenSetting> {
                             ),
                           ],
                         ),
-                        // Divider(),
+                        Divider(),
                         Row(
                           children: [
                             Text(
@@ -95,14 +97,45 @@ class _TokenSettingState extends State<TokenSetting> {
                             ),
                           ],
                         ),
+                        Divider(),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        Row(children: [
+                          Text(
+                            "更新时间:${updateTime}",
+                            style: TextStyle(
+                              // fontWeight: FontWeight.bold,
+                              fontSize: 15.0,
+                            ),
+                          )
+                        ]),
+                        SizedBox(
+                          height: 20,
+                        )
+                        // Divider(),
                       ],
                     ),
                   ),
-                  Text(
-                    "刷新access_token",
-                    style: TextStyle(
-                      // fontWeight: FontWeight.bold,
-                      fontSize: 20.0,
+                  InkWell(
+                    onTap: () async {
+                      final response = await http.put(
+                          Uri.parse("http://127.0.0.1:8000/api/utils/token"));
+                      Map<String, dynamic> map =
+                          json.decode(utf8.decode(response.bodyBytes));
+                      setState(() {
+                        access = map["access"];
+                        refresh = map["refresh"];
+                        updateTime = map["update_time"];
+                        print(map);
+                      });
+                    },
+                    child: Text(
+                      "刷新access_token（刷新时需要开启梯子）",
+                      style: TextStyle(
+                        // fontWeight: FontWeight.bold,
+                        fontSize: 20.0,
+                      ),
                     ),
                   ),
                 ],

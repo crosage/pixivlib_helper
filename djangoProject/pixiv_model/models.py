@@ -50,16 +50,10 @@ class Image(models.Model):
 
     @classmethod
     def getImages(cls,limit,offset):
-        # print("11111111111")
-        # print(Image.objects.values("pid","page").order_by("-pid"))
-        # print("22222222222")
-        # print(Image.objects.values("pid","page").order_by("-pid").distinct())
         image_list=Image.objects.values("pid","page","name","path","author").distinct().order_by("-pid")
         page_size=limit
         page=offset/limit+1
-        # print(image_list)
         paginator=Paginator(image_list,page_size)
-        # print(paginator.page(1))
         image_list=paginator.page(page)
         return image_list,paginator.num_pages
     @classmethod
@@ -96,6 +90,22 @@ class PixivToken(models.Model):
     def updateAccessToken(self,accessToken):
         self.access_token=accessToken
         self.save()
+    @classmethod
+    def getUpdateTime(cls):
+        return PixivToken.objects.get(id=1).update_time
+    @classmethod
+    def getExpiresIn(cls):
+        return PixivToken.objects.get(id=1).expires_in
+    @classmethod
+    def getRefreshToken(cls):
+        token = PixivToken.objects.get(id=1)
+        return token.refresh_token
+    @classmethod
+    def getAccessToken(cls):
+        token = PixivToken.objects.get(id=1)
+        return token.access_token
     id=models.IntegerField(primary_key=True)
     refresh_token=models.CharField(max_length=100)
     access_token=models.CharField(max_length=100)
+    update_time = models.DateTimeField()
+    expires_in=models.IntegerField()
