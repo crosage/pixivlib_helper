@@ -26,7 +26,9 @@
 ![image](https://github.com/crosage/pixivlib_helper/assets/90540469/79ecad48-7bb4-4567-80a1-102064c0323c)
 
 （或者自己改django里的匹配语句）
+
 然后获取自己的refresh_token（后续会写前端，暂时怎么获取搜一下），之后再次刷新可以通过设置页面刷新，
+
 获取到refresh_token accesstoken后点击爬取tag即可爬取（如果图片较多需要时间较长，后续也许会优化）
 
 可以通过tag过滤想看的图片
@@ -34,5 +36,7 @@
 ## 计划
 
 按照作者过滤
+
 按照like数量过滤
+
 多P查看
