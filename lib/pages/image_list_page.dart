@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:get/get.dart';
 import 'package:tagselector/components/image_with_info.dart';
 import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
-import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
+import '../service/http_helper.dart';
 
 class ImageListPage extends StatefulWidget {
   @override
@@ -16,6 +15,8 @@ class ImageListPage extends StatefulWidget {
 
 class _ImageListPageState extends State<ImageListPage> {
   late List<String> selectedTags;
+  HttpHelper httpHelper=HttpHelper();
+
   ScrollController _scrollController = ScrollController();
   late int _index;
   TextEditingController bottomPageController = TextEditingController();
@@ -109,14 +110,10 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Color(0xFF5bc2e7),
-        title: Text('pixiv_helper'),
-      ),
       body: Row(
         children: [
           Container(
-            width: MediaQuery.of(context).size.width - 60,
+            width: MediaQuery.of(context).size.width - 60-200,
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
@@ -201,31 +198,6 @@ class _ImageListPageState extends State<ImageListPage> {
                 ),
               ],
             ),
-          ),
-          VerticalDivider(),
-          Sidebar(
-            iconButtons: [
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/setting");
-                },
-                icon: Icon(Icons.settings),
-              ),
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/gridView");
-                },
-                icon: Icon(Icons.apps_outlined),
-              ),
-              IconButton(
-                icon: Icon(Icons.copy),
-                onPressed: () {
-                  Clipboard.setData(
-                    ClipboardData(text: searchHelperForWindows),
-                  );
-                },
-              ),
-            ],
           ),
         ],
       ),
