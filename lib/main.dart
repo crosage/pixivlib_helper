@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:sidebarx/sidebarx.dart';
 import 'package:tagselector/pages/image_list_page.dart';
 
@@ -136,7 +137,11 @@ class ExampleSidebarX extends StatelessWidget {
           height: 100,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text("ha"),
+            child: SvgPicture.asset(
+              'assets/pixiv.svg',
+              width: 300, // 设置宽度
+              height: 300, // 设置高度
+            ),
           ),
         );
       },

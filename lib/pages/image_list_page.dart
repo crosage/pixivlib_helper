@@ -6,6 +6,7 @@ import 'package:tagselector/utils.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../model/image_model.dart';
 import '../service/http_helper.dart';
 
 class ImageListPage extends StatefulWidget {
@@ -15,16 +16,11 @@ class ImageListPage extends StatefulWidget {
 
 class _ImageListPageState extends State<ImageListPage> {
   late List<String> selectedTags;
-  HttpHelper httpHelper=HttpHelper();
+  HttpHelper httpHelper = HttpHelper();
 
   ScrollController _scrollController = ScrollController();
   late int _index;
-  TextEditingController bottomPageController = TextEditingController();
-  int pages = 0;
-  String searchHelperForWindows = "";
-  late Future<List<dynamic>> values;
 
-  // List<String> suggestions = [];
   Future<List<String>> getTagSuggestions() async {
     var jsonData = json.encode(<String, dynamic>{"limit": 10000});
     final response = await http.post(Uri.parse('http://127.0.0.1:8000/api/tag'),
@@ -37,10 +33,8 @@ class _ImageListPageState extends State<ImageListPage> {
   void initState() {
     super.initState();
     selectedTags = [];
-    _index = 0;
-    pages = 0;
+    _index = 1;
     _scrollController = ScrollController();
-    values = getImages();
   }
 
   void _searchTag(String value) {
@@ -50,26 +44,24 @@ class _ImageListPageState extends State<ImageListPage> {
   }
 
   Future<int> getCountAndPages() async {
-    int limit = 20, offset = _index * 20, pages = 0;
+    int size = 20, pages = 0;
     var jsonData = json.encode(<String, dynamic>{
-      "limit": limit,
-      "offset": offset,
+      "page": _index,
+      "size": size,
       "tag": selectedTags
     });
-    final response = await http
-        .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
+    final response = await httpHelper.postRequest(
+        "http://localhost:23333/api/image", jsonData);
     if (response.statusCode == 200) {
-      Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
-      final List<dynamic> images = map['images'];
-      pages = map["pages"];
+      Map<String, dynamic> responseData = jsonDecode(response.toString());
+      pages = responseData["data"]["total"];
     }
-    return pages;
+    return (pages ~/ size) + 1;
   }
 
   void _handleSelectedTags(String tag) {
     setState(() {
-      print("pages=" + pages.toString());
-      _index = 0;
+      _index = 1;
       if (selectedTags.contains(tag)) {
         selectedTags.removeWhere((item) => item == tag);
       } else {
@@ -78,29 +70,23 @@ class _ImageListPageState extends State<ImageListPage> {
     });
   }
 
-  Future<List<dynamic>> getImages() async {
-    int limit = 20, offset = _index * 20;
-    var jsonData = json.encode(<String, dynamic>{
-      "limit": limit,
-      "offset": offset,
-      "tag": selectedTags
-    });
-    final response = await http
-        .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
+  List<ImageModel> _parseImages(List<dynamic> rolesData) {
+    List<ImageModel> parsedUsers = [];
+    for (var roleData in rolesData) {
+      parsedUsers.add(ImageModel.fromJson(roleData));
+    }
+    return parsedUsers;
+  }
+
+  Future<List<ImageModel>> getImages() async {
+    int size = 20, page = _index;
+    var jsonData = json.encode(
+        <String, dynamic>{"size": size, "page": page, "tags": selectedTags});
+    final response = await httpHelper.postRequest(
+        "http://localhost:23333/api/image", jsonData);
     if (response.statusCode == 200) {
-      Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
-      final List<dynamic> images = map['images'];
-      pages = map["pages"];
-      searchHelperForWindows = "";
-      for (final image in images) {
-        int pid = image['pid'];
-        searchHelperForWindows =
-            searchHelperForWindows + pid.toString() + " OR ";
-        final resp = await http.get(
-            Uri.parse('http://localhost:8000/api/image/' + pid.toString()));
-        List<dynamic> tags = json.decode(utf8.decode(resp.bodyBytes))['tags'];
-        image["tags"] = tags;
-      }
+      Map<String, dynamic> responseData = jsonDecode(response.toString());
+      List<ImageModel> images = _parseImages(responseData["data"]["images"]);
       return images;
     } else {
       return [];
@@ -113,7 +99,7 @@ class _ImageListPageState extends State<ImageListPage> {
       body: Row(
         children: [
           Container(
-            width: MediaQuery.of(context).size.width - 60-200,
+            width: MediaQuery.of(context).size.width - 60 - 200,
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
@@ -141,7 +127,6 @@ class _ImageListPageState extends State<ImageListPage> {
                               selected: true,
                               onSelected: (isSelected) {
                                 setState(() {
-                                  print("pages=" + pages.toString());
                                   selectedTags.removeAt(i);
                                 });
                               },
@@ -164,26 +149,19 @@ class _ImageListPageState extends State<ImageListPage> {
                         child: ListView(
                           controller: _scrollController,
                           children: [
-                            Row(
-                              children: [
-                                RawChip(
-                                  avatar: Icon(
-                                    Icons.access_alarm,
-                                    color: Colors.blue,
-                                  ),
-                                  label: Text(
-                                    "Cnt:" + snapshot.data!.length.toString(),
-                                  ),
-                                ),
-                              ],
-                            ),
                             for (final i in snapshot.data!)
                               ImageWithInfo(
-                                imageUrl: i["path"] + "\\" + i["name"],
-                                page: i["page"],
-                                pid: i["pid"],
-                                tags: i["tags"],
-                                author: i["author"],
+                                imageUrl: i.path +
+                                    "\\" +
+                                    i.pid.toString() +
+                                    "_p" +
+                                    i.pages[0].pageId.toString() +
+                                    "." +
+                                    i.fileType,
+                                page: 0,
+                                pid: i.pid,
+                                tags: i.tags,
+                                author: i.author,
                                 onSelectedTagsChanged: _handleSelectedTags,
                                 selectedTags: selectedTags,
                               ),
@@ -204,16 +182,27 @@ class _ImageListPageState extends State<ImageListPage> {
       bottomNavigationBar: FutureBuilder(
         future: getCountAndPages(),
         builder: (context, snapshot) {
-          return PageBottomBar(
+          print(snapshot.data);
+          if(snapshot.hasData)
+            return PageBottomBar(
               onPageChange: (value) {
                 setState(() {
                   _index = value;
+                  print("@@@@@");
+                  print(_index);
+                  print(value);
+                  print("@@@@@");
                   _scrollController.animateTo(0,
                       duration: Duration(milliseconds: 500),
                       curve: Curves.easeInOut);
                 });
               },
-              totalPages: pages);
+              totalPages: snapshot.data!,
+            );
+          else
+            return Center(
+              child: CircularProgressIndicator(),
+            );
         },
       ),
     );

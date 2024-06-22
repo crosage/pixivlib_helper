@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:tagselector/model/author_model.dart';
 import 'dart:math';
 import 'dart:io';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
+import '../model/tag_model.dart';
+
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
   final int page;
   final int pid;
-  final String author;
-  final List<dynamic> tags;
+  final Author author;
+  final List<Tag> tags;
   final List<dynamic> selectedTags;
   final Function(String) onSelectedTagsChanged;
 
@@ -44,14 +47,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       _isSelected[index] = isSelected;
     });
     final selectedTags = _getSelectedTags();
-    widget.onSelectedTagsChanged(widget.tags[index]);
+    widget.onSelectedTagsChanged(widget.tags[index].name);
   }
 
   List<String> _getSelectedTags() {
     final selectedTags = <String>[];
     for (int i = 0; i < widget.tags.length; i++) {
       if (_isSelected[i]) {
-        selectedTags.add(widget.tags[i]);
+        selectedTags.add(widget.tags[i].name);
       }
     }
     return selectedTags;
@@ -68,8 +71,10 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       }
     }
     return Container(
+      color: Color(0xFF2E2E48),
       height: 300,
       child: Card(
+        color: Color(0xFF464667),
         child: Row(
           children: [
             SizedBox(
@@ -115,6 +120,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                       ),
                       label: Text(
                         "pid:" + widget.pid.toString(),
+                        style: TextStyle(color: Colors.white),
 //                    style: TextStyle(color: Colors.blue),
                       ),
                     ),
@@ -129,6 +135,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                     ),
                     label: Text(
                       "page:" + widget.page.toString(),
+                      style: TextStyle(color: Colors.white),
 //                    style: TextStyle(color: Colors.blue),
                     ),
                   ),
@@ -142,7 +149,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                     ),
                     label: Text(
                       "author:" + widget.author.toString(),
-//                    style: TextStyle(color: Colors.blue),
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                   SizedBox(
@@ -159,16 +166,21 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         ),
                         label: Text(
                           "Tags:",
+                          style: TextStyle(color: Colors.white),
 //                        style: TextStyle(color: Colors.blue),
                         ),
                       ),
                       for (int i = 0; i < widget.tags.length; i++)
                         FilterChip(
-                          label: Text(widget.tags[i]),
+                          label: Text(
+                            widget.tags[i].name,
+                            style: TextStyle(color: Colors.white),
+                          ),
                           selected: _isSelected[i],
                           onSelected: (isSelected) {
                             _handleTagSelection(i, isSelected);
                           },
+                          backgroundColor: Colors.grey,
                           selectedColor: _colors[i],
                         ),
                     ],

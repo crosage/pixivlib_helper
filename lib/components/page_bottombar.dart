@@ -19,7 +19,7 @@ class PageBottomBar extends StatefulWidget {
 
 class _PageBottomBarState extends State<PageBottomBar> {
   final TextEditingController bottomPageController = TextEditingController();
-  int index = 0;
+  int index = 1;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +30,7 @@ class _PageBottomBarState extends State<PageBottomBar> {
           IconButton(
               onPressed: () {
                 if (index == 0) {
-                  widget.onPageChange(0);
+                  widget.onPageChange(1);
                 } else {
                   index = index - 1;
                   widget.onPageChange(index);
@@ -42,11 +42,11 @@ class _PageBottomBarState extends State<PageBottomBar> {
             child: TextField(
               controller: bottomPageController,
               decoration: InputDecoration(
-                hintText: (index + 1).toString(),
+                hintText: (index).toString(),
               ),
               textAlign: TextAlign.center,
               onSubmitted: (value) {
-                int newPageIndex = int.parse(value) - 1;
+                int newPageIndex = int.parse(value);
                 widget.onPageChange(newPageIndex);
                 index = newPageIndex;
                 bottomPageController.clear();
@@ -55,8 +55,8 @@ class _PageBottomBarState extends State<PageBottomBar> {
           ),
           IconButton(
             onPressed: () {
-              if (index == widget.totalPages - 1) {
-                widget.onPageChange(widget.totalPages - 1);
+              if (index == widget.totalPages) {
+                widget.onPageChange(widget.totalPages);
               } else {
                 index = index + 1;
                 widget.onPageChange(index);
