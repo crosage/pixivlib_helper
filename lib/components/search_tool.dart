@@ -76,10 +76,12 @@ class _SearchBarState extends State<SearchTool> {
   Widget _buildOverlayContent() {
     return Center(
       child: Container(
+
         height: 500,
         width: 3000,
         child: Card(
           elevation: 4,
+
           child: ListView.builder(
             shrinkWrap: true,
             itemCount: _filteredOptions.length,

@@ -21,10 +21,9 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primaryColor: primaryColor,
         canvasColor: canvasColor,
-        scaffoldBackgroundColor: scaffoldBackgroundColor,
         textTheme: const TextTheme(
           headlineSmall: TextStyle(
-            color: Colors.white,
+            color: Colors.black,
             fontSize: 46,
             fontWeight: FontWeight.w800,
           ),
@@ -41,9 +40,6 @@ class MyApp extends StatelessWidget {
               title: Text(_getTitleByIndex(_controller.selectedIndex)),
               leading: IconButton(
                 onPressed: () {
-                  // if (!Platform.isAndroid && !Platform.isIOS) {
-                  //   _controller.setExtended(true);
-                  // }
                   _key.currentState?.openDrawer();
                 },
                 icon: const Icon(Icons.menu),
@@ -90,11 +86,14 @@ class ExampleSidebarX extends StatelessWidget {
           color: canvasColor,
           borderRadius: BorderRadius.circular(20),
         ),
-        hoverColor: scaffoldBackgroundColor,
-        textStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-        selectedTextStyle: const TextStyle(color: Colors.white),
+        hoverColor: hoverColor,
+        textStyle: TextStyle(color: Colors.black.withOpacity(0.7)),
+        selectedTextStyle: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+        ),
         hoverTextStyle: const TextStyle(
-          color: Colors.white,
+          color: Colors.black,
           fontWeight: FontWeight.w500,
         ),
         itemTextPadding: const EdgeInsets.only(left: 30),
@@ -105,23 +104,13 @@ class ExampleSidebarX extends StatelessWidget {
         ),
         selectedItemDecoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: actionColor.withOpacity(0.37),
-          ),
-          color: accentCanvasColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 30,
-            )
-          ],
         ),
         iconTheme: IconThemeData(
-          color: Colors.white.withOpacity(0.7),
+          color: Colors.black.withOpacity(0.7),
           size: 20,
         ),
         selectedIconTheme: const IconThemeData(
-          color: Colors.white,
+          color: Colors.black,
           size: 20,
         ),
       ),
@@ -145,7 +134,6 @@ class ExampleSidebarX extends StatelessWidget {
           ),
         );
       },
-
       items: [
         SidebarXItem(
           icon: Icons.home,
@@ -240,9 +228,10 @@ String _getTitleByIndex(int index) {
 }
 
 const primaryColor = Color(0xFF685BFF);
-const canvasColor = Color(0xFF2E2E48);
-const scaffoldBackgroundColor = Color(0xFF464667);
-const accentCanvasColor = Color(0xFF3E3E61);
+const canvasColor = Color(0xFFFFFFFF);
+const scaffoldBackgroundColor = Color(0xFFE0E0E0);
+const accentCanvasColor = Color(0xFFB0C4DE);
+const hoverColor = Color(0xFFD3D3D3);
 const white = Colors.white;
 final actionColor = const Color(0xFF5F5FA7).withOpacity(0.6);
 final divider = Divider(color: white.withOpacity(0.3), height: 1);

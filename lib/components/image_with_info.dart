@@ -46,18 +46,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     setState(() {
       _isSelected[index] = isSelected;
     });
-    final selectedTags = _getSelectedTags();
     widget.onSelectedTagsChanged(widget.tags[index].name);
-  }
-
-  List<String> _getSelectedTags() {
-    final selectedTags = <String>[];
-    for (int i = 0; i < widget.tags.length; i++) {
-      if (_isSelected[i]) {
-        selectedTags.add(widget.tags[i].name);
-      }
-    }
-    return selectedTags;
   }
 
   @override
@@ -65,16 +54,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     _isSelected = List.generate(30, (index) => false);
     _colors = List.generate(30, (index) => Colors.grey);
     for (int i = 0; i < widget.tags.length; i++) {
-      if (widget.selectedTags.contains(widget.tags[i])) {
-        _colors[i] = getRandomColor(widget.tags[i].hashCode);
+      if (widget.selectedTags.contains(widget.tags[i].name)) {
+        _colors[i] = getRandomColor(widget.tags[i].name.hashCode);
         _isSelected[i] = true;
       }
     }
     return Container(
-      color: Color(0xFF2E2E48),
       height: 300,
       child: Card(
-        color: Color(0xFF464667),
         child: Row(
           children: [
             SizedBox(
@@ -82,26 +69,27 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
             ),
             Expanded(
               child: InkWell(
-                  onTap: () {
-                    showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            content: Container(
-                              width: 2000,
-                              child: InteractiveViewer(
-                                  scaleEnabled: true,
-                                  maxScale: 20.0,
-                                  minScale: 0.1,
-                                  child: Image.file(File(widget.imageUrl))),
-                            ),
-                          );
-                        });
-                  },
-                  child: Image.file(
-                    File(widget.imageUrl),
-                    //fit: BoxFit.fitHeight,
-                  )),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        content: Container(
+                          width: 2000,
+                          child: InteractiveViewer(
+                              scaleEnabled: true,
+                              maxScale: 20.0,
+                              minScale: 0.1,
+                              child: Image.file(File(widget.imageUrl))),
+                        ),
+                      );
+                    },
+                  );
+                },
+                child: Image.file(
+                  File(widget.imageUrl),
+                ),
+              ),
             ),
             SizedBox(width: 20),
             Expanded(
@@ -120,7 +108,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                       ),
                       label: Text(
                         "pid:" + widget.pid.toString(),
-                        style: TextStyle(color: Colors.white),
 //                    style: TextStyle(color: Colors.blue),
                       ),
                     ),
@@ -135,7 +122,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                     ),
                     label: Text(
                       "page:" + widget.page.toString(),
-                      style: TextStyle(color: Colors.white),
 //                    style: TextStyle(color: Colors.blue),
                     ),
                   ),
@@ -149,7 +135,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                     ),
                     label: Text(
                       "author:" + widget.author.toString(),
-                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                   SizedBox(
@@ -166,7 +151,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         ),
                         label: Text(
                           "Tags:",
-                          style: TextStyle(color: Colors.white),
 //                        style: TextStyle(color: Colors.blue),
                         ),
                       ),
@@ -174,13 +158,11 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         FilterChip(
                           label: Text(
                             widget.tags[i].name,
-                            style: TextStyle(color: Colors.white),
                           ),
                           selected: _isSelected[i],
                           onSelected: (isSelected) {
                             _handleTagSelection(i, isSelected);
                           },
-                          backgroundColor: Colors.grey,
                           selectedColor: _colors[i],
                         ),
                     ],
