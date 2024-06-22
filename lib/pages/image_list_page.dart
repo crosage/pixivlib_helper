@@ -22,11 +22,20 @@ class _ImageListPageState extends State<ImageListPage> {
   late int _index;
 
   Future<List<String>> getTagSuggestions() async {
-    var jsonData = json.encode(<String, dynamic>{"limit": 10000});
-    final response = await http.post(Uri.parse('http://127.0.0.1:8000/api/tag'),
-        body: jsonData);
-    final data = json.decode(utf8.decode(response.bodyBytes));
-    return List<String>.from(data["tags"]);
+    var jsonData = json.encode(<String, dynamic>{
+      "page": _index,
+      "size": 100000,
+    });
+    final response = await httpHelper.postRequest(
+        "http://localhost:23333/api/tag", jsonData);
+    if (response.statusCode == 200) {
+      Map<String, dynamic> responseData = jsonDecode(response.toString());
+      List<dynamic> tags = responseData['data']['tags'];
+      List<String> names = tags.map((tag) => tag['name'] as String).toList();
+      return names;
+
+    }
+    return [];
   }
 
   @override
@@ -68,6 +77,9 @@ class _ImageListPageState extends State<ImageListPage> {
         selectedTags.add(tag);
       }
     });
+    print("###########");
+    print(selectedTags);
+    print("###########");
   }
 
   List<ImageModel> _parseImages(List<dynamic> rolesData) {
@@ -188,10 +200,6 @@ class _ImageListPageState extends State<ImageListPage> {
               onPageChange: (value) {
                 setState(() {
                   _index = value;
-                  print("@@@@@");
-                  print(_index);
-                  print(value);
-                  print("@@@@@");
                   _scrollController.animateTo(0,
                       duration: Duration(milliseconds: 500),
                       curve: Curves.easeInOut);
