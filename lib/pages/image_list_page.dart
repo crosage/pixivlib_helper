@@ -33,7 +33,6 @@ class _ImageListPageState extends State<ImageListPage> {
       List<dynamic> tags = responseData['data']['tags'];
       List<String> names = tags.map((tag) => tag['name'] as String).toList();
       return names;
-
     }
     return [];
   }
@@ -54,17 +53,15 @@ class _ImageListPageState extends State<ImageListPage> {
 
   Future<int> getCountAndPages() async {
     int size = 20, pages = 0;
-    var jsonData = json.encode(<String, dynamic>{
-      "page": _index,
-      "size": size,
-      "tag": selectedTags
-    });
+    var jsonData = json.encode(
+        <String, dynamic>{"page": _index, "size": size, "tags": selectedTags});
     final response = await httpHelper.postRequest(
         "http://localhost:23333/api/image", jsonData);
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
       pages = responseData["data"]["total"];
     }
+    print("COUNT::::: ${(pages ~/ size) + 1}");
     return (pages ~/ size) + 1;
   }
 
@@ -108,7 +105,7 @@ class _ImageListPageState extends State<ImageListPage> {
       body: Row(
         children: [
           Container(
-            width: MediaQuery.of(context).size.width - 60 - 200-100-100,
+            width: MediaQuery.of(context).size.width - 60 - 200 - 100 - 100,
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
@@ -119,8 +116,9 @@ class _ImageListPageState extends State<ImageListPage> {
                       } else {
                         // print(snapshot.data!);
                         return SearchTool(
-                            onSelected: _searchTag,
-                            suggestions: snapshot.data!);
+                          onSelected: _searchTag,
+                          suggestions: snapshot.data!,
+                        );
                       }
                     }),
                 SizedBox(
@@ -168,15 +166,25 @@ class _ImageListPageState extends State<ImageListPage> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.filter_list,size: 50,),
-                    Text("当前筛选条件",style: TextStyle(fontSize: 20),),
+                    Icon(
+                      Icons.filter_list,
+                      size: 50,
+                    ),
+                    Text(
+                      "当前筛选条件",
+                      style: TextStyle(fontSize: 20),
+                    ),
                   ],
                 ),
                 Container(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("已选择作者",style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),),
+                      Text(
+                        "已选择作者",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -185,7 +193,10 @@ class _ImageListPageState extends State<ImageListPage> {
                             child: Wrap(
                               spacing: 5,
                               children: [
-                                Text("none",style: TextStyle(fontSize: 30),)
+                                Text(
+                                  "none",
+                                  style: TextStyle(fontSize: 30),
+                                )
                               ],
                             ),
                           ),
@@ -198,7 +209,11 @@ class _ImageListPageState extends State<ImageListPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("已选择tag",style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),),
+                      Text(
+                        "已选择tag",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
                       Row(
                         children: [
                           Flexible(
@@ -215,8 +230,8 @@ class _ImageListPageState extends State<ImageListPage> {
                                         selectedTags.removeAt(i);
                                       });
                                     },
-                                    selectedColor:
-                                    getRandomColor(selectedTags[i].hashCode),
+                                    selectedColor: getRandomColor(
+                                        selectedTags[i].hashCode),
                                   ),
                               ],
                             ),
@@ -226,7 +241,6 @@ class _ImageListPageState extends State<ImageListPage> {
                     ],
                   ),
                 ),
-
               ],
             ),
           )
@@ -236,7 +250,7 @@ class _ImageListPageState extends State<ImageListPage> {
         future: getCountAndPages(),
         builder: (context, snapshot) {
           print(snapshot.data);
-          if(snapshot.hasData)
+          if (snapshot.hasData)
             return PageBottomBar(
               onPageChange: (value) {
                 setState(() {

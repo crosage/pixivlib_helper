@@ -3,8 +3,8 @@ import 'package:tagselector/model/author_model.dart';
 import 'dart:math';
 import 'dart:io';
 import 'package:tagselector/utils.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:url_launcher/url_launcher_string.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
 
 import '../model/tag_model.dart';
 
@@ -115,7 +115,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                       SizedBox(width: 5,),
                       InkWell(
                         onTap: () {
-                          // 点击事件处理逻辑
                           print("pid: ${widget.pid.toString()}");
                         },
                         child: Text(
