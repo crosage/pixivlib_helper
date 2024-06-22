@@ -77,9 +77,6 @@ class _ImageListPageState extends State<ImageListPage> {
         selectedTags.add(tag);
       }
     });
-    print("###########");
-    print(selectedTags);
-    print("###########");
   }
 
   List<ImageModel> _parseImages(List<dynamic> rolesData) {
@@ -111,7 +108,7 @@ class _ImageListPageState extends State<ImageListPage> {
       body: Row(
         children: [
           Container(
-            width: MediaQuery.of(context).size.width - 60 - 200,
+            width: MediaQuery.of(context).size.width - 60 - 200-100-100,
             child: Column(
               children: [
                 FutureBuilder<List<String>>(
@@ -126,30 +123,6 @@ class _ImageListPageState extends State<ImageListPage> {
                             suggestions: snapshot.data!);
                       }
                     }),
-                Row(
-                  children: [
-                    Flexible(
-                      flex: 1,
-                      child: Wrap(
-                        spacing: 5,
-                        children: [
-                          for (int i = 0; i < selectedTags.length; i++)
-                            FilterChip(
-                              label: Text(selectedTags[i]),
-                              selected: true,
-                              onSelected: (isSelected) {
-                                setState(() {
-                                  selectedTags.removeAt(i);
-                                });
-                              },
-                              selectedColor:
-                                  getRandomColor(selectedTags[i].hashCode),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
                 SizedBox(
                   height: 5,
                 ),
@@ -189,6 +162,74 @@ class _ImageListPageState extends State<ImageListPage> {
               ],
             ),
           ),
+          Expanded(
+            // width: 100,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.filter_list,size: 50,),
+                    Text("当前筛选条件",style: TextStyle(fontSize: 20),),
+                  ],
+                ),
+                Container(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("已选择作者",style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            flex: 1,
+                            child: Wrap(
+                              spacing: 5,
+                              children: [
+                                Text("none",style: TextStyle(fontSize: 30),)
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("已选择tag",style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold),),
+                      Row(
+                        children: [
+                          Flexible(
+                            flex: 1,
+                            child: Wrap(
+                              spacing: 5,
+                              children: [
+                                for (int i = 0; i < selectedTags.length; i++)
+                                  FilterChip(
+                                    label: Text(selectedTags[i]),
+                                    selected: true,
+                                    onSelected: (isSelected) {
+                                      setState(() {
+                                        selectedTags.removeAt(i);
+                                      });
+                                    },
+                                    selectedColor:
+                                    getRandomColor(selectedTags[i].hashCode),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+              ],
+            ),
+          )
         ],
       ),
       bottomNavigationBar: FutureBuilder(

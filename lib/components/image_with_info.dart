@@ -96,50 +96,97 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InkWell(
-                    onTap: () {
-                      launchUrlString(
-                          "https://www.pixiv.net/artworks/${widget.pid.toString()}");
-                    },
-                    child: RawChip(
-                      avatar: Icon(
-                        Icons.image,
-                        color: Colors.blue,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          print("author: ${widget.author.name.toString()}");
+                        },
+                        child: Text(
+                          "${widget.author.name.toString()}",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
                       ),
-                      label: Text(
-                        "pid:" + widget.pid.toString(),
-//                    style: TextStyle(color: Colors.blue),
+                      SizedBox(width: 5,),
+                      InkWell(
+                        onTap: () {
+                          // 点击事件处理逻辑
+                          print("pid: ${widget.pid.toString()}");
+                        },
+                        child: Text(
+                          "pid: ${widget.pid.toString()}",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            decoration: TextDecoration.underline,
+                            fontSize: 18,
+                          ),
+                        ),
                       ),
-                    ),
+                      // SizedBox(width: 10),
+                      // InkWell(
+                      //   onTap: () {
+                      //     // 点击事件处理逻辑
+                      //     print("page: ${widget.page.toString()}");
+                      //   },
+                      //   child: Text(
+                      //     "page: ${widget.page.toString()}",
+                      //     style: TextStyle(
+                      //         color: Colors.blue,
+                      //         decoration: TextDecoration.underline),
+                      //   ),
+                      // ),
+                      // SizedBox(width: 10),
+                    ],
                   ),
-                  SizedBox(
-                    height: 5,
-                  ),
-                  RawChip(
-                    avatar: Icon(
-                      Icons.find_in_page,
-                      color: Colors.blue,
-                    ),
-                    label: Text(
-                      "page:" + widget.page.toString(),
-//                    style: TextStyle(color: Colors.blue),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 5,
-                  ),
-                  RawChip(
-                    avatar: Icon(
-                      Icons.person,
-                      color: Colors.blue,
-                    ),
-                    label: Text(
-                      "author:" + widget.author.toString(),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 5,
-                  ),
+//                   InkWell(
+//                     onTap: () {
+//                       launchUrlString(
+//                           "https://www.pixiv.net/artworks/${widget.pid.toString()}");
+//                     },
+//                     child: RawChip(
+//                       avatar: Icon(
+//                         Icons.image,
+//                         color: Colors.blue,
+//                       ),
+//                       label: Text(
+//                         "pid:" + widget.pid.toString(),
+// //                    style: TextStyle(color: Colors.blue),
+//                       ),
+//                     ),
+//                   ),
+//                   SizedBox(
+//                     height: 5,
+//                   ),
+//                   RawChip(
+//                     avatar: Icon(
+//                       Icons.find_in_page,
+//                       color: Colors.blue,
+//                     ),
+//                     label: Text(
+//                       "page:" + widget.page.toString(),
+// //                    style: TextStyle(color: Colors.blue),
+//                     ),
+//                   ),
+//                   SizedBox(
+//                     height: 5,
+//                   ),
+//                   RawChip(
+//                     avatar: Icon(
+//                       Icons.person,
+//                       color: Colors.blue,
+//                     ),
+//                     label: Text(
+//                       "author:" + widget.author.toString(),
+//                     ),
+//                   ),
+//                   SizedBox(
+//                     height: 5,
+//                   ),
                   Wrap(
                     spacing: 5,
                     runSpacing: 10,

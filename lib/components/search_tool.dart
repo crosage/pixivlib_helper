@@ -103,9 +103,18 @@ class _SearchBarState extends State<SearchTool> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return Container(
+      // color: Colors.grey,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(50.0),
+          bottomLeft: Radius.circular(50.0),
+          topRight: Radius.circular(50.0),
+          bottomRight: Radius.circular(50.0),
+        ),
+      ),
+      child:
         Row(
           children: [
             SizedBox(width: 10.0),
@@ -140,7 +149,6 @@ class _SearchBarState extends State<SearchTool> {
             SizedBox(width: 10.0),
           ],
         ),
-      ],
     );
   }
 }
