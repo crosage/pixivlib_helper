@@ -29,7 +29,7 @@ class _PageBottomBarState extends State<PageBottomBar> {
         children: [
           IconButton(
               onPressed: () {
-                if (index == 0) {
+                if (index == 1) {
                   widget.onPageChange(1);
                 } else {
                   index = index - 1;
