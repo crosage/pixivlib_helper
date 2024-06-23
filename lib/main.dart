@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:sidebarx/sidebarx.dart';
 import 'package:tagselector/pages/image_list_page.dart';
+import 'package:tagselector/pages/setting_page.dart';
 
 void main() {
   runApp(MyApp());
@@ -195,6 +196,8 @@ class _ScreensExample extends StatelessWidget {
         switch (controller.selectedIndex) {
           case 0:
             return ImageListPage();
+          case 1:
+            return SettingPage();
           default:
             return Text(
               pageTitle,

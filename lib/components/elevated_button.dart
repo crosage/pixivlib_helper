@@ -4,26 +4,40 @@ class IconLabelButton extends StatelessWidget {
   final Function() onPress;
   final Icon icon;
   final String text;
-  double height;
+  final bool isSelected;
+  final double height;
 
   IconLabelButton(
       {required this.onPress,
-      required this.icon,
-      required this.text,
-      this.height = 50});
+        required this.icon,
+        required this.text,
+        required this.isSelected,
+        this.height = 50});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        onPress();
-      },
+      onTap: onPress,
+      highlightColor: Colors.grey,
+      splashColor: Colors.grey,
       child: Container(
         height: height,
+        width: 200,
+        color: isSelected ? Colors.grey[200] : Colors.transparent,
+        padding: EdgeInsets.symmetric(horizontal: 8.0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
-          children: [icon, Text(text)],
+          children: [
+            Row(
+              children: [
+                icon,
+                SizedBox(width: 8),
+                Text(text),
+              ],
+            ),
+            Icon(Icons.chevron_right)
+          ],
         ),
       ),
     );

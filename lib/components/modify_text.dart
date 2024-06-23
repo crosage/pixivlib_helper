@@ -25,16 +25,27 @@ class _ModifyTextState extends State<ModifyText> {
     return Row(
       children: [
         if (isEditing)
-          SizedBox(
-            width: 300,
+          Container(
+            width: 500,
             child: TextField(
               decoration: InputDecoration(
                 hintText: widget.hintText,
+                hintStyle: TextStyle(
+                  fontSize: 16
+                )
               ),
             ),
           )
         else
-          Text(widget.hintText),
+          Container(
+            width: 500,
+            child: Text(
+              widget.hintText,
+              style: TextStyle(
+                  fontSize: 16
+              )
+            ),
+          ),
         IconButton(
           onPressed: () async {
             setState(() {

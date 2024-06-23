@@ -20,9 +20,9 @@ class _LibListState extends State<LibList> {
   }
 
   Future<void> getlibs() async {
-    final response = await http.get(Uri.parse("http://127.0.0.1:8000/api/lib"));
+    final response = await http.get(Uri.parse("http://127.0.0.1:23333/api/gallery"));
     Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
-    libs = map["libs"];
+    libs = map["data"]["galleries"];
     print("222222");
   }
 
@@ -31,15 +31,13 @@ class _LibListState extends State<LibList> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(),
         Text(
           "仓库列表",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 30.0,
+            fontSize: 32.0,
           ),
         ),
-        Divider(),
         FutureBuilder(
           future: getlibs(),
           builder: (context, snapshot) {
@@ -55,10 +53,10 @@ class _LibListState extends State<LibList> {
                         child: ModifyText(
                           hintText: libs[index]["path"].toString(),
                           onDelete: () async {
-                            print("http://127.0.0.1:8000/api/lib/" +
+                            print("http://127.0.0.1:23333/api/gallery" +
                                 libs[index]["id"].toString());
                             final response = await http.delete(Uri.parse(
-                                "http://127.0.0.1:8000/api/lib/" +
+                                "http://127.0.0.1:23333/api/gallery" +
                                     libs[index]["id"].toString()));
                             setState(() {});
                           },
@@ -81,10 +79,10 @@ class _LibListState extends State<LibList> {
                                           <String, dynamic>{"path": value});
                                       final response = await http.post(
                                           Uri.parse(
-                                              "http://127.0.0.1:8000/api/lib"),
+                                              "http://127.0.0.1:23333/api/gallery"),
                                           body: jsonData);
                                       final resp = await http.get(Uri.parse(
-                                          "http://127.0.0.1:8000/api/lib"));
+                                          "http://127.0.0.1:23333/api/gallery"));
                                       Map<String, dynamic> map = json
                                           .decode(utf8.decode(resp.bodyBytes));
                                       libs = map["libs"];
@@ -101,7 +99,7 @@ class _LibListState extends State<LibList> {
                       InkWell(
                         onTap: () async {
                           final response = await http.get(
-                              Uri.parse("http://127.0.0.1:8000/api/lib/init"));
+                              Uri.parse("http://127.0.0.1:23333/api/gallery/init"));
                         },
                         child: Text(
                           "爬取图片tag",

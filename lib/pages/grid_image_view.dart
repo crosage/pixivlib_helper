@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
-import 'package:tagselector/components/sidebar.dart';
 import 'package:tagselector/utils.dart';
 
 class ImageGrid extends StatefulWidget {
@@ -37,7 +36,6 @@ class _ImageGridState extends State<ImageGrid> {
         .post(Uri.parse('http://localhost:8000/api/image'), body: jsonData);
     if (response.statusCode == 200) {
       Map<String, dynamic> map = json.decode(utf8.decode(response.bodyBytes));
-      final List<dynamic> images = map['images'];
       pages = map["pages"];
     }
     print(pages);
@@ -87,22 +85,6 @@ class _ImageGridState extends State<ImageGrid> {
       ),
       body: Row(
         children: [
-          Sidebar(
-            iconButtons: [
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/setting");
-                },
-                icon: Icon(Icons.settings),
-              ),
-              IconButton(
-                onPressed: () {
-                  Get.toNamed("/");
-                },
-                icon: Icon(Icons.table_rows),
-              ),
-            ],
-          ),
           Container(
             width: MediaQuery.of(context).size.width - 50,
             child: Column(
