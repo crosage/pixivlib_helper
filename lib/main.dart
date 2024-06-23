@@ -138,7 +138,7 @@ class ExampleSidebarX extends StatelessWidget {
       items: [
         SidebarXItem(
           icon: Icons.home,
-          label: 'Home',
+          label: '首页',
           onTap: () {
             debugPrint('Home');
           },
@@ -212,7 +212,7 @@ class _ScreensExample extends StatelessWidget {
 String _getTitleByIndex(int index) {
   switch (index) {
     case 0:
-      return 'Home';
+      return '首页';
     case 1:
       return 'Search';
     case 2:

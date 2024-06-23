@@ -23,7 +23,6 @@ class _ImageListPageState extends State<ImageListPage> {
 
   Future<List<String>> getTagSuggestions() async {
     var jsonData = json.encode(<String, dynamic>{
-      "page": _index,
       "size": 100000,
     });
     final response = await httpHelper.postRequest(
