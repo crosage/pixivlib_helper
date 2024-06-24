@@ -1,3 +1,3 @@
 施工进度
 
-![image](https://github.com/crosage/pixivlib_helper/assets/90540469/fd8a2251-257f-405b-be51-c37a4c6e103a)
+![image](https://github.com/crosage/pixivlib_helper/assets/90540469/5b226bee-8c75-4fc5-9bde-0485e155758c)
