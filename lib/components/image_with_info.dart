@@ -47,8 +47,15 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     _isSelected = List.generate(30, (index) => false);
     _colors = List.generate(30, (index) => Colors.grey);
     print(widget.pages);
+    hoveredIndex = 0;
+    currentIndex = 0;
   }
-
+  @override
+  void didUpdateWidget(ImageWithInfo oldWidget){
+    super.didUpdateWidget(oldWidget);
+    hoveredIndex = 0;
+    currentIndex = 0;
+  }
   void _handleTagSelection(int index, bool isSelected) {
     setState(() {
       _isSelected[index] = isSelected;
