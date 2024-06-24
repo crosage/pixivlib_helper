@@ -9,9 +9,11 @@ import '../model/tag_model.dart';
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
   final int pid;
+  final String name;
   final Author author;
   final List<Tag> tags;
   final List<Page> pages;
+  final String filetype;
   final List<dynamic> selectedTags;
   final Function(String) onSelectedTagsChanged;
   final Function(String) onSelectedAuthor;
@@ -19,7 +21,9 @@ class ImageWithInfo extends StatefulWidget {
   const ImageWithInfo(
       {super.key,
       required this.imageUrl,
+      required this.filetype,
       required this.pid,
+      required this.name,
       required this.pages,
       required this.author,
       required this.tags,
@@ -34,12 +38,15 @@ class ImageWithInfo extends StatefulWidget {
 class _ImageWithInfoState extends State<ImageWithInfo> {
   late List<bool> _isSelected;
   late List<Color> _colors;
+  int hoveredIndex = 0;
+  int currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _isSelected = List.generate(30, (index) => false);
     _colors = List.generate(30, (index) => Colors.grey);
+    print(widget.pages);
   }
 
   void _handleTagSelection(int index, bool isSelected) {
@@ -47,6 +54,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       _isSelected[index] = isSelected;
     });
     widget.onSelectedTagsChanged(widget.tags[index].name);
+  }
+
+  Widget buildPageItem(Page page) {
+    return ListTile(
+      title: Text(page.pageId.toString(),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      // subtitle: Text(page),
+    );
   }
 
   @override
@@ -62,9 +77,15 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     return Container(
       height: 300,
       child: Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15.0), // 圆角半径
+          side: BorderSide(// 边框颜色
+            width: 0.2, // 边框宽度
+          ),
+        ),
         child: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 20,
             ),
             Expanded(
@@ -77,17 +98,37 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         content: Container(
                           width: 2000,
                           child: InteractiveViewer(
-                              scaleEnabled: true,
-                              maxScale: 20.0,
-                              minScale: 0.1,
-                              child: Image.file(File(widget.imageUrl))),
+                            scaleEnabled: true,
+                            maxScale: 20.0,
+                            minScale: 0.1,
+
+                            child: Image.file(
+                              File(
+                                widget.imageUrl +
+                                    "\\" +
+                                    widget.pid.toString() +
+                                    "_p" +
+                                    hoveredIndex.toString() +
+                                    "."+
+                                    widget.filetype,
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },
                   );
                 },
                 child: Image.file(
-                  File(widget.imageUrl),
+                    File(
+                      widget.imageUrl +
+                          "\\" +
+                          widget.pid.toString() +
+                          "_p" +
+                          hoveredIndex.toString() +
+                          "."+
+                          widget.filetype,
+                    ),
                 ),
               ),
             ),
@@ -96,8 +137,19 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
+                  Wrap(
+                    children: [
+                      Text(
+                        widget.name,
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(
+                        width: 5,
+                      ),
+                    ],
+                  ),
+                  Wrap(
                     children: [
                       InkWell(
                         onTap: () {
@@ -105,14 +157,11 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         },
                         child: Text(
                           "${widget.author.name.toString()}",
-                          style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 20,
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 5,
                       ),
                       InkWell(
                         onTap: () {
@@ -120,7 +169,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         },
                         child: Text(
                           "pid: ${widget.pid.toString()}",
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Colors.grey,
                             decoration: TextDecoration.underline,
                             fontSize: 18,
@@ -129,11 +178,49 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                       ),
                     ],
                   ),
+                  Row(
+                    children: [
+                      const Text(
+                        "pages: ",
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      for (int i = 0; i < widget.pages.length; i++)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              currentIndex = i;
+                            });
+                          },
+                          onHover: (isHovering) {
+                            setState(() {
+                              hoveredIndex = isHovering ? i : currentIndex;
+                            });
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: hoveredIndex == i
+                                  ? Colors.blueGrey
+                                  : Colors.grey,
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                            child: Center(
+                              child: Text(
+                                widget.pages[i].pageId.toString(),
+                                style: const TextStyle(
+                                    fontSize: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   Wrap(
                     spacing: 5,
                     runSpacing: 10,
                     children: [
-                      RawChip(
+                      const RawChip(
                         avatar: Icon(
                           Icons.tag,
                           color: Colors.blue,

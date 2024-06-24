@@ -48,7 +48,7 @@ class _ImageListPageState extends State<ImageListPage> {
   }
 
   Future<int> getCountAndPages() async {
-    int size = 20, pages = 0;
+    int pages = 0;
 
     final response = await httpHelper.postRequest(
         "http://localhost:23333/api/image", searchCriteria.toJson());
@@ -56,8 +56,8 @@ class _ImageListPageState extends State<ImageListPage> {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
       pages = responseData["data"]["total"];
     }
-    print("COUNT::::: ${(pages ~/ size) + 1}");
-    return (pages ~/ size) + 1;
+    print("COUNT::::: ${(pages ~/ searchCriteria.pageSize) + 1}");
+    return (pages ~/ searchCriteria.pageSize) + 1;
   }
 
   void _handleSelectedTags(String tag) {
@@ -122,16 +122,12 @@ class _ImageListPageState extends State<ImageListPage> {
                           children: [
                             for (final i in snapshot.data!)
                               ImageWithInfo(
-                                imageUrl: i.path +
-                                    "\\" +
-                                    i.pid.toString() +
-                                    "_p" +
-                                    i.pages[0].pageId.toString() +
-                                    "." +
-                                    i.fileType,
+                                imageUrl: i.path,
                                 pages: i.pages,
                                 pid: i.pid,
                                 tags: i.tags,
+                                name:i.name,
+                                filetype:i.fileType,
                                 author: i.author,
                                 onSelectedTagsChanged: _handleSelectedTags,
                                 onSelectedAuthor: (author){
