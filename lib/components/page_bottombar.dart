@@ -1,25 +1,29 @@
 import 'package:flutter/material.dart';
 
-/**
- * 传入总页数，以及改变的回调函数
- * 页数为totalPages
- * */
 class PageBottomBar extends StatefulWidget {
   final Function(int) onPageChange;
   final int totalPages;
+  final int currentPage;
 
   PageBottomBar({
     required this.onPageChange,
     required this.totalPages,
+    required this.currentPage,
   });
 
   @override
   _PageBottomBarState createState() => _PageBottomBarState();
 }
-
 class _PageBottomBarState extends State<PageBottomBar> {
   final TextEditingController bottomPageController = TextEditingController();
-  int index = 1;
+
+  @override
+  void didUpdateWidget(PageBottomBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentPage != oldWidget.currentPage) {
+      bottomPageController.text = widget.currentPage.toString();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,46 +32,39 @@ class _PageBottomBarState extends State<PageBottomBar> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-              onPressed: () {
-                if (index == 1) {
-                  widget.onPageChange(1);
-                } else {
-                  index = index - 1;
-                  widget.onPageChange(index);
-                }
-              },
-              icon: Icon(Icons.chevron_left)),
+            onPressed: () {
+              if (widget.currentPage > 1) {
+                widget.onPageChange(widget.currentPage - 1);
+              }
+            },
+            icon: Icon(Icons.chevron_left),
+          ),
           Container(
             width: 50,
             child: TextField(
               controller: bottomPageController,
               decoration: InputDecoration(
-                hintText: (index).toString(),
+                hintText: widget.currentPage.toString(),
               ),
               textAlign: TextAlign.center,
               onSubmitted: (value) {
-                int newPageIndex = int.parse(value);
-                widget.onPageChange(newPageIndex);
-                index = newPageIndex;
-                bottomPageController.clear();
+                int newPageIndex = int.tryParse(value) ?? widget.currentPage;
+                if (newPageIndex > 0 && newPageIndex <= widget.totalPages) {
+                  widget.onPageChange(newPageIndex);
+                }
               },
             ),
           ),
           IconButton(
             onPressed: () {
-              if (index == widget.totalPages) {
-                widget.onPageChange(widget.totalPages);
-              } else {
-                index = index + 1;
-                widget.onPageChange(index);
+              if (widget.currentPage < widget.totalPages) {
+                widget.onPageChange(widget.currentPage + 1);
               }
             },
             icon: Icon(Icons.chevron_right),
           ),
-          SizedBox(
-            width: 200,
-          ),
-          Text("共${widget.totalPages}页")
+          SizedBox(width: 20),
+          Text("共${widget.totalPages}页"),
         ],
       ),
     );

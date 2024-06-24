@@ -18,7 +18,6 @@ class _ImageListPageState extends State<ImageListPage> {
   HttpHelper httpHelper = HttpHelper();
 
   ScrollController _scrollController = ScrollController();
-  late int _index;
 
   Future<List<String>> getTagSuggestions() async {
     var jsonData = json.encode(<String, dynamic>{
@@ -38,7 +37,7 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   void initState() {
     super.initState();
-    _index = 1;
+    searchCriteria.page=1;
     _scrollController = ScrollController();
   }
 
@@ -63,7 +62,7 @@ class _ImageListPageState extends State<ImageListPage> {
 
   void _handleSelectedTags(String tag) {
     setState(() {
-      _index = 1;
+      searchCriteria.page=1;
       searchCriteria.handleTag(tag);
     });
   }
@@ -142,6 +141,7 @@ class _ImageListPageState extends State<ImageListPage> {
                                     }else {
                                       searchCriteria.authorName=author;
                                     }
+                                    searchCriteria.page=1;
                                   });
                                 },
                                 selectedTags: searchCriteria.tags,
@@ -257,11 +257,12 @@ class _ImageListPageState extends State<ImageListPage> {
         future: getCountAndPages(),
         builder: (context, snapshot) {
           print(snapshot.data);
-          if (snapshot.hasData)
+          if (snapshot.hasData) {
             return PageBottomBar(
+              currentPage: searchCriteria.page,
               onPageChange: (value) {
                 setState(() {
-                  _index = value;
+                  searchCriteria.page=value;
                   _scrollController.animateTo(0,
                       duration: Duration(milliseconds: 500),
                       curve: Curves.easeInOut);
@@ -269,7 +270,7 @@ class _ImageListPageState extends State<ImageListPage> {
               },
               totalPages: snapshot.data!,
             );
-          else
+          } else
             return Center(
               child: CircularProgressIndicator(),
             );

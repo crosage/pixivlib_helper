@@ -170,28 +170,28 @@ class _ImageGridState extends State<ImageGrid> {
           ),
         ],
       ),
-      bottomNavigationBar: FutureBuilder(
-        future: getCountAndPages(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return Center(
-              child: LinearProgressIndicator(
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation(Colors.blue),
-              ),
-            );
-          } else {
-            print(pages);
-            return PageBottomBar(
-                onPageChange: (value) {
-                  setState(() {
-                    _index = value;
-                  });
-                },
-                totalPages: pages);
-          }
-        },
-      ),
+      // bottomNavigationBar: FutureBuilder(
+      //   future: getCountAndPages(),
+      //   builder: (context, snapshot) {
+      //     if (!snapshot.hasData) {
+      //       return Center(
+      //         child: LinearProgressIndicator(
+      //           backgroundColor: Colors.grey[200],
+      //           valueColor: AlwaysStoppedAnimation(Colors.blue),
+      //         ),
+      //       );
+      //     } else {
+      //       print(pages);
+      //       // return PageBottomBar(
+      //       //     onPageChange: (value) {
+      //       //       setState(() {
+      //       //         _index = value;
+      //       //       });
+      //       //     },
+      //       //     totalPages: pages);
+      //     }
+      //   },
+      // ),
     );
   }
 }
