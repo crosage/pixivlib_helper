@@ -1,30 +1,30 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Page;
 import 'package:tagselector/model/author_model.dart';
 import 'dart:math';
 import 'dart:io';
 import 'package:tagselector/utils.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-
-
+import '../model/page_model.dart';
 import '../model/tag_model.dart';
 
 class ImageWithInfo extends StatefulWidget {
   final String imageUrl;
-  final int page;
   final int pid;
   final Author author;
   final List<Tag> tags;
+  final List<Page> pages;
   final List<dynamic> selectedTags;
   final Function(String) onSelectedTagsChanged;
+  final Function(String) onSelectedAuthor;
 
   const ImageWithInfo(
       {super.key,
       required this.imageUrl,
-      required this.page,
       required this.pid,
+      required this.pages,
       required this.author,
       required this.tags,
       required this.onSelectedTagsChanged,
+      required this.onSelectedAuthor,
       required this.selectedTags});
 
   @override
@@ -101,18 +101,19 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                     children: [
                       InkWell(
                         onTap: () {
-                          print("author: ${widget.author.name.toString()}");
+                          widget.onSelectedAuthor(widget.author.name);
                         },
                         child: Text(
                           "${widget.author.name.toString()}",
                           style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold
-                          ),
+                              color: Colors.black,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
-                      SizedBox(width: 5,),
+                      SizedBox(
+                        width: 5,
+                      ),
                       InkWell(
                         onTap: () {
                           print("pid: ${widget.pid.toString()}");
@@ -126,66 +127,8 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                           ),
                         ),
                       ),
-                      // SizedBox(width: 10),
-                      // InkWell(
-                      //   onTap: () {
-                      //     // 点击事件处理逻辑
-                      //     print("page: ${widget.page.toString()}");
-                      //   },
-                      //   child: Text(
-                      //     "page: ${widget.page.toString()}",
-                      //     style: TextStyle(
-                      //         color: Colors.blue,
-                      //         decoration: TextDecoration.underline),
-                      //   ),
-                      // ),
-                      // SizedBox(width: 10),
                     ],
                   ),
-//                   InkWell(
-//                     onTap: () {
-//                       launchUrlString(
-//                           "https://www.pixiv.net/artworks/${widget.pid.toString()}");
-//                     },
-//                     child: RawChip(
-//                       avatar: Icon(
-//                         Icons.image,
-//                         color: Colors.blue,
-//                       ),
-//                       label: Text(
-//                         "pid:" + widget.pid.toString(),
-// //                    style: TextStyle(color: Colors.blue),
-//                       ),
-//                     ),
-//                   ),
-//                   SizedBox(
-//                     height: 5,
-//                   ),
-//                   RawChip(
-//                     avatar: Icon(
-//                       Icons.find_in_page,
-//                       color: Colors.blue,
-//                     ),
-//                     label: Text(
-//                       "page:" + widget.page.toString(),
-// //                    style: TextStyle(color: Colors.blue),
-//                     ),
-//                   ),
-//                   SizedBox(
-//                     height: 5,
-//                   ),
-//                   RawChip(
-//                     avatar: Icon(
-//                       Icons.person,
-//                       color: Colors.blue,
-//                     ),
-//                     label: Text(
-//                       "author:" + widget.author.toString(),
-//                     ),
-//                   ),
-//                   SizedBox(
-//                     height: 5,
-//                   ),
                   Wrap(
                     spacing: 5,
                     runSpacing: 10,

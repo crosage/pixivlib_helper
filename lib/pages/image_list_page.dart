@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:tagselector/components/image_with_info.dart';
 import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
+import 'package:tagselector/model/search_model.dart';
 import 'package:tagselector/utils.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-
 import '../model/image_model.dart';
 import '../service/http_helper.dart';
 
@@ -15,7 +14,7 @@ class ImageListPage extends StatefulWidget {
 }
 
 class _ImageListPageState extends State<ImageListPage> {
-  late List<String> selectedTags;
+  SearchCriteria searchCriteria=SearchCriteria();
   HttpHelper httpHelper = HttpHelper();
 
   ScrollController _scrollController = ScrollController();
@@ -39,23 +38,21 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   void initState() {
     super.initState();
-    selectedTags = [];
     _index = 1;
     _scrollController = ScrollController();
   }
 
   void _searchTag(String value) {
     setState(() {
-      selectedTags.add(value);
+      searchCriteria.tags.add(value);
     });
   }
 
   Future<int> getCountAndPages() async {
     int size = 20, pages = 0;
-    var jsonData = json.encode(
-        <String, dynamic>{"page": _index, "size": size, "tags": selectedTags});
+
     final response = await httpHelper.postRequest(
-        "http://localhost:23333/api/image", jsonData);
+        "http://localhost:23333/api/image", searchCriteria.toJson());
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
       pages = responseData["data"]["total"];
@@ -67,11 +64,7 @@ class _ImageListPageState extends State<ImageListPage> {
   void _handleSelectedTags(String tag) {
     setState(() {
       _index = 1;
-      if (selectedTags.contains(tag)) {
-        selectedTags.removeWhere((item) => item == tag);
-      } else {
-        selectedTags.add(tag);
-      }
+      searchCriteria.handleTag(tag);
     });
   }
 
@@ -84,11 +77,8 @@ class _ImageListPageState extends State<ImageListPage> {
   }
 
   Future<List<ImageModel>> getImages() async {
-    int size = 20, page = _index;
-    var jsonData = json.encode(
-        <String, dynamic>{"size": size, "page": page, "tags": selectedTags});
     final response = await httpHelper.postRequest(
-        "http://localhost:23333/api/image", jsonData);
+        "http://localhost:23333/api/image", searchCriteria.toJson());
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
       List<ImageModel> images = _parseImages(responseData["data"]["images"]);
@@ -123,7 +113,7 @@ class _ImageListPageState extends State<ImageListPage> {
                 SizedBox(
                   height: 5,
                 ),
-                FutureBuilder<List<dynamic>>(
+                FutureBuilder<List<ImageModel>>(
                   future: getImages(),
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
@@ -140,12 +130,21 @@ class _ImageListPageState extends State<ImageListPage> {
                                     i.pages[0].pageId.toString() +
                                     "." +
                                     i.fileType,
-                                page: 0,
+                                pages: i.pages,
                                 pid: i.pid,
                                 tags: i.tags,
                                 author: i.author,
                                 onSelectedTagsChanged: _handleSelectedTags,
-                                selectedTags: selectedTags,
+                                onSelectedAuthor: (author){
+                                  setState(() {
+                                    if(searchCriteria.authorName==author){
+                                      searchCriteria.authorName="";
+                                    }else {
+                                      searchCriteria.authorName=author;
+                                    }
+                                  });
+                                },
+                                selectedTags: searchCriteria.tags,
                               ),
                           ],
                         ),
@@ -176,6 +175,10 @@ class _ImageListPageState extends State<ImageListPage> {
                   ],
                 ),
                 Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12.0)
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -193,8 +196,8 @@ class _ImageListPageState extends State<ImageListPage> {
                               spacing: 5,
                               children: [
                                 Text(
-                                  "none",
-                                  style: TextStyle(fontSize: 30),
+                                  searchCriteria.authorName,
+                                  style: TextStyle(fontSize: 24),
                                 )
                               ],
                             ),
@@ -204,7 +207,12 @@ class _ImageListPageState extends State<ImageListPage> {
                     ],
                   ),
                 ),
+                SizedBox(height: 20,),
                 Container(
+                  decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12.0)
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -220,17 +228,17 @@ class _ImageListPageState extends State<ImageListPage> {
                             child: Wrap(
                               spacing: 5,
                               children: [
-                                for (int i = 0; i < selectedTags.length; i++)
+                                for (int i = 0; i < searchCriteria.tags.length; i++)
                                   FilterChip(
-                                    label: Text(selectedTags[i]),
+                                    label: Text(searchCriteria.tags[i]),
                                     selected: true,
                                     onSelected: (isSelected) {
                                       setState(() {
-                                        selectedTags.removeAt(i);
+                                        searchCriteria.removeTag(searchCriteria.tags[i]);
                                       });
                                     },
                                     selectedColor: getRandomColor(
-                                        selectedTags[i].hashCode),
+                                        searchCriteria.tags[i].hashCode),
                                   ),
                               ],
                             ),
