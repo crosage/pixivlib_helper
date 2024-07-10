@@ -28,6 +28,7 @@ class _PageBottomBarState extends State<PageBottomBar> {
   @override
   Widget build(BuildContext context) {
     return BottomAppBar(
+      color: Colors.white,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

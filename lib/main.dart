@@ -3,6 +3,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:sidebarx/sidebarx.dart';
 import 'package:tagselector/pages/image_list_page.dart';
 import 'package:tagselector/pages/setting_page.dart';
+import 'package:tagselector/pages/statistics_page.dart';
 
 void main() {
   runApp(MyApp());
@@ -17,11 +18,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+
       title: 'Pixiv_Helper',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primaryColor: primaryColor,
         canvasColor: canvasColor,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
         textTheme: const TextTheme(
           headlineSmall: TextStyle(
             color: Colors.black,
@@ -144,22 +148,12 @@ class ExampleSidebarX extends StatelessWidget {
           },
         ),
         const SidebarXItem(
-          icon: Icons.search,
-          label: 'Search',
+          icon: Icons.settings,
+          label: '设置',
         ),
         const SidebarXItem(
-          icon: Icons.people,
-          label: 'People',
-        ),
-        SidebarXItem(
-          icon: Icons.favorite,
-          label: 'Favorites',
-          selectable: false,
-          onTap: () => _showDisabledAlert(context),
-        ),
-        const SidebarXItem(
-          iconWidget: FlutterLogo(size: 20),
-          label: 'Flutter',
+          icon: Icons.bar_chart,
+          label: '统计',
         ),
       ],
     );
@@ -192,15 +186,16 @@ class _ScreensExample extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
-        final pageTitle = _getTitleByIndex(controller.selectedIndex);
         switch (controller.selectedIndex) {
           case 0:
             return ImageListPage();
           case 1:
             return SettingPage();
+          case 2:
+            return TagCountPage();
           default:
             return Text(
-              pageTitle,
+              "test",
               style: theme.textTheme.headlineSmall,
             );
         }
@@ -214,9 +209,9 @@ String _getTitleByIndex(int index) {
     case 0:
       return '首页';
     case 1:
-      return 'Search';
+      return '设置';
     case 2:
-      return 'People';
+      return '统计';
     case 3:
       return 'Favorites';
     case 4:
