@@ -31,6 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^0.13.0
+  cached_network_image:
   dio:
   flutter_svg:
   sidebarx: ^0.17.1

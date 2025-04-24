@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
-
+import 'dart:typed_data';
+import 'package:dio/io.dart';
 class HttpHelper {
   late Dio _dio;
 
@@ -107,6 +109,58 @@ class HttpHelper {
       } else {
         return Future.error(e);
       }
+    }
+  }
+  Future<Uint8List?> getImageBytesWithProxy({
+    required String url,
+    required String proxyHost,
+    required String proxyPort,
+    Map<String, String>? headers,
+    bool skipBadCertificates = false,
+  }) async {
+    final dioForProxy = Dio();
+    final adapter = dioForProxy.httpClientAdapter;
+    if (adapter is IOHttpClientAdapter) {
+      adapter.createHttpClient = () {
+        final client = HttpClient();
+        client.findProxy = (uri) {
+          return "PROXY $proxyHost:$proxyPort;";
+        };
+        if (skipBadCertificates) {
+          client.badCertificateCallback =
+              (X509Certificate cert, String host, int port) => true;
+          print('Warning: Skipping bad certificate checks for proxy request.');
+        }
+        return client;
+      };
+    } else {
+      print('Error: Cannot configure proxy. Invalid HttpClientAdapter type: ${adapter.runtimeType}');
+      return null;
+    }
+    try {
+      final response = await dioForProxy.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        return Uint8List.fromList(response.data!);
+      } else {
+        print('Failed to get image with proxy: Status code ${response.statusCode}');
+        return null;
+      }
+    } on DioException catch (e) {
+      print('DioError getting image with proxy: $e');
+      if (e.response != null) {
+        print('Error Response Data: ${e.response?.data}');
+      }
+      return null;
+    } catch (e) {
+      print('Error getting image with proxy: $e');
+      return null;
     }
   }
 }

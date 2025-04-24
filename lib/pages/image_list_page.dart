@@ -78,9 +78,12 @@ class _ImageListPageState extends State<ImageListPage> {
   Future<List<ImageModel>> getImages() async {
     final response = await httpHelper.postRequest(
         "http://localhost:23333/api/image", searchCriteria.toJson());
+    // print("${response.statusCode}");
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
+      // print("${responseData}");
       List<ImageModel> images = _parseImages(responseData["data"]["images"]);
+
       return images;
     } else {
       return [];
@@ -116,33 +119,35 @@ class _ImageListPageState extends State<ImageListPage> {
                   future: getImages(),
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
+                      final images=snapshot.data!;
+                      print("*********************************");
+                      if (images.isEmpty) {
+                        return const Center(
+                          child: Text('没有找到图片。'),
+                        );
+                      }
                       return Flexible(
-                        child: ListView(
+                        child: ListView.builder(
                           controller: _scrollController,
-                          children: [
-                            for (final i in snapshot.data!)
-                              ImageWithInfo(
-                                imageUrl: i.path,
-                                pages: i.pages,
-                                pid: i.pid,
-                                tags: i.tags,
-                                name:i.name,
-                                filetype:i.fileType,
-                                author: i.author,
-                                onSelectedTagsChanged: _handleSelectedTags,
-                                onSelectedAuthor: (author){
-                                  setState(() {
-                                    if(searchCriteria.authorName==author){
-                                      searchCriteria.authorName="";
-                                    }else {
-                                      searchCriteria.authorName=author;
-                                    }
-                                    searchCriteria.page=1;
-                                  });
-                                },
-                                selectedTags: searchCriteria.tags,
-                              ),
-                          ],
+                          itemCount: images.length,
+                          itemBuilder: (context, index) {
+                            final imageModel = images[index];
+                            return ImageWithInfo(
+                              image: imageModel,
+                              onSelectedTagsChanged: _handleSelectedTags,
+                              onSelectedAuthor: (author) {
+                                setState(() {
+                                  if (searchCriteria.authorName == author) {
+                                    searchCriteria.authorName = "";
+                                  } else {
+                                    searchCriteria.authorName = author;
+                                  }
+                                  searchCriteria.page = 1;
+                                });
+                              },
+                              selectedTags: searchCriteria.tags,
+                            );
+                          },
                         ),
                       );
                     }
