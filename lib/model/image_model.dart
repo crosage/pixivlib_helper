@@ -2,6 +2,7 @@ import 'package:tagselector/model/page_model.dart';
 import 'package:tagselector/model/tag_model.dart';
 import 'author_model.dart';
 import 'image_url_model.dart';
+
 class ImageModel {
   final int id;
   final int pid;
@@ -28,14 +29,14 @@ class ImageModel {
   });
 
   factory ImageModel.fromJson(Map<String, dynamic> json) {
-    print("处理开始");
     Author author = Author.fromJson(json['author']);
     var tagsList = json['tags'] as List?;
-    List<Tag> tags = tagsList?.map((tagJson) => Tag.fromJson(tagJson)).toList() ?? [];
+    List<Tag> tags =
+        tagsList?.map((tagJson) => Tag.fromJson(tagJson)).toList() ?? [];
     var pagesList = json['pages'] as List?;
-    List<Page> pages = pagesList?.map((pageJson) => Page.fromJson(pageJson)).toList() ?? [];
+    List<Page> pages =
+        pagesList?.map((pageJson) => Page.fromJson(pageJson)).toList() ?? [];
     ImageUrlsModel urls = ImageUrlsModel.fromJson(json['urls'] ?? {});
-    print("处理结束");
     print("${urls.original}");
     return ImageModel(
       id: json['id'] ?? 0,

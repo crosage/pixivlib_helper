@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/material.dart' hide Page;
@@ -34,12 +36,16 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   late List<Color> _colors;
   int hoveredIndex = 0;
   int currentIndex = 0;
+  String _fetchedAvatarUrl = "";
   final CacheManager myProxyCacheManager = imageProxyCacheManager;
+  HttpHelper httpHelper = HttpHelper.getInstance(
+      globalProxyHost: "127.0.0.1", globalProxyPort: "7890");
 
   @override
   void initState() {
     super.initState();
     _initializeState();
+    _fetchAvatarData();
   }
 
   void _initializeState() {
@@ -53,12 +59,42 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   @override
   void didUpdateWidget(ImageWithInfo oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.image.tags.length != oldWidget.image.tags.length) {
+    if (widget.image.author.uid != oldWidget.image.author.uid) {
+      print(
+          'Author changed, fetching new avatar for ${widget.image.author.uid}');
       setState(() {
-        _isSelected = List<bool>.filled(widget.image.tags.length, false);
-        _colors = List<Color>.generate(widget.image.tags.length, (index) {
-          return Colors.primaries[index % Colors.primaries.length];
-        });
+        _fetchedAvatarUrl = "";
+      });
+      _fetchAvatarData();
+    }
+    if (widget.image.tags.length != oldWidget.image.tags.length) {
+      print('Tags length changed, reinitializing tag state.');
+      setState(() {
+        _initializeSyncState();
+      });
+    } else {
+      _updateTagSelectionVisualsIfNeeded(oldWidget.selectedTags);
+    }
+  }
+
+  void _updateTagSelectionVisualsIfNeeded(List<dynamic> oldSelectedTags) {
+    bool needsUpdate = false;
+    if (widget.selectedTags.length != oldSelectedTags.length) {
+      needsUpdate = true;
+    } else {
+      for (var tag in widget.image.tags) {
+        bool wasSelected = oldSelectedTags.contains(tag.name);
+        bool isSelected = widget.selectedTags.contains(tag.name);
+        if (wasSelected != isSelected) {
+          needsUpdate = true;
+          break;
+        }
+      }
+    }
+
+    if (needsUpdate) {
+      setState(() {
+        _updateTagSelectionVisuals();
       });
     }
   }
@@ -73,6 +109,12 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     }
   }
 
+  void _initializeSyncState() {
+    _isSelected = List.generate(widget.image.tags.length, (index) => false);
+    _colors = List.generate(widget.image.tags.length, (index) => Colors.grey);
+    _updateTagSelectionVisuals();
+  }
+
   void _handleTagSelection(int index, bool isSelected) {
     setState(() {
       _isSelected[index] = isSelected;
@@ -81,6 +123,27 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
           : Colors.grey;
     });
     widget.onSelectedTagsChanged(widget.image.tags[index].name);
+  }
+
+  Future<void> _fetchAvatarData() async {
+    print("AAAAAAAAAAAAAAAAAAAAAAA");
+    final response = await httpHelper.getRequest(
+        "https://www.pixiv.net/ajax/user/${widget.image.author.uid}?full=1&lang=zh",
+        headers: {
+          "referer": "https://www.pixiv.net",
+          "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+        },
+        useProxy: true);
+    if (response.statusCode == 200) {
+      Map<String, dynamic> responseData = jsonDecode(response.toString());
+      String avatarUrl = responseData['body']['image'];
+      if (mounted) {
+        setState(() {
+          _fetchedAvatarUrl = avatarUrl;
+        });
+      }
+    }
   }
 
   @override

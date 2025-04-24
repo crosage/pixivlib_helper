@@ -14,8 +14,9 @@ class ImageListPage extends StatefulWidget {
 }
 
 class _ImageListPageState extends State<ImageListPage> {
-  SearchCriteria searchCriteria=SearchCriteria();
-  HttpHelper httpHelper = HttpHelper();
+  SearchCriteria searchCriteria = SearchCriteria();
+  HttpHelper httpHelper = HttpHelper.getInstance(
+      globalProxyHost: "127.0.0.1", globalProxyPort: "7890");
 
   ScrollController _scrollController = ScrollController();
 
@@ -37,7 +38,7 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   void initState() {
     super.initState();
-    searchCriteria.page=1;
+    searchCriteria.page = 1;
     _scrollController = ScrollController();
   }
 
@@ -62,7 +63,7 @@ class _ImageListPageState extends State<ImageListPage> {
 
   void _handleSelectedTags(String tag) {
     setState(() {
-      searchCriteria.page=1;
+      searchCriteria.page = 1;
       searchCriteria.handleTag(tag);
     });
   }
@@ -119,7 +120,7 @@ class _ImageListPageState extends State<ImageListPage> {
                   future: getImages(),
                   builder: (context, snapshot) {
                     if (snapshot.hasData) {
-                      final images=snapshot.data!;
+                      final images = snapshot.data!;
                       print("*********************************");
                       if (images.isEmpty) {
                         return const Center(
@@ -177,9 +178,8 @@ class _ImageListPageState extends State<ImageListPage> {
                 ),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12.0)
-                  ),
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(12.0)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -208,12 +208,13 @@ class _ImageListPageState extends State<ImageListPage> {
                     ],
                   ),
                 ),
-                SizedBox(height: 20,),
+                SizedBox(
+                  height: 20,
+                ),
                 Container(
                   decoration: BoxDecoration(
                       color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12.0)
-                  ),
+                      borderRadius: BorderRadius.circular(12.0)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -229,13 +230,16 @@ class _ImageListPageState extends State<ImageListPage> {
                             child: Wrap(
                               spacing: 5,
                               children: [
-                                for (int i = 0; i < searchCriteria.tags.length; i++)
+                                for (int i = 0;
+                                    i < searchCriteria.tags.length;
+                                    i++)
                                   FilterChip(
                                     label: Text(searchCriteria.tags[i]),
                                     selected: true,
                                     onSelected: (isSelected) {
                                       setState(() {
-                                        searchCriteria.removeTag(searchCriteria.tags[i]);
+                                        searchCriteria
+                                            .removeTag(searchCriteria.tags[i]);
                                       });
                                     },
                                     selectedColor: getRandomColor(
@@ -263,7 +267,7 @@ class _ImageListPageState extends State<ImageListPage> {
               currentPage: searchCriteria.page,
               onPageChange: (value) {
                 setState(() {
-                  searchCriteria.page=value;
+                  searchCriteria.page = value;
                   _scrollController.animateTo(0,
                       duration: Duration(milliseconds: 500),
                       curve: Curves.easeInOut);
