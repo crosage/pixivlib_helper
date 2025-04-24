@@ -50,6 +50,19 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     currentIndex = 0;
   }
 
+  @override
+  void didUpdateWidget(ImageWithInfo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.image.tags.length != oldWidget.image.tags.length) {
+      setState(() {
+        _isSelected = List<bool>.filled(widget.image.tags.length, false);
+        _colors = List<Color>.generate(widget.image.tags.length, (index) {
+          return Colors.primaries[index % Colors.primaries.length];
+        });
+      });
+    }
+  }
+
   void _updateTagSelectionVisuals() {
     for (int i = 0; i < widget.image.tags.length; i++) {
       bool isSelected = widget.selectedTags.contains(widget.image.tags[i].name);
@@ -59,8 +72,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
           : Colors.grey;
     }
   }
-
-
 
   void _handleTagSelection(int index, bool isSelected) {
     setState(() {
@@ -77,68 +88,80 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InkWell(
-                  onTap: () => widget.onSelectedAuthor(widget.image.author.name),
-                  child: Text(
-                    widget.image.author.name,
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 100.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    onTap: () =>
+                        widget.onSelectedAuthor(widget.image.author.name),
+                    child: Text(
+                      widget.image.author.name,
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.image.name,
-                  style: textTheme.bodyMedium,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.image.name,
+                    style: textTheme.bodyMedium,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    child: _buildImageArea(),
+                  ),
                 ),
               ],
             ),
-          ),
-          Row(
-            children: [
-              SizedBox(width: 100,),
-              Expanded(
-                child: Container(
-                  child: _buildImageArea(),
-                ),
-              ),
-              SizedBox(width: 100,),
-            ],
-          ),
-
-          if(widget.image.tags.isNotEmpty)
+            if (widget.image.tags.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                 child: Wrap(
                   spacing: 6.0,
                   runSpacing: 4.0,
-                  children: List.generate(widget.image.tags.length, (index) {
-                    final tag = widget.image.tags[index];
-                    return FilterChip(
-                      label: Text(tag.name),
-                      labelStyle: TextStyle(fontSize: 11),
-                      selected: _isSelected[index],
-                      onSelected: (isSelected) => _handleTagSelection(index, isSelected),
-                      backgroundColor: Colors.black12,
-                      selectedColor: _colors[index].withOpacity(0.3),
-                      showCheckmark: false,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
-                      side: BorderSide.none,
-                      shape: StadiumBorder(),
-                    );
-                  }),
+                  children: List.generate(
+                    widget.image.tags.length,
+                    (index) {
+                      final tag = widget.image.tags[index];
+                      return FilterChip(
+                        label: Text(tag.name),
+                        labelStyle: TextStyle(fontSize: 11),
+                        selected: _isSelected[index],
+                        onSelected: (isSelected) =>
+                            _handleTagSelection(index, isSelected),
+                        backgroundColor: Colors.black12,
+                        selectedColor: _colors[index].withOpacity(0.3),
+                        showCheckmark: false,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0, vertical: 2.0),
+                        side: BorderSide.none,
+                        shape: StadiumBorder(),
+                      );
+                    },
+                  ),
                 ),
               ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -150,6 +173,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       return Container(/* 错误占位符 */);
     }
     return Container(
+      color: Colors.grey[50],
       constraints: const BoxConstraints(
         maxWidth: 500,
         maxHeight: 500,
@@ -163,11 +187,14 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
         fit: BoxFit.contain,
         placeholder: (context, url) => Container(
           color: Colors.grey[200],
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+          child:
+              const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
         ),
         errorWidget: (context, url, error) => Container(
           color: Colors.grey[100],
-          child: const Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40)),
+          child: const Center(
+              child: Icon(Icons.broken_image_outlined,
+                  color: Colors.grey, size: 40)),
         ),
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 200),
