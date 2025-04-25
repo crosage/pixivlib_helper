@@ -126,7 +126,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   }
 
   Future<void> _fetchAvatarData() async {
-    print("AAAAAAAAAAAAAAAAAAAAAAA");
     final response = await httpHelper.getRequest(
         "https://www.pixiv.net/ajax/user/${widget.image.author.uid}?full=1&lang=zh",
         headers: {
@@ -137,7 +136,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
         useProxy: true);
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
-      String avatarUrl = responseData['body']['image'];
+      String avatarUrl = responseData['body']['imageBig'];
       if (mounted) {
         setState(() {
           _fetchedAvatarUrl = avatarUrl;
@@ -165,21 +164,25 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InkWell(
-                    onTap: () =>
-                        widget.onSelectedAuthor(widget.image.author.name),
-                    child: Text(
-                      widget.image.author.name,
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.image.name,
-                    style: textTheme.bodyMedium,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      ClipOval(
+                        child: buildCircleAvatar(_fetchedAvatarUrl, 25),
+                      ),
+                      SizedBox(
+                        width: 10,
+                      ),
+                      InkWell(
+                        onTap: () =>
+                            widget.onSelectedAuthor(widget.image.author.name),
+                        child: Text(
+                          widget.image.author.name,
+                          style: textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -188,9 +191,28 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
               children: [
                 Expanded(
                   child: Container(
-                    child: _buildImageArea(),
+                    child: _buildImageArea(widget.image.urls.regular, 500, 500),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.image.name,
+                  style: textTheme.bodyMedium,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (widget.image.isBookmarked)
+                  Icon(
+                    Icons.favorite,
+                    color: Colors.red,
+                  )
+                else
+                  Icon(Icons.favorite_border)
               ],
             ),
             if (widget.image.tags.isNotEmpty)
@@ -229,17 +251,22 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     );
   }
 
-  Widget _buildImageArea() {
-    String? imageUrl = widget.image.urls.regular;
+  Widget _buildImageArea(
+    String url,
+    double width,
+    double height, {
+    BoxFit fit = BoxFit.contain,
+  }) {
+    String? imageUrl = url;
 
     if (imageUrl == null || imageUrl.isEmpty) {
       return Container(/* 错误占位符 */);
     }
     return Container(
       color: Colors.grey[50],
-      constraints: const BoxConstraints(
-        maxWidth: 500,
-        maxHeight: 500,
+      constraints: BoxConstraints(
+        maxWidth: width,
+        maxHeight: height,
       ),
       child: CachedNetworkImage(
         cacheManager: myProxyCacheManager,
@@ -247,7 +274,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
         httpHeaders: const {
           'Referer': 'https://www.pixiv.net/',
         },
-        fit: BoxFit.contain,
+        fit: fit,
         placeholder: (context, url) => Container(
           color: Colors.grey[200],
           child:
@@ -262,6 +289,26 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 200),
       ),
+    );
+  }
+
+  Widget buildCircleAvatar(String? url, double radius) {
+    ImageProvider? backgroundImage;
+    if (url != null && url.isNotEmpty) {
+      backgroundImage = CachedNetworkImageProvider(
+        cacheManager: myProxyCacheManager,
+        url,
+        headers: const {'Referer': 'https://www.pixiv.net/'},
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey[200],
+      backgroundImage: backgroundImage,
+      child: (backgroundImage == null)
+          ? Icon(Icons.person_outline, size: radius, color: Colors.grey[400])
+          : null,
     );
   }
 }
