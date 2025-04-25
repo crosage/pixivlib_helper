@@ -15,6 +15,7 @@ class ImageListPage extends StatefulWidget {
 
 class _ImageListPageState extends State<ImageListPage> {
   SearchCriteria searchCriteria = SearchCriteria();
+  ImageProvider? avatarImage;
   HttpHelper httpHelper = HttpHelper.getInstance(
       globalProxyHost: "127.0.0.1", globalProxyPort: "7890");
 
@@ -93,6 +94,7 @@ class _ImageListPageState extends State<ImageListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: Row(
         children: [
@@ -136,12 +138,13 @@ class _ImageListPageState extends State<ImageListPage> {
                             return ImageWithInfo(
                               image: imageModel,
                               onSelectedTagsChanged: _handleSelectedTags,
-                              onSelectedAuthor: (author) {
+                              onSelectedAuthor: (author, backgroundImage) {
                                 setState(() {
                                   if (searchCriteria.authorName == author) {
                                     searchCriteria.authorName = "";
                                   } else {
                                     searchCriteria.authorName = author;
+                                    avatarImage = backgroundImage;
                                   }
                                   searchCriteria.page = 1;
                                 });
@@ -162,98 +165,159 @@ class _ImageListPageState extends State<ImageListPage> {
           ),
           Expanded(
             // width: 100,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.filter_list,
-                      size: 50,
-                    ),
-                    Text(
-                      "当前筛选条件",
-                      style: TextStyle(fontSize: 20),
-                    ),
-                  ],
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12.0)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Container(
+              color: Color(0xFFF5F5F5),
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 10,
+                  ),
+                  Row(
                     children: [
+                      IconButton(
+                        color: Colors.grey,
+                        icon: Icon(
+                          Icons.filter_alt_outlined,
+                          // color: Colors.blue,
+                          size: 50,
+                        ),
+                        onPressed: () {},
+                      ),
                       Text(
-                        "已选择作者",
+                        "当前筛选条件",
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.bold),
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            flex: 1,
-                            child: Wrap(
-                              spacing: 5,
-                              children: [
-                                Text(
-                                  searchCriteria.authorName,
-                                  style: TextStyle(fontSize: 24),
-                                )
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
-                ),
-                SizedBox(
-                  height: 20,
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(12.0)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "已选择tag",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      Row(
-                        children: [
-                          Flexible(
-                            flex: 1,
-                            child: Wrap(
-                              spacing: 5,
-                              children: [
-                                for (int i = 0;
-                                    i < searchCriteria.tags.length;
-                                    i++)
-                                  FilterChip(
-                                    label: Text(searchCriteria.tags[i]),
-                                    selected: true,
-                                    onSelected: (isSelected) {
-                                      setState(() {
-                                        searchCriteria
-                                            .removeTag(searchCriteria.tags[i]);
-                                      });
-                                    },
-                                    selectedColor: getRandomColor(
-                                        searchCriteria.tags[i].hashCode),
-                                  ),
-                              ],
+                  Container(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            Text(
+                              "已选择作者",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        if (searchCriteria.authorName != "")
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                              ),
+                              CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.grey[200],
+                                backgroundImage: avatarImage,
+                                child: (avatarImage == null)
+                                    ? Icon(Icons.person_outline,
+                                        size: 25, color: Colors.grey[400])
+                                    : null,
+                              ),
+                              SizedBox(
+                                width: 10,
+                              ),
+                              Text(
+                                searchCriteria.authorName,
+                                style: textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              Spacer(),
+                              IconButton(
+                                  onPressed: () => {
+                                        setState(() {
+                                          searchCriteria.authorName = "";
+                                        })
+                                      },
+                                  icon: Icon(
+                                    Icons.do_disturb_on_rounded,
+                                    color: Colors.red,
+                                  ))
+                            ],
+                          )
+                        else
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                              ),
+                              Text("无已选择作者")
+                            ],
+                          )
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(
+                    height: 20,
+                  ),
+                  Container(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                            ),
+                            Text(
+                              "已选择tag",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 10,
+                        ),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                            ),
+                            Flexible(
+                              flex: 1,
+                              child: Wrap(
+                                spacing: 5,
+                                children: [
+                                  for (int i = 0;
+                                      i < searchCriteria.tags.length;
+                                      i++)
+                                    FilterChip(
+                                      label: Text(searchCriteria.tags[i]),
+                                      selected: true,
+                                      labelStyle: TextStyle(fontSize: 11),
+                                      onSelected: (isSelected) {
+                                        setState(() {
+                                          searchCriteria.removeTag(
+                                              searchCriteria.tags[i]);
+                                        });
+                                      },
+                                      shape: StadiumBorder(),
+                                      selectedColor: getRandomColor(
+                                              searchCriteria.tags[i].hashCode)
+                                          .withOpacity(0.3),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           )
         ],

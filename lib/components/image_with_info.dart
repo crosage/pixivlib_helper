@@ -17,7 +17,7 @@ class ImageWithInfo extends StatefulWidget {
   final ImageModel image;
   final List<dynamic> selectedTags;
   final Function(String) onSelectedTagsChanged;
-  final Function(String) onSelectedAuthor;
+  final Function(String, ImageProvider) onSelectedAuthor;
 
   const ImageWithInfo({
     super.key,
@@ -36,6 +36,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   late List<Color> _colors;
   int hoveredIndex = 0;
   int currentIndex = 0;
+  ImageProvider? backgroundImage;
   String _fetchedAvatarUrl = "";
   final CacheManager myProxyCacheManager = imageProxyCacheManager;
   HttpHelper httpHelper = HttpHelper.getInstance(
@@ -174,14 +175,19 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                         width: 10,
                       ),
                       InkWell(
-                        onTap: () =>
-                            widget.onSelectedAuthor(widget.image.author.name),
+                        onTap: () => widget.onSelectedAuthor(
+                            widget.image.author.name, backgroundImage!),
                         child: Text(
                           widget.image.author.name,
                           style: textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
+                      Spacer(),
+                      IconButton(
+                          onPressed: () => widget.onSelectedAuthor(
+                              widget.image.author.name, backgroundImage!),
+                          icon: Icon(Icons.add))
                     ],
                   ),
                 ],
@@ -206,13 +212,21 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (widget.image.isBookmarked)
-                  Icon(
-                    Icons.favorite,
-                    color: Colors.red,
-                  )
-                else
-                  Icon(Icons.favorite_border)
+                Container(
+                  width: 80,
+                  child: Row(
+                    children: [
+                      if (widget.image.isBookmarked)
+                        Icon(
+                          Icons.favorite,
+                          color: Colors.red,
+                        )
+                      else
+                        Icon(Icons.favorite_border),
+                      Text(widget.image.bookmarkCount.toString())
+                    ],
+                  ),
+                )
               ],
             ),
             if (widget.image.tags.isNotEmpty)
@@ -293,7 +307,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
   }
 
   Widget buildCircleAvatar(String? url, double radius) {
-    ImageProvider? backgroundImage;
     if (url != null && url.isNotEmpty) {
       backgroundImage = CachedNetworkImageProvider(
         cacheManager: myProxyCacheManager,
