@@ -49,12 +49,19 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     _fetchAvatarData();
   }
 
+  Future<void> updateImage() async {
+    final response = await httpHelper.getRequest(
+        "http://localhost:23333/api/pixiv/image/${widget.image.pid}");
+  }
+
   void _initializeState() {
     _isSelected = List.generate(widget.image.tags.length, (index) => false);
     _colors = List.generate(widget.image.tags.length, (index) => Colors.grey);
     _updateTagSelectionVisuals();
     hoveredIndex = 0;
     currentIndex = 0;
+    print(widget.image.tags);
+    updateImage();
   }
 
   @override
@@ -76,6 +83,7 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
     } else {
       _updateTagSelectionVisualsIfNeeded(oldWidget.selectedTags);
     }
+    updateImage();
   }
 
   void _updateTagSelectionVisualsIfNeeded(List<dynamic> oldSelectedTags) {

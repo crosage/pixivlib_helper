@@ -167,149 +167,127 @@ class _ImageListPageState extends State<ImageListPage> {
             // width: 100,
             child: Container(
               color: Color(0xFFF5F5F5),
-              child: Column(
+              child: Row(
                 children: [
                   SizedBox(
-                    height: 10,
+                    width: 30,
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        color: Colors.grey,
-                        icon: Icon(
-                          Icons.filter_alt_outlined,
-                          // color: Colors.blue,
-                          size: 50,
-                        ),
-                        onPressed: () {},
-                      ),
-                      Text(
-                        "当前筛选条件",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  Container(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
+                        SizedBox(
+                          height: 10,
+                        ),
                         Row(
                           children: [
+                            IconButton(
+                              color: Colors.grey,
+                              icon: Icon(
+                                Icons.filter_alt_outlined,
+                                // color: Colors.blue,
+                                size: 50,
+                              ),
+                              onPressed: () {},
+                            ),
+                            Text(
+                              "当前筛选条件",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             SizedBox(
-                              width: 16,
+                              height: 10,
                             ),
                             Text(
                               "已选择作者",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold),
                             ),
+                            SizedBox(
+                              height: 10,
+                            ),
+                            if (searchCriteria.authorName != "")
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 25,
+                                    backgroundColor: Colors.grey[200],
+                                    backgroundImage: avatarImage,
+                                    child: (avatarImage == null)
+                                        ? Icon(Icons.person_outline,
+                                            size: 25, color: Colors.grey[400])
+                                        : null,
+                                  ),
+                                  SizedBox(
+                                    width: 10,
+                                  ),
+                                  Text(
+                                    searchCriteria.authorName,
+                                    style: textTheme.titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  Spacer(),
+                                  IconButton(
+                                      onPressed: () => {
+                                            setState(() {
+                                              searchCriteria.authorName = "";
+                                            })
+                                          },
+                                      icon: Icon(
+                                        Icons.do_disturb_on_rounded,
+                                        color: Colors.red,
+                                      ))
+                                ],
+                              )
+                            else
+                              Row(
+                                children: [Text("无已选择作者")],
+                              ),
                           ],
                         ),
                         SizedBox(
-                          height: 10,
+                          height: 20,
                         ),
-                        if (searchCriteria.authorName != "")
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                width: 16,
-                              ),
-                              CircleAvatar(
-                                radius: 25,
-                                backgroundColor: Colors.grey[200],
-                                backgroundImage: avatarImage,
-                                child: (avatarImage == null)
-                                    ? Icon(Icons.person_outline,
-                                        size: 25, color: Colors.grey[400])
-                                    : null,
-                              ),
-                              SizedBox(
-                                width: 10,
-                              ),
-                              Text(
-                                searchCriteria.authorName,
-                                style: textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              Spacer(),
-                              IconButton(
-                                  onPressed: () => {
-                                        setState(() {
-                                          searchCriteria.authorName = "";
-                                        })
-                                      },
-                                  icon: Icon(
-                                    Icons.do_disturb_on_rounded,
-                                    color: Colors.red,
-                                  ))
-                            ],
-                          )
-                        else
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 16,
-                              ),
-                              Text("无已选择作者")
-                            ],
-                          )
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    height: 20,
-                  ),
-                  Container(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: 16,
-                            ),
                             Text(
                               "已选择tag",
                               style: TextStyle(
                                   fontSize: 20, fontWeight: FontWeight.bold),
                             ),
-                          ],
-                        ),
-                        SizedBox(
-                          height: 10,
-                        ),
-                        Row(
-                          children: [
                             SizedBox(
-                              width: 16,
+                              height: 10,
                             ),
-                            Flexible(
-                              flex: 1,
-                              child: Wrap(
-                                spacing: 5,
-                                children: [
-                                  for (int i = 0;
-                                      i < searchCriteria.tags.length;
-                                      i++)
-                                    FilterChip(
-                                      label: Text(searchCriteria.tags[i]),
-                                      selected: true,
-                                      labelStyle: TextStyle(fontSize: 11),
-                                      onSelected: (isSelected) {
-                                        setState(() {
-                                          searchCriteria.removeTag(
-                                              searchCriteria.tags[i]);
-                                        });
-                                      },
-                                      shape: StadiumBorder(),
-                                      selectedColor: getRandomColor(
-                                              searchCriteria.tags[i].hashCode)
-                                          .withOpacity(0.3),
-                                    ),
-                                ],
-                              ),
+                            Wrap(
+                              spacing: 5,
+                              children: [
+                                for (int i = 0;
+                                    i < searchCriteria.tags.length;
+                                    i++)
+                                  FilterChip(
+                                    label: Text(searchCriteria.tags[i]),
+                                    selected: true,
+                                    labelStyle: TextStyle(fontSize: 11),
+                                    onSelected: (isSelected) {
+                                      setState(() {
+                                        searchCriteria
+                                            .removeTag(searchCriteria.tags[i]);
+                                      });
+                                    },
+                                    shape: StadiumBorder(),
+                                    selectedColor: getRandomColor(
+                                            searchCriteria.tags[i].hashCode)
+                                        .withOpacity(0.3),
+                                  ),
+                              ],
                             ),
                           ],
                         ),

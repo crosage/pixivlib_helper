@@ -18,7 +18,6 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-
       title: 'Pixiv_Helper',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -41,20 +40,20 @@ class MyApp extends StatelessWidget {
             key: _key,
             appBar: isSmallScreen
                 ? AppBar(
-              backgroundColor: canvasColor,
-              title: Text(_getTitleByIndex(_controller.selectedIndex)),
-              leading: IconButton(
-                onPressed: () {
-                  _key.currentState?.openDrawer();
-                },
-                icon: const Icon(Icons.menu),
-              ),
-            )
+                    backgroundColor: canvasColor,
+                    title: Text(_getTitleByIndex(_controller.selectedIndex)),
+                    leading: IconButton(
+                      onPressed: () {
+                        _key.currentState?.openDrawer();
+                      },
+                      icon: const Icon(Icons.menu),
+                    ),
+                  )
                 : null,
-            drawer: ExampleSidebarX(controller: _controller),
+            drawer: PixivSidebarX(controller: _controller),
             body: Row(
               children: [
-                if (!isSmallScreen) ExampleSidebarX(controller: _controller),
+                if (!isSmallScreen) PixivSidebarX(controller: _controller),
                 Expanded(
                   child: Center(
                     child: _ScreensExample(
@@ -71,8 +70,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class ExampleSidebarX extends StatelessWidget {
-  const ExampleSidebarX({
+class PixivSidebarX extends StatelessWidget {
+  const PixivSidebarX({
     Key? key,
     required SidebarXController controller,
   })  : _controller = controller,
