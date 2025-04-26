@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tagselector/components/image_with_info.dart';
 import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/components/search_tool.dart';
@@ -16,6 +19,10 @@ class ImageListPage extends StatefulWidget {
 class _ImageListPageState extends State<ImageListPage> {
   SearchCriteria searchCriteria = SearchCriteria();
   ImageProvider? avatarImage;
+  Timer? _debounceTimer;
+  final Duration _debounceDuration = const Duration(seconds: 2);
+  late TextEditingController _minLikesController;
+  late TextEditingController _maxLikesController;
   HttpHelper httpHelper = HttpHelper.getInstance(
       globalProxyHost: "127.0.0.1", globalProxyPort: "7890");
 
@@ -41,6 +48,10 @@ class _ImageListPageState extends State<ImageListPage> {
     super.initState();
     searchCriteria.page = 1;
     _scrollController = ScrollController();
+    String initialMinLikes = '';
+    String initialMaxLikes = '';
+    _minLikesController = TextEditingController(text: initialMinLikes);
+    _maxLikesController = TextEditingController(text: initialMaxLikes);
   }
 
   void _searchTag(String value) {
@@ -90,6 +101,27 @@ class _ImageListPageState extends State<ImageListPage> {
     } else {
       return [];
     }
+  }
+
+  void _handleLikesInputChanged(String value) {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer!.cancel();
+    }
+
+    _debounceTimer = Timer(_debounceDuration, () {
+      String minLikesText = _minLikesController.text;
+      String maxLikesText = _maxLikesController.text;
+
+      print(
+          "Debounced Likes Update (Shared Timer): Min='$minLikesText', Max='$maxLikesText'");
+
+      setState(() {
+        final minLikes = int.tryParse(minLikesText);
+        final maxLikes = int.tryParse(maxLikesText);
+        searchCriteria.minBookmarkCount = minLikes;
+        searchCriteria.maxBookmarkCount = maxLikes;
+      });
+    });
   }
 
   @override
@@ -291,6 +323,73 @@ class _ImageListPageState extends State<ImageListPage> {
                             ),
                           ],
                         ),
+                        SizedBox(
+                          height: 20,
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10.0),
+                              child: Text(
+                                "Like 数量范围",
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 70,
+                                  child: TextField(
+                                    controller: _minLikesController,
+                                    textAlign: TextAlign.center,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: <TextInputFormatter>[
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: InputDecoration(
+                                      hintText: "最低",
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 10),
+                                    ),
+                                    onChanged: _handleLikesInputChanged,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8.0),
+                                  child: Text(
+                                    "~",
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: 70,
+                                  child: TextField(
+                                    controller: _maxLikesController,
+                                    textAlign: TextAlign.center,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: <TextInputFormatter>[
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: InputDecoration(
+                                      hintText: "最高",
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 10),
+                                    ),
+                                    onChanged: _handleLikesInputChanged,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -324,5 +423,12 @@ class _ImageListPageState extends State<ImageListPage> {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _minLikesController.dispose();
+    _maxLikesController.dispose();
+    super.dispose();
   }
 }
