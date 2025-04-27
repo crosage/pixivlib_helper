@@ -8,8 +8,11 @@ import 'package:tagselector/components/search_tool.dart';
 import 'package:tagselector/model/search_model.dart';
 import 'package:tagselector/utils.dart';
 import 'dart:convert';
+import '../components/grid_image_tile.dart';
 import '../model/image_model.dart';
 import '../service/http_helper.dart';
+
+enum DisplayMode { list, grid }
 
 class ImageListPage extends StatefulWidget {
   @override
@@ -23,9 +26,11 @@ class _ImageListPageState extends State<ImageListPage> {
   final Duration _debounceDuration = const Duration(seconds: 2);
   late TextEditingController _minLikesController;
   late TextEditingController _maxLikesController;
+  late TextEditingController _pageSizeController;
+
   HttpHelper httpHelper = HttpHelper.getInstance(
       globalProxyHost: "127.0.0.1", globalProxyPort: "7890");
-
+  DisplayMode _currentViewMode = DisplayMode.grid;
   ScrollController _scrollController = ScrollController();
 
   Future<List<String>> getTagSuggestions() async {
@@ -50,8 +55,10 @@ class _ImageListPageState extends State<ImageListPage> {
     _scrollController = ScrollController();
     String initialMinLikes = '';
     String initialMaxLikes = '';
+    String initialPageSize = '';
     _minLikesController = TextEditingController(text: initialMinLikes);
     _maxLikesController = TextEditingController(text: initialMaxLikes);
+    _pageSizeController = TextEditingController(text: initialPageSize);
   }
 
   void _searchTag(String value) {
@@ -69,6 +76,7 @@ class _ImageListPageState extends State<ImageListPage> {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
       pages = responseData["data"]["total"];
     }
+    print(searchCriteria.toJson());
     print("COUNT::::: ${(pages ~/ searchCriteria.pageSize) + 1}");
     return (pages ~/ searchCriteria.pageSize) + 1;
   }
@@ -91,10 +99,10 @@ class _ImageListPageState extends State<ImageListPage> {
   Future<List<ImageModel>> getImages() async {
     final response = await httpHelper.postRequest(
         "http://localhost:23333/api/image", searchCriteria.toJson());
-    // print("${response.statusCode}");
+    print("${searchCriteria.toJson()}");
     if (response.statusCode == 200) {
       Map<String, dynamic> responseData = jsonDecode(response.toString());
-      // print("${responseData}");
+      print("${responseData}");
       List<ImageModel> images = _parseImages(responseData["data"]["images"]);
 
       return images;
@@ -120,7 +128,21 @@ class _ImageListPageState extends State<ImageListPage> {
         final maxLikes = int.tryParse(maxLikesText);
         searchCriteria.minBookmarkCount = minLikes;
         searchCriteria.maxBookmarkCount = maxLikes;
+        searchCriteria.pageSize = int.tryParse(_pageSizeController.text)!;
       });
+    });
+  }
+
+  void _handleSelectedAuthor(String author, ImageProvider? backgroundImage) {
+    setState(() {
+      if (searchCriteria.authorName == author) {
+        searchCriteria.authorName = "";
+        avatarImage = null;
+      } else {
+        searchCriteria.authorName = author;
+        avatarImage = backgroundImage;
+      }
+      searchCriteria.page = 1;
     });
   }
 
@@ -150,47 +172,58 @@ class _ImageListPageState extends State<ImageListPage> {
                 SizedBox(
                   height: 5,
                 ),
-                FutureBuilder<List<ImageModel>>(
-                  future: getImages(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData) {
-                      final images = snapshot.data!;
-                      print("*********************************");
-                      if (images.isEmpty) {
-                        return const Center(
-                          child: Text('没有找到图片。'),
-                        );
+                Expanded(
+                  child: FutureBuilder<List<ImageModel>>(
+                    future: getImages(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final images = snapshot.data!;
+                        print("*********************************");
+                        if (images.isEmpty) {
+                          return const Center(
+                            child: Text('没有找到图片。'),
+                          );
+                        }
+                        if (_currentViewMode == DisplayMode.list) {
+                          return ListView.builder(
+                            controller: _scrollController,
+                            itemCount: images.length,
+                            itemBuilder: (context, index) {
+                              final imageModel = images[index];
+                              return ImageWithInfo(
+                                image: imageModel,
+                                onSelectedTagsChanged: _handleSelectedTags,
+                                onSelectedAuthor: _handleSelectedAuthor,
+                                selectedTags: searchCriteria.tags,
+                              );
+                            },
+                          );
+                        } else {
+                          return GridView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(8.0),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 6,
+                              crossAxisSpacing: 8.0,
+                              mainAxisSpacing: 8.0,
+                              childAspectRatio: 0.67,
+                            ),
+                            itemCount: images.length,
+                            itemBuilder: (context, index) {
+                              final imageModel = images[index];
+                              return GridImageTile(
+                                imageModel: imageModel,
+                              );
+                            },
+                          );
+                        }
                       }
-                      return Flexible(
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          itemCount: images.length,
-                          itemBuilder: (context, index) {
-                            final imageModel = images[index];
-                            return ImageWithInfo(
-                              image: imageModel,
-                              onSelectedTagsChanged: _handleSelectedTags,
-                              onSelectedAuthor: (author, backgroundImage) {
-                                setState(() {
-                                  if (searchCriteria.authorName == author) {
-                                    searchCriteria.authorName = "";
-                                  } else {
-                                    searchCriteria.authorName = author;
-                                    avatarImage = backgroundImage;
-                                  }
-                                  searchCriteria.page = 1;
-                                });
-                              },
-                              selectedTags: searchCriteria.tags,
-                            );
-                          },
-                        ),
+                      return Center(
+                        child: CircularProgressIndicator(),
                       );
-                    }
-                    return Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  },
+                    },
+                  ),
                 ),
               ],
             ),
@@ -390,6 +423,74 @@ class _ImageListPageState extends State<ImageListPage> {
                             ),
                           ],
                         ),
+                        SizedBox(
+                          height: 20,
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              "选择图片排列方式",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            if (_currentViewMode == DisplayMode.list)
+                              Text("切换为网格表示"),
+                            if (_currentViewMode == DisplayMode.grid)
+                              Text("切换为列表表示"),
+                            IconButton(
+                              color: Colors.black,
+                              tooltip: _currentViewMode == DisplayMode.list
+                                  ? '切换到网格表示'
+                                  : '切换到列表显示',
+                              icon: Icon(
+                                _currentViewMode == DisplayMode.list
+                                    ? Icons.grid_view
+                                    : Icons.view_list,
+                                size: 28,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  // Toggle view mode
+                                  _currentViewMode =
+                                      _currentViewMode == DisplayMode.list
+                                          ? DisplayMode.grid
+                                          : DisplayMode.list;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        SizedBox(
+                          height: 20,
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              "一页显示图片数量",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        TextField(
+                          controller: _pageSizeController,
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
+                          decoration: InputDecoration(
+                            hintText: searchCriteria.pageSize.toString(),
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 10),
+                          ),
+                          onChanged: _handleLikesInputChanged,
+                        ),
                       ],
                     ),
                   ),
@@ -429,6 +530,7 @@ class _ImageListPageState extends State<ImageListPage> {
   void dispose() {
     _minLikesController.dispose();
     _maxLikesController.dispose();
+    _pageSizeController.dispose();
     super.dispose();
   }
 }

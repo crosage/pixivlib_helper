@@ -125,7 +125,7 @@ class SearchCriteria {
       'sort_by': _sortBy,
       'sort_order': _sortOrder,
       'page': _page,
-      'page_size': _pageSize,
+      'size': _pageSize,
     };
 
     if (_minBookmarkCount != null) {
