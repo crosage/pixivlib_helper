@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:tagselector/pages/grid_image_view.dart';
-import 'package:tagselector/pages/image_list_page.dart';
+import 'package:tagselector/pages/image_follow_page.dart';
+import 'package:tagselector/pages/image_index_page.dart';
 import 'package:tagselector/pages/setting_page.dart';
 
 class AscentRoutes {
@@ -9,6 +10,11 @@ class AscentRoutes {
       name: "/",
       page: () => ImageListPage(),
       transition: Transition.leftToRight,
+    ),
+    GetPage(
+      name: "/following",
+      page: () => FollowingPage(),
+      transition: Transition.rightToLeft,
     ),
     GetPage(
       name: "/setting",

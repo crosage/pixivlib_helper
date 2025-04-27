@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:tagselector/components/elevated_button.dart';
-import 'package:tagselector/pages/image_list_page.dart';
+import 'package:tagselector/pages/image_index_page.dart';
 import 'package:tagselector/pages/setting_liblist.dart';
 import 'package:tagselector/pages/setting_pixivtoken.dart';
 import 'package:tagselector/pages/setting_taglist.dart';

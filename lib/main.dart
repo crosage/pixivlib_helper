@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:sidebarx/sidebarx.dart';
-import 'package:tagselector/pages/image_list_page.dart';
+import 'package:tagselector/pages/image_follow_page.dart';
+import 'package:tagselector/pages/image_index_page.dart';
 import 'package:tagselector/pages/setting_page.dart';
 import 'package:tagselector/pages/statistics_page.dart';
 
@@ -56,7 +57,7 @@ class MyApp extends StatelessWidget {
                 if (!isSmallScreen) PixivSidebarX(controller: _controller),
                 Expanded(
                   child: Center(
-                    child: _ScreensExample(
+                    child: _MainScreens(
                       controller: _controller,
                     ),
                   ),
@@ -146,6 +147,10 @@ class PixivSidebarX extends StatelessWidget {
             debugPrint('Home');
           },
         ),
+        SidebarXItem(
+          icon: Icons.favorite_border,
+          label: '关注的用户',
+        ),
         const SidebarXItem(
           icon: Icons.settings,
           label: '设置',
@@ -171,8 +176,8 @@ class PixivSidebarX extends StatelessWidget {
   }
 }
 
-class _ScreensExample extends StatelessWidget {
-  const _ScreensExample({
+class _MainScreens extends StatelessWidget {
+  const _MainScreens({
     Key? key,
     required this.controller,
   }) : super(key: key);
@@ -189,8 +194,10 @@ class _ScreensExample extends StatelessWidget {
           case 0:
             return ImageListPage();
           case 1:
-            return SettingPage();
+            return FollowingPage();
           case 2:
+            return SettingPage();
+          case 3:
             return TagCountPage();
           default:
             return Text(
