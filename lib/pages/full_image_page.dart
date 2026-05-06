@@ -1138,6 +1138,7 @@ class _ArtworkImage extends StatelessWidget {
       child: CachedNetworkImage(
         cacheManager: imageProxyCacheManager,
         imageUrl: proxiedImageUrl(imageUrl),
+        httpHeaders: imageRequestHeaders(imageUrl),
         fit: BoxFit.contain,
         placeholder: (_, __) => const _ImageLoadingPlaceholder(),
         errorWidget: (_, __, ___) =>
@@ -1314,6 +1315,7 @@ class _MobilePageThumb extends StatelessWidget {
                 : CachedNetworkImage(
                     cacheManager: imageProxyCacheManager,
                     imageUrl: proxiedImageUrl(imageUrl),
+                    httpHeaders: imageRequestHeaders(imageUrl),
                     fit: BoxFit.cover,
                     placeholder: (_, __) =>
                         const ColoredBox(color: Color(0xFFE5E5EA)),
@@ -1574,6 +1576,7 @@ class _PageThumbnail extends StatelessWidget {
                     : CachedNetworkImage(
                         cacheManager: imageProxyCacheManager,
                         imageUrl: proxiedImageUrl(imageUrl),
+                        httpHeaders: imageRequestHeaders(imageUrl),
                         fit: BoxFit.cover,
                         placeholder: (_, __) => const ColoredBox(
                           color: Color(0xFFF1F5F9),
@@ -1743,6 +1746,7 @@ class _AuthorAvatar extends StatelessWidget {
         backgroundImage: CachedNetworkImageProvider(
           proxiedImageUrl(author.avatarUrl),
           cacheManager: imageProxyCacheManager,
+          headers: imageRequestHeaders(author.avatarUrl),
         ),
       );
     }
@@ -1795,6 +1799,7 @@ class _RecommendationTile extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: proxiedImageUrl(recommendation.thumbUrl),
                       cacheManager: imageProxyCacheManager,
+                      httpHeaders: imageRequestHeaders(recommendation.thumbUrl),
                       fit: BoxFit.cover,
                       width: double.infinity,
                       placeholder: (_, __) => const _ImageLoadingPlaceholder(),

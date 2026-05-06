@@ -741,6 +741,7 @@ class _Avatar extends StatelessWidget {
         backgroundImage: CachedNetworkImageProvider(
           proxiedImageUrl(author.avatarUrl),
           cacheManager: imageProxyCacheManager,
+          headers: imageRequestHeaders(author.avatarUrl),
         ),
       );
     }
@@ -929,6 +930,7 @@ class _RecentWorkListTile extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: proxiedImageUrl(preview.thumbUrl),
                       cacheManager: imageProxyCacheManager,
+                      httpHeaders: imageRequestHeaders(preview.thumbUrl),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           const ColoredBox(color: Color(0xFFF1F5F9)),
@@ -1061,6 +1063,7 @@ class _RecentWorkCard extends StatelessWidget {
                     : CachedNetworkImage(
                         imageUrl: proxiedImageUrl(preview.thumbUrl),
                         cacheManager: imageProxyCacheManager,
+                        httpHeaders: imageRequestHeaders(preview.thumbUrl),
                         fit: BoxFit.cover,
                         placeholder: (_, __) => const Center(
                           child: CircularProgressIndicator(strokeWidth: 2),

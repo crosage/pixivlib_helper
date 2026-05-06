@@ -195,6 +195,7 @@ class _ArtworkImage extends StatelessWidget {
     return CachedNetworkImage(
       cacheManager: imageProxyCacheManager,
       imageUrl: proxiedImageUrl(url),
+      httpHeaders: imageRequestHeaders(url),
       fit: BoxFit.cover,
       placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F9)),
       errorWidget: (_, __, ___) => const ColoredBox(

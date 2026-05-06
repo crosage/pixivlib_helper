@@ -23,7 +23,11 @@ class NativeImageClipboard {
 
     final file = await imageProxyCacheManager.getSingleFile(
       resolvedImageUrl,
-      headers: resolvedImageUrl == imageUrl ? _pixivHeaders : null,
+      headers: imageRequestHeaders(
+            imageUrl,
+            resolvedUrl: resolvedImageUrl,
+          ) ??
+          (resolvedImageUrl == imageUrl ? _pixivHeaders : null),
     );
     final encodedBytes = await file.readAsBytes();
     if (encodedBytes.isEmpty) {

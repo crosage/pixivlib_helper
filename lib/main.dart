@@ -1,19 +1,15 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
 import 'package:tagselector/pages/daily_ranking_page.dart';
-import 'package:tagselector/pages/following_authors_page.dart';
 import 'package:tagselector/pages/image_follow_page.dart';
 import 'package:tagselector/pages/image_index_page.dart';
-import 'package:tagselector/pages/setting_pixivtoken.dart';
-import 'package:tagselector/pages/setting_page.dart';
-import 'package:tagselector/pages/statistics_page.dart';
+import 'package:tagselector/pages/user_page.dart';
 import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppUserSession.instance.initialize();
   runApp(const PixivHelperApp());
 }
 
@@ -217,11 +213,103 @@ class _AppEntry extends StatelessWidget {
     return AnimatedBuilder(
       animation: AppUserSession.instance,
       builder: (context, _) {
+        final session = AppUserSession.instance;
+        if (!session.initialized && !session.initializing) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            AppUserSession.instance.initialize();
+          });
+        }
+        if (!session.initialized || session.initializing) {
+          return const _AppLoadingPage();
+        }
+        if (session.initializationError != null &&
+            !session.isAuthenticated &&
+            session.users.isEmpty) {
+          return _AppStartupErrorPage(message: session.initializationError!);
+        }
         if (!AppUserSession.instance.isAuthenticated) {
           return const _SessionLoginPage();
         }
         return const _AppShell();
       },
+    );
+  }
+}
+
+class _AppLoadingPage extends StatelessWidget {
+  const _AppLoadingPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('正在连接后端...'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AppStartupErrorPage extends StatelessWidget {
+  final String message;
+
+  const _AppStartupErrorPage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '启动失败',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '应用启动时未能连接后端服务。',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFFB42318),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () {
+                      AppUserSession.instance.initialize(force: true);
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('重试'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -239,19 +327,15 @@ class _AppShellState extends State<_AppShell> {
   final _pages = const [
     ImageListPage(),
     FollowingPage(),
-    FollowingAuthorsPage(),
     DailyRankingPage(),
-    SettingPage(),
-    TagCountPage(),
+    UserPage(),
   ];
 
   final _navItems = const [
     _NavItem(icon: Icons.image_outlined, label: '图库'),
     _NavItem(icon: Icons.favorite_border_rounded, label: '关注'),
-    _NavItem(icon: Icons.groups_2_outlined, label: '作者'),
     _NavItem(icon: Icons.auto_graph_rounded, label: '日榜'),
-    _NavItem(icon: Icons.settings_outlined, label: '设置'),
-    _NavItem(icon: Icons.pie_chart_outline_rounded, label: '总览'),
+    _NavItem(icon: Icons.person_outline_rounded, label: '用户'),
   ];
 
   @override
@@ -431,7 +515,7 @@ class _SessionLoginPageState extends State<_SessionLoginPage> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '这里不提供用户名密码登录。请粘贴有效的 Pixiv session，验证通过后才会进入应用。',
+                    '这里不提供用户名密码登录。请输入有效的 Pixiv session，验证通过后才会进入应用。',
                     style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                   ),
                   const SizedBox(height: 18),

@@ -10,6 +10,7 @@ import 'package:tagselector/model/image_url_model.dart';
 import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
@@ -41,6 +42,7 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
   static const int _pageSize = 48;
 
   final ApiService _api = ApiService.instance;
+  final AppUserSession _session = AppUserSession.instance;
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -54,15 +56,28 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleUserChanged);
     _future = _loadAuthors();
   }
 
   @override
   void dispose() {
+    _session.removeListener(_handleUserChanged);
     _searchDebounce?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _handleUserChanged() {
+    if (!mounted) {
+      return;
+    }
+    _page = 1;
+    _forceRefresh = true;
+    setState(() {
+      _future = _loadAuthors();
+    });
   }
 
   Future<FollowedAuthorListResponse> _loadAuthors() {
@@ -195,109 +210,131 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<FollowedAuthorListResponse>(
-      future: _future,
-      builder: (context, snapshot) {
-        final response = snapshot.data;
-        final authors = response?.authors ?? const <FollowedAuthorModel>[];
-        final totalPages = response == null || response.total == 0
-            ? 1
-            : (response.total / _pageSize).ceil();
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: SafeArea(
+        child: FutureBuilder<FollowedAuthorListResponse>(
+          future: _future,
+          builder: (context, snapshot) {
+            final response = snapshot.data;
+            final authors = response?.authors ?? const <FollowedAuthorModel>[];
+            final totalPages = response == null || response.total == 0
+                ? 1
+                : (response.total / _pageSize).ceil();
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final phone = constraints.maxWidth < 720;
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final phone = constraints.maxWidth < 720;
 
-            final content = Column(
-              children: [
-                if (phone)
-                  MobileScrollHideToolbar(
-                    enabled: true,
-                    scrollController: _scrollController,
-                    child: _HeaderPanel(
-                      phone: true,
-                      queryController: _searchController,
-                      sortMode: _sortMode,
-                      resultCount: authors.length,
-                      totalCount: response?.total ?? 0,
-                      overallTotal: response?.overallTotal ?? 0,
-                      userId: response?.userId ?? '',
-                      activeFilterCount: _activeFilterCount,
-                      onQueryChanged: _onQueryChanged,
-                      onSortChanged: (value) {
-                        setState(() {
-                          _sortMode = value;
-                          _page = 1;
-                          _future = _loadAuthors();
-                        });
-                      },
-                      onRefresh: _refreshAuthors,
-                      onOpenFilters: _openFilterSheet,
-                    ),
-                  )
-                else
-                  _Surface(
-                    child: _HeaderPanel(
-                      phone: false,
-                      queryController: _searchController,
-                      sortMode: _sortMode,
-                      resultCount: authors.length,
-                      totalCount: response?.total ?? 0,
-                      overallTotal: response?.overallTotal ?? 0,
-                      userId: response?.userId ?? '',
-                      activeFilterCount: _activeFilterCount,
-                      onQueryChanged: _onQueryChanged,
-                      onSortChanged: (value) {
-                        setState(() {
-                          _sortMode = value;
-                          _page = 1;
-                          _future = _loadAuthors();
-                        });
-                      },
-                      onRefresh: _refreshAuthors,
-                      onOpenFilters: _openFilterSheet,
-                    ),
-                  ),
-                SizedBox(height: phone ? 4 : 12),
-                Expanded(
-                  child: phone
-                      ? _buildBody(snapshot, authors, phone: true)
-                      : _Surface(
-                          padding: EdgeInsets.zero,
-                          child: _buildBody(snapshot, authors, phone: false),
+                final content = Column(
+                  children: [
+                    if (phone)
+                      MobileScrollHideToolbar(
+                        enabled: true,
+                        scrollController: _scrollController,
+                        child: _HeaderPanel(
+                          phone: true,
+                          queryController: _searchController,
+                          sortMode: _sortMode,
+                          resultCount: authors.length,
+                          totalCount: response?.total ?? 0,
+                          overallTotal: response?.overallTotal ?? 0,
+                          userId: response?.userId ?? '',
+                          activeFilterCount: _activeFilterCount,
+                          onQueryChanged: _onQueryChanged,
+                          onSortChanged: (value) {
+                            setState(() {
+                              _sortMode = value;
+                              _page = 1;
+                              _future = _loadAuthors();
+                            });
+                          },
+                          onRefresh: _refreshAuthors,
+                          onOpenFilters: _openFilterSheet,
                         ),
-                ),
-                SizedBox(height: phone ? 4 : 12),
-                if (phone)
-                  PageBottomBar(
-                    currentPage: _page,
-                    totalPages: totalPages,
-                    onPageChange: _changePage,
-                  )
-                else
-                  _Surface(
-                    padding: EdgeInsets.zero,
-                    child: PageBottomBar(
-                      currentPage: _page,
-                      totalPages: totalPages,
-                      summary: response == null
-                          ? '正在加载关注作者列表'
-                          : '当前页 ${authors.length} 位作者，总关注 ${response.total}',
-                      onPageChange: _changePage,
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                        child: _Surface(
+                          child: _HeaderPanel(
+                            phone: false,
+                            queryController: _searchController,
+                            sortMode: _sortMode,
+                            resultCount: authors.length,
+                            totalCount: response?.total ?? 0,
+                            overallTotal: response?.overallTotal ?? 0,
+                            userId: response?.userId ?? '',
+                            activeFilterCount: _activeFilterCount,
+                            onQueryChanged: _onQueryChanged,
+                            onSortChanged: (value) {
+                              setState(() {
+                                _sortMode = value;
+                                _page = 1;
+                                _future = _loadAuthors();
+                              });
+                            },
+                            onRefresh: _refreshAuthors,
+                            onOpenFilters: _openFilterSheet,
+                          ),
+                        ),
+                      ),
+                    SizedBox(height: phone ? 4 : 12),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: phone ? 0 : 12),
+                        child: phone
+                            ? _buildBody(snapshot, authors, phone: true)
+                            : _Surface(
+                                padding: EdgeInsets.zero,
+                                child: _buildBody(
+                                  snapshot,
+                                  authors,
+                                  phone: false,
+                                ),
+                              ),
+                      ),
                     ),
-                  ),
-              ],
-            );
+                    SizedBox(height: phone ? 4 : 12),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 0 : 12,
+                        0,
+                        phone ? 0 : 12,
+                        phone ? 0 : 12,
+                      ),
+                      child: phone
+                          ? PageBottomBar(
+                              currentPage: _page,
+                              totalPages: totalPages,
+                              onPageChange: _changePage,
+                            )
+                          : _Surface(
+                              padding: EdgeInsets.zero,
+                              child: PageBottomBar(
+                                currentPage: _page,
+                                totalPages: totalPages,
+                                summary: response == null
+                                    ? 'Loading followed authors'
+                                    : 'Page ${authors.length} authors, total ${response.total}',
+                                onPageChange: _changePage,
+                              ),
+                            ),
+                    ),
+                  ],
+                );
 
-            return phone
-                ? ColoredBox(
-                    color: const Color(0xFFF2F2F7),
-                    child: content,
-                  )
-                : content;
+                return phone
+                    ? ColoredBox(
+                        color: const Color(0xFFF2F2F7),
+                        child: content,
+                      )
+                    : content;
+              },
+            );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -734,6 +771,7 @@ class _CardTop extends StatelessWidget {
             : CachedNetworkImage(
                 imageUrl: proxiedImageUrl(author.author.avatarUrl),
                 cacheManager: imageProxyCacheManager,
+                httpHeaders: imageRequestHeaders(author.author.avatarUrl),
                 width: avatarSize,
                 height: avatarSize,
                 fit: BoxFit.cover,
@@ -986,6 +1024,7 @@ class _PreviewCard extends StatelessWidget {
                       : CachedNetworkImage(
                           imageUrl: proxiedImageUrl(preview.thumbUrl),
                           cacheManager: imageProxyCacheManager,
+                          httpHeaders: imageRequestHeaders(preview.thumbUrl),
                           fit: BoxFit.cover,
                           width: double.infinity,
                           placeholder: (_, __) => const ColoredBox(
@@ -1340,15 +1379,18 @@ class _Surface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: padding,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: child,
       ),
-      child: child,
     );
   }
 }

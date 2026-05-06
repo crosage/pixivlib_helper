@@ -4,6 +4,7 @@ import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/model/daily_ranking_model.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/image_prefetcher.dart';
 import 'package:tagselector/service/remote_image_url.dart';
@@ -27,6 +28,7 @@ class DailyRankingPage extends StatefulWidget {
 
 class _DailyRankingPageState extends State<DailyRankingPage> {
   final ApiService _api = ApiService.instance;
+  final AppUserSession _session = AppUserSession.instance;
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
 
   late Future<DailyRankingResponse> _future;
@@ -37,7 +39,14 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleUserChanged);
     _future = _load();
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_handleUserChanged);
+    super.dispose();
   }
 
   Future<DailyRankingResponse> _load() {
@@ -52,6 +61,13 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
     setState(() {
       _future = _load();
     });
+  }
+
+  void _handleUserChanged() {
+    if (!mounted) {
+      return;
+    }
+    _reload();
   }
 
   void _changePage(int delta) {
@@ -593,6 +609,7 @@ class _RankingCard extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: proxiedImageUrl(item.thumbUrl),
                       cacheManager: imageProxyCacheManager,
+                      httpHeaders: imageRequestHeaders(item.thumbUrl),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           const ColoredBox(color: Color(0xFFE5E5EA)),
@@ -718,6 +735,7 @@ class _RankingCard extends StatelessWidget {
                           : CachedNetworkImage(
                               imageUrl: proxiedImageUrl(item.thumbUrl),
                               cacheManager: imageProxyCacheManager,
+                              httpHeaders: imageRequestHeaders(item.thumbUrl),
                               fit: BoxFit.cover,
                               placeholder: (_, __) => const ColoredBox(
                                 color: Color(0xFFF1F5F9),

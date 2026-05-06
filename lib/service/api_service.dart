@@ -38,23 +38,6 @@ class ApiService {
     return AppUsersResponse.fromJson(payload);
   }
 
-  Future<AppUsersResponse> createAppUser({
-    required String name,
-    String pixivUserId = '',
-    bool setActive = true,
-  }) async {
-    final payload = await _post(
-      '/api/users',
-      {
-        'name': name,
-        'pixiv_user_id': pixivUserId,
-        'set_active': setActive,
-      },
-      includeUserHeader: false,
-    );
-    return AppUsersResponse.fromJson(payload);
-  }
-
   Future<AppUsersResponse> switchAppUser(int userId) async {
     final payload = await _post(
       '/api/users/switch',
@@ -79,6 +62,11 @@ class ApiService {
     return AppUsersResponse.fromJson(payload);
   }
 
+  Future<AppUsersResponse> logoutCurrentUser() async {
+    final payload = await _post('/api/users/logout', const {});
+    return AppUsersResponse.fromJson(payload);
+  }
+
   Future<PagedImagesResponse> searchImages(SearchCriteria criteria) async {
     final payload = await _post('/api/image', criteria.toJson());
     final images = (payload['images'] as List? ?? [])
@@ -92,12 +80,10 @@ class ApiService {
   }
 
   Future<List<ImageModel>> fetchFollowingImages({
-    required String userId,
     required int page,
     String mode = 'all',
   }) async {
     final payload = await _post('/api/pixiv/image/following', {
-      'userID': userId,
       'page': page,
       'mode': mode,
     });
@@ -109,7 +95,6 @@ class ApiService {
   }
 
   Future<List<ImageModel>> fetchBookmarkImages({
-    required String userId,
     required int page,
     String rest = 'hide',
     String mode = 'all',
@@ -119,10 +104,6 @@ class ApiService {
       'rest': rest,
       'mode': mode,
     };
-    final trimmedUserId = userId.trim();
-    if (trimmedUserId.isNotEmpty) {
-      queryParameters['user_id'] = trimmedUserId;
-    }
     final path = Uri(
       path: '/api/pixiv/bookmarks',
       queryParameters: queryParameters,
@@ -204,29 +185,13 @@ class ApiService {
 
   Future<PixivConnectionInfo> fetchPixivConnectionInfo() async {
     final cookiePayload = await _get('/api/pixiv/cookie');
-    String username = '';
-    try {
-      final userPayload = await _get('/api/pixiv/lognow');
-      username = userPayload['username'] ?? '';
-    } catch (_) {
-      username = '';
-    }
     return PixivConnectionInfo(
       cookie: cookiePayload['cookie'] ?? '',
-      username: username,
     );
   }
 
   Future<void> updatePixivCookie(String cookie) async {
     await _post('/api/pixiv/cookie', {'cookie': cookie});
-  }
-
-  Future<void> triggerFullRefresh() async {
-    await _get('/api/pixiv/image/update', acceptedCodes: {200, 202});
-  }
-
-  Future<void> triggerZeroBookmarkRefresh() async {
-    await _get('/api/pixiv/image/checker', acceptedCodes: {200, 202});
   }
 
   Future<List<Author>> refreshAuthorAvatars(
@@ -561,7 +526,6 @@ class ApiService {
     return path == '/api/image' ||
         path == '/api/tag' ||
         path == '/api/pixiv/image/following' ||
-        path == '/api/pixiv/usr/following' ||
         path == '/api/author/avatar/refresh';
   }
 
@@ -645,11 +609,9 @@ class PagedImagesResponse {
 
 class PixivConnectionInfo {
   final String cookie;
-  final String username;
 
   const PixivConnectionInfo({
     required this.cookie,
-    required this.username,
   });
 }
 

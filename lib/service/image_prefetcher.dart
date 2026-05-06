@@ -12,7 +12,7 @@ class ImagePrefetcher {
   static final ImagePrefetcher instance = ImagePrefetcher._();
 
   final Set<String> _queuedOrCached = <String>{};
-  final List<String> _queue = <String>[];
+  final List<_PrefetchRequest> _queue = <_PrefetchRequest>[];
   int _active = 0;
 
   static const int _maxConcurrentDownloads = 6;
@@ -50,7 +50,12 @@ class ImagePrefetcher {
       if (url.isEmpty) continue;
       final proxiedUrl = proxiedImageUrl(url);
       if (!_queuedOrCached.add(proxiedUrl)) continue;
-      _queue.add(proxiedUrl);
+      _queue.add(
+        _PrefetchRequest(
+          url: proxiedUrl,
+          headers: imageRequestHeaders(url, resolvedUrl: proxiedUrl),
+        ),
+      );
       added++;
     }
     _pump();
@@ -58,17 +63,20 @@ class ImagePrefetcher {
 
   void _pump() {
     while (_active < _maxConcurrentDownloads && _queue.isNotEmpty) {
-      final url = _queue.removeAt(0);
+      final request = _queue.removeAt(0);
       _active++;
-      unawaited(_download(url));
+      unawaited(_download(request));
     }
   }
 
-  Future<void> _download(String url) async {
+  Future<void> _download(_PrefetchRequest request) async {
     try {
-      await imageProxyCacheManager.downloadFile(url);
+      await imageProxyCacheManager.downloadFile(
+        request.url,
+        authHeaders: request.headers,
+      );
     } catch (error) {
-      _queuedOrCached.remove(url);
+      _queuedOrCached.remove(request.url);
       if (kDebugMode) {
         debugPrint('Image prefetch failed: $error');
       }
@@ -77,6 +85,16 @@ class ImagePrefetcher {
       _pump();
     }
   }
+}
+
+class _PrefetchRequest {
+  final String url;
+  final Map<String, String>? headers;
+
+  const _PrefetchRequest({
+    required this.url,
+    required this.headers,
+  });
 }
 
 String previewUrlForImage(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:tagselector/components/image_with_info.dart';
 import 'package:tagselector/components/masonry_image_tile.dart';
@@ -11,6 +10,7 @@ import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/image_prefetcher.dart';
 
 enum FollowingDisplayMode { list, grid }
@@ -38,8 +38,7 @@ class FollowingPage extends StatefulWidget {
 class _FollowingPageState extends State<FollowingPage> {
   final ApiService _api = ApiService.instance;
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _userIdController =
-      TextEditingController(text: '42279487');
+  final AppUserSession _session = AppUserSession.instance;
 
   late Future<List<String>> _tagSuggestionsFuture;
   Future<List<ImageModel>>? _followingFuture;
@@ -57,6 +56,7 @@ class _FollowingPageState extends State<FollowingPage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleUserChanged);
     _sourceMode = widget.initialSourceMode;
     _bookmarkRestMode = widget.initialBookmarkRestMode;
     _tagSuggestionsFuture = _api.fetchTagSuggestions();
@@ -65,34 +65,35 @@ class _FollowingPageState extends State<FollowingPage> {
 
   @override
   void dispose() {
+    _session.removeListener(_handleUserChanged);
     _scrollController.dispose();
-    _userIdController.dispose();
     super.dispose();
+  }
+
+  void _handleUserChanged() {
+    if (!mounted) {
+      return;
+    }
+    _page = 1;
+    _imageOverrides.clear();
+    _refreshFollowing();
   }
 
   void _refreshFollowing() {
     setState(() {
-      final userId = _userIdController.text.trim();
       if (_sourceMode == FollowingSourceMode.bookmarks) {
         _followingFuture = _api.fetchBookmarkImages(
-          userId: userId,
           page: _page,
           rest: _bookmarkRestMode.name,
           mode: _feedMode.name,
         );
       } else {
         _followingFuture = _api.fetchFollowingImages(
-          userId: userId,
           page: _page,
           mode: _feedMode.name,
         );
       }
     });
-  }
-
-  void _applyUserId() {
-    setState(() => _page = 1);
-    _refreshFollowing();
   }
 
   void _updateImage(ImageModel image) {
@@ -209,13 +210,9 @@ class _FollowingPageState extends State<FollowingPage> {
               child: _FollowSidebar(
                 compact: true,
                 tagSearch: _buildTagSearch(),
-                userIdController: _userIdController,
+                activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
                 selectedAuthor: _selectedAuthor,
                 selectedTags: _selectedTags,
-                onApplyUserId: () {
-                  Navigator.of(context).pop();
-                  _applyUserId();
-                },
                 onClearAuthor: _clearSelectedAuthor,
                 onClearFilters: _clearMobileFilters,
                 onRemoveTag: _toggleTag,
@@ -341,10 +338,10 @@ class _FollowingPageState extends State<FollowingPage> {
                           child: _FollowSidebar(
                             compact: false,
                             tagSearch: tagSearch,
-                            userIdController: _userIdController,
+                            activeUserLabel:
+                                _session.activeUser?.name ?? '当前会话用户',
                             selectedAuthor: _selectedAuthor,
                             selectedTags: _selectedTags,
-                            onApplyUserId: _applyUserId,
                             onClearAuthor: _clearSelectedAuthor,
                             onClearFilters: _clearMobileFilters,
                             onRemoveTag: _toggleTag,
@@ -531,7 +528,7 @@ class _TopPanel extends StatelessWidget {
           ),
         ],
         chips: [
-          MobilePill(label: '$resultCount 件作品'),
+          MobilePill(label: '$resultCount 个作品'),
           if (selectedAuthor.isNotEmpty)
             MobilePill(
               label: selectedAuthor,
@@ -831,10 +828,9 @@ class _TopPanel extends StatelessWidget {
 class _FollowSidebar extends StatelessWidget {
   final bool compact;
   final Widget tagSearch;
-  final TextEditingController userIdController;
+  final String activeUserLabel;
   final String selectedAuthor;
   final List<String> selectedTags;
-  final VoidCallback onApplyUserId;
   final VoidCallback onClearAuthor;
   final VoidCallback onClearFilters;
   final ValueChanged<String> onRemoveTag;
@@ -842,10 +838,9 @@ class _FollowSidebar extends StatelessWidget {
   const _FollowSidebar({
     required this.compact,
     required this.tagSearch,
-    required this.userIdController,
+    required this.activeUserLabel,
     required this.selectedAuthor,
     required this.selectedTags,
-    required this.onApplyUserId,
     required this.onClearAuthor,
     required this.onClearFilters,
     required this.onRemoveTag,
@@ -874,21 +869,21 @@ class _FollowSidebar extends StatelessWidget {
               ),
           ],
         ),
-        TextField(
-          controller: userIdController,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(
-            hintText: 'Pixiv UID',
-          ),
-          onSubmitted: (_) => onApplyUserId(),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
+        Container(
           width: double.infinity,
-          child: FilledButton.tonal(
-            onPressed: onApplyUserId,
-            child: const Text('载入'),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Text(
+            '当前用户: $activeUserLabel',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF334155),
+            ),
           ),
         ),
         const SizedBox(height: 10),

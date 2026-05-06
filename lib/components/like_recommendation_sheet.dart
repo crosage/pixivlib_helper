@@ -279,6 +279,7 @@ class _RecommendationMiniCard extends StatelessWidget {
                     : CachedNetworkImage(
                         imageUrl: proxiedImageUrl(previewUrl),
                         cacheManager: imageProxyCacheManager,
+                        httpHeaders: imageRequestHeaders(previewUrl),
                         fit: BoxFit.cover,
                         placeholder: (_, __) => const ColoredBox(
                           color: Color(0xFFF1F5F9),

@@ -233,14 +233,19 @@ class ArtworkDownloadManager extends ChangeNotifier {
       if (await saveFile.exists()) {
         await saveFile.delete();
       }
+      final downloadUrl = proxiedImageUrl(task.sourceUrl);
       await _dio.download(
-        proxiedImageUrl(task.sourceUrl),
+        downloadUrl,
         task.savePath,
         options: Options(
           responseType: ResponseType.bytes,
           followRedirects: true,
           receiveTimeout: const Duration(minutes: 5),
           sendTimeout: const Duration(seconds: 30),
+          headers: imageRequestHeaders(
+            task.sourceUrl,
+            resolvedUrl: downloadUrl,
+          ),
         ),
         onReceiveProgress: (received, total) {
           task.receivedBytes = received;

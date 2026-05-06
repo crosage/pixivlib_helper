@@ -329,6 +329,7 @@ class _NetworkArtwork extends StatelessWidget {
     return CachedNetworkImage(
       cacheManager: imageProxyCacheManager,
       imageUrl: proxiedImageUrl(url),
+      httpHeaders: imageRequestHeaders(url),
       fit: BoxFit.cover,
       placeholder: (context, _) => Container(
         color: const Color(0xFFF8FAFC),

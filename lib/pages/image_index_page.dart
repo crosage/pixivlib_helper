@@ -16,6 +16,7 @@ import 'package:tagselector/model/search_model.dart';
 import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/image_prefetcher.dart';
 
 enum DisplayMode { list, grid }
@@ -35,6 +36,7 @@ class _ImageListPageState extends State<ImageListPage> {
   ];
 
   final _api = ApiService.instance;
+  final AppUserSession _session = AppUserSession.instance;
   final _criteria = SearchCriteria();
   final _scrollController = ScrollController();
   final _authorNameController = TextEditingController();
@@ -62,6 +64,7 @@ class _ImageListPageState extends State<ImageListPage> {
   @override
   void initState() {
     super.initState();
+    _session.addListener(_handleUserChanged);
     _scrollController.addListener(_handleScroll);
     _tagSuggestionsFuture = _api.fetchTagSuggestions();
     _loadPresets();
@@ -70,6 +73,7 @@ class _ImageListPageState extends State<ImageListPage> {
 
   @override
   void dispose() {
+    _session.removeListener(_handleUserChanged);
     _debounceTimer?.cancel();
     _scrollController.dispose();
     _authorNameController.dispose();
@@ -79,6 +83,19 @@ class _ImageListPageState extends State<ImageListPage> {
     _maxLikesController.dispose();
     _pageSizeController.dispose();
     super.dispose();
+  }
+
+  void _handleUserChanged() {
+    if (!mounted) {
+      return;
+    }
+    _imageOverrides.clear();
+    _criteria.page = 1;
+    if (_showingDiscovery) {
+      _loadDiscoveryRecommendations();
+      return;
+    }
+    _refreshResults();
   }
 
   Future<void> _loadPresets() async {

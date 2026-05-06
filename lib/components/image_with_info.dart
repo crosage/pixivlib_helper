@@ -349,9 +349,11 @@ class _ArtworkState extends State<_Artwork> {
 
   CachedNetworkImageProvider? _buildProvider() {
     if (widget.url.isEmpty) return null;
+    final resolvedUrl = proxiedImageUrl(widget.url);
     return CachedNetworkImageProvider(
-      proxiedImageUrl(widget.url),
+      resolvedUrl,
       cacheManager: imageProxyCacheManager,
+      headers: imageRequestHeaders(widget.url, resolvedUrl: resolvedUrl),
     );
   }
 
@@ -473,6 +475,7 @@ class _AuthorAvatar extends StatelessWidget {
           backgroundImage: CachedNetworkImageProvider(
             proxiedImageUrl(avatarUrl),
             cacheManager: imageProxyCacheManager,
+            headers: imageRequestHeaders(avatarUrl),
           ),
         );
       }
@@ -481,6 +484,7 @@ class _AuthorAvatar extends StatelessWidget {
         backgroundImage: CachedNetworkImageProvider(
           proxiedImageUrl(avatarUrl),
           cacheManager: imageProxyCacheManager,
+          headers: imageRequestHeaders(avatarUrl),
         ),
       );
     }

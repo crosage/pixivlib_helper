@@ -51,7 +51,7 @@ class ImageRecommendationModel {
       width: json['width'] ?? 0,
       height: json['height'] ?? 0,
       publishedAt: json['published_at'] ?? 0,
-      tags: rawTags.map((item) => item.toString()).toList(),
+      tags: rawTags.map(_parseTagName).where((tag) => tag.isNotEmpty).toList(),
       type: json['type'] ?? '',
     );
   }
@@ -104,6 +104,19 @@ class ImageRecommendationModel {
 
   static String _deriveRegularFromPixivThumb(String url) {
     return _derivePixivPreviewUrl(url, cropped: false);
+  }
+
+  static String _parseTagName(dynamic rawTag) {
+    if (rawTag is String) {
+      return rawTag.trim();
+    }
+    if (rawTag is Map) {
+      final tagName = rawTag['name'] ?? rawTag['tag'];
+      if (tagName is String && tagName.trim().isNotEmpty) {
+        return tagName.trim();
+      }
+    }
+    return '';
   }
 
   static String _derivePixivPreviewUrl(String url, {required bool cropped}) {
