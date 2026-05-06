@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:tagselector/model/app_user_model.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/author_profile_model.dart';
 import 'package:tagselector/model/daily_ranking_model.dart';
@@ -12,6 +13,7 @@ import 'package:tagselector/model/image_recommendation_model.dart';
 import 'package:tagselector/model/search_model.dart';
 import 'package:tagselector/model/system_summary_model.dart';
 import 'package:tagselector/model/tag_model.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/http_helper.dart';
 
 class ApiService {
@@ -30,6 +32,52 @@ class ApiService {
 
   static const Set<int> _transientStatusCodes = {408, 429, 500, 502, 503, 504};
   static const Duration _avatarRefreshCooldown = Duration(minutes: 30);
+
+  Future<AppUsersResponse> fetchAppUsers() async {
+    final payload = await _get('/api/users', includeUserHeader: false);
+    return AppUsersResponse.fromJson(payload);
+  }
+
+  Future<AppUsersResponse> createAppUser({
+    required String name,
+    String pixivUserId = '',
+    bool setActive = true,
+  }) async {
+    final payload = await _post(
+      '/api/users',
+      {
+        'name': name,
+        'pixiv_user_id': pixivUserId,
+        'set_active': setActive,
+      },
+      includeUserHeader: false,
+    );
+    return AppUsersResponse.fromJson(payload);
+  }
+
+  Future<AppUsersResponse> switchAppUser(int userId) async {
+    final payload = await _post(
+      '/api/users/switch',
+      {'user_id': userId},
+      includeUserHeader: false,
+    );
+    return AppUsersResponse.fromJson(payload);
+  }
+
+  Future<AppUsersResponse> loginWithSession({
+    required String session,
+    String name = '',
+  }) async {
+    final payload = await _post(
+      '/api/auth/session',
+      {
+        'session': session,
+        'name': name,
+      },
+      includeUserHeader: false,
+    );
+    return AppUsersResponse.fromJson(payload);
+  }
 
   Future<PagedImagesResponse> searchImages(SearchCriteria criteria) async {
     final payload = await _post('/api/image', criteria.toJson());
@@ -347,8 +395,10 @@ class ApiService {
   }
 
   Future<ImageModel> unbookmarkImage(int pid) async {
-    final response =
-        await _http.deleteRequest('$baseUrl/api/image/$pid/bookmark');
+    final response = await _http.deleteRequest(
+      '$baseUrl/api/image/$pid/bookmark',
+      headers: _buildHeaders(includeUserHeader: true),
+    );
     final payload = _unwrapResponse(response, const {200});
     final image =
         ImageModel.fromJson(Map<String, dynamic>.from(payload['image'] ?? {}));
@@ -359,9 +409,13 @@ class ApiService {
   Future<Map<String, dynamic>> _get(
     String path, {
     Set<int> acceptedCodes = const {200},
+    bool includeUserHeader = true,
   }) async {
     return _sendWithRetry(
-      () => _http.getRequest('$baseUrl$path'),
+      () => _http.getRequest(
+        '$baseUrl$path',
+        headers: _buildHeaders(includeUserHeader: includeUserHeader),
+      ),
       acceptedCodes,
       retryTransient: true,
     );
@@ -371,12 +425,28 @@ class ApiService {
     String path,
     Map<String, dynamic> body, {
     Set<int> acceptedCodes = const {200},
+    bool includeUserHeader = true,
   }) async {
     return _sendWithRetry(
-      () => _http.postRequest('$baseUrl$path', body),
+      () => _http.postRequest(
+        '$baseUrl$path',
+        body,
+        headers: _buildHeaders(includeUserHeader: includeUserHeader),
+      ),
       acceptedCodes,
       retryTransient: _isReadOnlyPostPath(path),
     );
+  }
+
+  Map<String, dynamic>? _buildHeaders({required bool includeUserHeader}) {
+    if (!includeUserHeader) {
+      return null;
+    }
+    final userId = AppUserSession.instance.activeUserId;
+    if (userId == null || userId <= 0) {
+      return null;
+    }
+    return {'X-App-User-Id': '$userId'};
   }
 
   Future<Map<String, dynamic>> _sendWithRetry(
@@ -581,6 +651,29 @@ class PixivConnectionInfo {
     required this.cookie,
     required this.username,
   });
+}
+
+class AppUsersResponse {
+  final List<AppUserModel> users;
+  final AppUserModel? activeUser;
+
+  const AppUsersResponse({
+    required this.users,
+    required this.activeUser,
+  });
+
+  factory AppUsersResponse.fromJson(Map<String, dynamic> json) {
+    return AppUsersResponse(
+      users: (json['users'] as List? ?? [])
+          .map((item) => AppUserModel.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+      activeUser: json['active_user'] is Map
+          ? AppUserModel.fromJson(
+              Map<String, dynamic>.from(json['active_user']),
+            )
+          : null,
+    );
+  }
 }
 
 class ApiException implements Exception {

@@ -5,11 +5,15 @@ import 'package:tagselector/pages/daily_ranking_page.dart';
 import 'package:tagselector/pages/following_authors_page.dart';
 import 'package:tagselector/pages/image_follow_page.dart';
 import 'package:tagselector/pages/image_index_page.dart';
+import 'package:tagselector/pages/setting_pixivtoken.dart';
 import 'package:tagselector/pages/setting_page.dart';
 import 'package:tagselector/pages/statistics_page.dart';
+import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppUserSession.instance.initialize();
   runApp(const PixivHelperApp());
 }
 
@@ -200,7 +204,24 @@ class PixivHelperApp extends StatelessWidget {
           }),
         ),
       ),
-      home: const _AppShell(),
+      home: const _AppEntry(),
+    );
+  }
+}
+
+class _AppEntry extends StatelessWidget {
+  const _AppEntry();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AppUserSession.instance,
+      builder: (context, _) {
+        if (!AppUserSession.instance.isAuthenticated) {
+          return const _SessionLoginPage();
+        }
+        return const _AppShell();
+      },
     );
   }
 }
@@ -317,6 +338,138 @@ class _AppShellState extends State<_AppShell> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionLoginPage extends StatefulWidget {
+  const _SessionLoginPage();
+
+  @override
+  State<_SessionLoginPage> createState() => _SessionLoginPageState();
+}
+
+class _SessionLoginPageState extends State<_SessionLoginPage> {
+  final AppUserSession _session = AppUserSession.instance;
+  final TextEditingController _sessionController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _sessionController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final session = _sessionController.text.trim();
+    if (session.isEmpty) {
+      setState(() {
+        _error = '请输入有效 session';
+      });
+      return;
+    }
+
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    try {
+      await _session.loginWithSession(
+        session: session,
+        name: _nameController.text.trim(),
+      );
+    } catch (error) {
+      setState(() {
+        _error = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Session 登录',
+                    style: theme.textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '这里不提供用户名密码登录。请粘贴有效的 Pixiv session，验证通过后才会进入应用。',
+                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+                  ),
+                  const SizedBox(height: 18),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: '显示名称（可选）',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _sessionController,
+                    minLines: 5,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      labelText: 'Pixiv session / PHPSESSID',
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFFB42318),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _submitting ? null : _submit,
+                    icon: const Icon(Icons.login_rounded),
+                    label: Text(_submitting ? '验证中...' : '登录'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
