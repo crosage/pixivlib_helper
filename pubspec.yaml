@@ -33,16 +33,18 @@ dependencies:
   http: ^0.13.0
   cached_network_image:
   dio:
+  file: ^7.0.1
+  flutter_cache_manager: ^3.3.1
   flutter_svg:
-  sidebarx: ^0.17.1
-  webview_flutter:
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  scroll_to_hide: ^2.2.1
+  shared_preferences: ^2.3.3
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
-  get:
   url_launcher:
-  fl_chart:
-  syncfusion_flutter_charts:
+  flutter_staggered_grid_view: ^0.7.0
 
 dev_dependencies:
   flutter_test:

@@ -11,9 +11,9 @@ class Page {
 
   factory Page.fromJson(Map<String, dynamic> json) {
     return Page(
-      id: json['id'],
-      imageId: json['image_id'],
-      pageId: json['page_id'],
+      id: json['id'] ?? 0,
+      imageId: json['image_id'] ?? 0,
+      pageId: json['page_id'] ?? 0,
     );
   }
 }

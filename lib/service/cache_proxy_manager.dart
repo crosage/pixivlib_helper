@@ -1,40 +1,95 @@
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
+// ignore_for_file: implementation_imports
+
+import 'dart:io' as io;
+
+import 'package:file/file.dart' as fs;
+import 'package:file/local.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-http.Client createProxyClient(String proxyHost, int proxyPort, {bool skipBadCertificates = false}) {
-  final client = HttpClient();
-  client.findProxy = (uri) {
-    return "PROXY $proxyHost:$proxyPort;";
-  };
-  if (skipBadCertificates) {
-    client.badCertificateCallback =
-        (X509Certificate cert, String host, int port) => true;
-    print('Proxy Client: Skipping bad certificate checks.');
+import 'package:flutter_cache_manager/src/storage/file_system/file_system.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+const String _imageCacheKey = 'pixiv_proxy_image_cache_d_drive_v1';
+const String _imageCacheFolderName = 'image_cache';
+const String _windowsImageCacheRoot = r'D:\PixivHelperCache';
+
+const LocalFileSystem _localFileSystem = LocalFileSystem();
+
+class PersistentIOFileSystem implements FileSystem {
+  PersistentIOFileSystem(this.cacheKey)
+      : _fileDir = _createCacheDirectory(cacheKey);
+
+  final String cacheKey;
+  final Future<fs.Directory> _fileDir;
+
+  static Future<fs.Directory> _createCacheDirectory(String cacheKey) async {
+    final path = await getImageCacheDirectoryPath(cacheKey: cacheKey);
+    final directory = _localFileSystem.directory(path);
+    await directory.create(recursive: true);
+    return directory;
   }
-  return IOClient(client);
+
+  @override
+  Future<fs.File> createFile(String name) async {
+    final directory = await _fileDir;
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory.childFile(name);
+  }
 }
 
-const String imageProxyHost = '127.0.0.1';
-const int imageProxyPort = 7890; // int 类型
-const bool skipImageCertCheck = true; // 调试用
-
-final http.Client _proxyHttpClientForImages = createProxyClient(
-  imageProxyHost,
-  imageProxyPort,
-  skipBadCertificates: skipImageCertCheck,
-);
-
 final HttpFileService _proxyHttpFileService = HttpFileService(
-  httpClient: _proxyHttpClientForImages,
+  httpClient: http.Client(),
 );
 
 final Config _proxyImageCacheConfig = Config(
-  'proxyImageCacheKey_v1',
-  stalePeriod: const Duration(days: 15),
-  maxNrOfCacheObjects: 200,
+  _imageCacheKey,
+  stalePeriod: const Duration(days: 3650),
+  maxNrOfCacheObjects: 5000,
   fileService: _proxyHttpFileService,
+  fileSystem: PersistentIOFileSystem(_imageCacheKey),
 );
 
-final CacheManager imageProxyCacheManager = CacheManager(_proxyImageCacheConfig);
+final CacheManager imageProxyCacheManager =
+    CacheManager(_proxyImageCacheConfig);
 
+Future<io.Directory> resolveImageCacheDirectory({
+  String cacheKey = _imageCacheKey,
+}) async {
+  final baseDirectory = await _resolveCacheBaseDirectory();
+  final cachePath = p.join(
+    baseDirectory.path,
+    _imageCacheFolderName,
+    cacheKey,
+  );
+  final cacheDirectory = io.Directory(cachePath);
+  if (!await cacheDirectory.exists()) {
+    await cacheDirectory.create(recursive: true);
+  }
+  return cacheDirectory;
+}
+
+Future<io.Directory> _resolveCacheBaseDirectory() async {
+  if (io.Platform.isWindows) {
+    final directory = io.Directory(_windowsImageCacheRoot);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory;
+  }
+
+  final fallbackDirectory = await getApplicationSupportDirectory();
+  if (!await fallbackDirectory.exists()) {
+    await fallbackDirectory.create(recursive: true);
+  }
+  return fallbackDirectory;
+}
+
+Future<String> getImageCacheDirectoryPath({
+  String cacheKey = _imageCacheKey,
+}) async {
+  final directory = await resolveImageCacheDirectory(cacheKey: cacheKey);
+  return directory.path;
+}

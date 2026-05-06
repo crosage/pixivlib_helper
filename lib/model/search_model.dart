@@ -1,139 +1,223 @@
 class SearchCriteria {
-  String _authorName;
-  List<String> _tags;
-  String _sortBy;
-  String _sortOrder;
-  int _page;
-  int _pageSize;
-  int? _minBookmarkCount;
-  int? _maxBookmarkCount;
+  String authorName;
+  String authorUid;
+  List<String> tags;
+  List<String> excludedTags;
+  String sortBy;
+  String sortOrder;
+  int page;
+  int pageSize;
+  int? pid;
+  int? minBookmarkCount;
+  int? maxBookmarkCount;
+  bool? isBookmarked;
+  DateTime? publishedAfter;
+  DateTime? publishedBefore;
 
   SearchCriteria({
-    String authorName = '',
-    List<String> tags = const [],
-    String sortBy = 'pid',
-    String sortOrder = 'DESC',
-    int page = 1,
-    int pageSize = 10,
-    int? minBookmarkCount,
-    int? maxBookmarkCount,
-  })  : _authorName = authorName,
-        _tags = List.from(tags),
-        _sortBy = sortBy,
-        _sortOrder = sortOrder,
-        _page = page,
-        _pageSize = pageSize,
-        _minBookmarkCount = minBookmarkCount,
-        _maxBookmarkCount = maxBookmarkCount;
+    this.authorName = '',
+    this.authorUid = '',
+    List<String>? tags,
+    List<String>? excludedTags,
+    this.sortBy = 'bookmark_count',
+    this.sortOrder = 'DESC',
+    this.page = 1,
+    this.pageSize = 24,
+    this.pid,
+    this.minBookmarkCount,
+    this.maxBookmarkCount,
+    this.isBookmarked,
+    this.publishedAfter,
+    this.publishedBefore,
+  })  : tags = List<String>.from(tags ?? const []),
+        excludedTags = List<String>.from(excludedTags ?? const []);
 
-  // Getter and Setter for authorName
-  String get authorName => _authorName;
-
-  set authorName(String value) {
-    _authorName = value;
-  }
-
-  // Getter and Setter for tags
-  List<String> get tags => _tags;
-
-  set tags(List<String> value) {
-    _tags = value;
-  }
-
-  // Getter and Setter for sortBy
-  String get sortBy => _sortBy;
-
-  set sortBy(String value) {
-    _sortBy = value;
-  }
-
-  // Getter and Setter for sortOrder
-  String get sortOrder => _sortOrder;
-
-  set sortOrder(String value) {
-    _sortOrder = value;
-  }
-
-  // Getter and Setter for page
-  int get page => _page;
-
-  set page(int value) {
-    _page = value;
-  }
-
-  // Getter and Setter for pageSize
-  int get pageSize => _pageSize;
-
-  set pageSize(int value) {
-    _pageSize = value;
-  }
-
-  void addTag(String tag) {
-    if (!_tags.contains(tag)) {
-      _tags.add(tag);
-    }
-  }
-
-  void removeTag(String tag) {
-    _tags.remove(tag);
-  }
-
-  void handleTag(String tag) {
-    if (!_tags.contains(tag)) {
-      _tags.add(tag);
-    } else {
-      _tags.remove(tag);
-    }
-  }
-
-  int? get minBookmarkCount => _minBookmarkCount;
-
-  set minBookmarkCount(int? value) {
-    _minBookmarkCount = value;
-  }
-
-  int? get maxBookmarkCount => _maxBookmarkCount;
-
-  set maxBookmarkCount(int? value) {
-    _maxBookmarkCount = value;
-  }
-
-  static int? _tryParseInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value);
-    return null;
-  }
-
-  factory SearchCriteria.fromJson(Map<String, dynamic> json) {
+  SearchCriteria copy() {
     return SearchCriteria(
-      authorName: json['authorName'] ?? '',
-      tags: List<String>.of(json['tags'] ?? []),
-      sortBy: json['sortBy'] ?? 'pid',
-      sortOrder: json['sortOrder'] ?? 'DESC',
-      page: json['page'] ?? 1,
-      pageSize: json['pageSize'] ?? 10,
-      minBookmarkCount: _tryParseInt(json['minBookmarkCount']),
-      maxBookmarkCount: _tryParseInt(json['maxBookmarkCount']),
+      authorName: authorName,
+      authorUid: authorUid,
+      tags: List<String>.from(tags),
+      excludedTags: List<String>.from(excludedTags),
+      sortBy: sortBy,
+      sortOrder: sortOrder,
+      page: page,
+      pageSize: pageSize,
+      pid: pid,
+      minBookmarkCount: minBookmarkCount,
+      maxBookmarkCount: maxBookmarkCount,
+      isBookmarked: isBookmarked,
+      publishedAfter: publishedAfter,
+      publishedBefore: publishedBefore,
     );
   }
 
+  void applyFrom(SearchCriteria other) {
+    authorName = other.authorName;
+    authorUid = other.authorUid;
+    tags = List<String>.from(other.tags);
+    excludedTags = List<String>.from(other.excludedTags);
+    sortBy = other.sortBy;
+    sortOrder = other.sortOrder;
+    page = other.page;
+    pageSize = other.pageSize;
+    pid = other.pid;
+    minBookmarkCount = other.minBookmarkCount;
+    maxBookmarkCount = other.maxBookmarkCount;
+    isBookmarked = other.isBookmarked;
+    publishedAfter = other.publishedAfter;
+    publishedBefore = other.publishedBefore;
+  }
+
+  void addTag(String tag) {
+    if (tag.isEmpty || tags.contains(tag)) {
+      return;
+    }
+    excludedTags.remove(tag);
+    tags.add(tag);
+  }
+
+  void addExcludedTag(String tag) {
+    if (tag.isEmpty || excludedTags.contains(tag)) {
+      return;
+    }
+    tags.remove(tag);
+    excludedTags.add(tag);
+  }
+
+  void removeTag(String tag) {
+    tags.remove(tag);
+  }
+
+  void removeExcludedTag(String tag) {
+    excludedTags.remove(tag);
+  }
+
+  void toggleTag(String tag) {
+    if (tags.contains(tag)) {
+      tags.remove(tag);
+    } else if (tag.isNotEmpty) {
+      excludedTags.remove(tag);
+      tags.add(tag);
+    }
+  }
+
+  void toggleExcludedTag(String tag) {
+    if (excludedTags.contains(tag)) {
+      excludedTags.remove(tag);
+    } else if (tag.isNotEmpty) {
+      tags.remove(tag);
+      excludedTags.add(tag);
+    }
+  }
+
+  void clearAuthor() {
+    authorName = '';
+  }
+
+  void clearAllFilters() {
+    authorName = '';
+    authorUid = '';
+    tags.clear();
+    excludedTags.clear();
+    pid = null;
+    minBookmarkCount = null;
+    maxBookmarkCount = null;
+    isBookmarked = null;
+    publishedAfter = null;
+    publishedBefore = null;
+    sortBy = 'bookmark_count';
+    sortOrder = 'DESC';
+    page = 1;
+    pageSize = 24;
+  }
+
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = {
-      'author': _authorName,
-      'tags': _tags,
-      'sort_by': _sortBy,
-      'sort_order': _sortOrder,
-      'page': _page,
-      'size': _pageSize,
+    final payload = <String, dynamic>{
+      'author': authorName,
+      'author_uid': authorUid,
+      'tags': tags,
+      'excluded_tags': excludedTags,
+      'sort_by': sortBy,
+      'sort_order': sortOrder,
+      'page': page,
+      'size': pageSize,
     };
 
-    if (_minBookmarkCount != null) {
-      data['min_bookmark_count'] = _minBookmarkCount;
+    if (pid != null) {
+      payload['pid'] = pid;
     }
-    if (_maxBookmarkCount != null) {
-      data['max_bookmark_count'] = _maxBookmarkCount;
+    if (minBookmarkCount != null) {
+      payload['min_bookmark_count'] = minBookmarkCount;
     }
-    return data;
+    if (maxBookmarkCount != null) {
+      payload['max_bookmark_count'] = maxBookmarkCount;
+    }
+    if (isBookmarked != null) {
+      payload['is_bookmarked'] = isBookmarked;
+    }
+    if (publishedAfter != null) {
+      payload['published_after'] =
+          publishedAfter!.millisecondsSinceEpoch ~/ 1000;
+    }
+    if (publishedBefore != null) {
+      payload['published_before'] =
+          publishedBefore!.millisecondsSinceEpoch ~/ 1000;
+    }
+
+    return payload;
+  }
+
+  factory SearchCriteria.fromJson(Map<String, dynamic> json) {
+    DateTime? readDate(String key) {
+      final raw = json[key];
+      if (raw is int && raw > 0) {
+        return DateTime.fromMillisecondsSinceEpoch(raw * 1000);
+      }
+      return null;
+    }
+
+    return SearchCriteria(
+      authorName: json['author'] as String? ?? '',
+      authorUid: json['author_uid'] as String? ?? '',
+      tags: List<String>.from(json['tags'] as List? ?? const []),
+      excludedTags:
+          List<String>.from(json['excluded_tags'] as List? ?? const []),
+      sortBy: json['sort_by'] as String? ?? 'bookmark_count',
+      sortOrder: json['sort_order'] as String? ?? 'DESC',
+      page: json['page'] as int? ?? 1,
+      pageSize: json['size'] as int? ?? 24,
+      pid: json['pid'] as int?,
+      minBookmarkCount: json['min_bookmark_count'] as int?,
+      maxBookmarkCount: json['max_bookmark_count'] as int?,
+      isBookmarked: json['is_bookmarked'] as bool?,
+      publishedAfter: readDate('published_after'),
+      publishedBefore: readDate('published_before'),
+    );
+  }
+}
+
+class SearchPreset {
+  final String name;
+  final SearchCriteria criteria;
+
+  const SearchPreset({
+    required this.name,
+    required this.criteria,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'criteria': criteria.toJson(),
+    };
+  }
+
+  factory SearchPreset.fromJson(Map<String, dynamic> json) {
+    return SearchPreset(
+      name: json['name'] as String? ?? '未命名预设',
+      criteria: SearchCriteria.fromJson(
+        Map<String, dynamic>.from(json['criteria'] as Map? ?? const {}),
+      ),
+    );
   }
 }

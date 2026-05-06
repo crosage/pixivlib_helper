@@ -1,154 +1,324 @@
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/mobile_chrome.dart';
+
+enum TagEntryMode { include, exclude }
 
 class SearchTool extends StatefulWidget {
-  final Function(String) onSelected;
   final List<String> suggestions;
+  final ValueChanged<String> onInclude;
+  final ValueChanged<String> onExclude;
+  final String hintText;
 
-  const SearchTool(
-      {Key? key, required this.onSelected, required this.suggestions})
-      : super(key: key);
+  const SearchTool({
+    super.key,
+    required this.suggestions,
+    required this.onInclude,
+    required this.onExclude,
+    this.hintText = '输入 tag 后回车，或点下方建议',
+  });
 
   @override
-  _SearchBarState createState() => _SearchBarState();
+  State<SearchTool> createState() => _SearchToolState();
 }
 
-class _SearchBarState extends State<SearchTool> {
-  TextEditingController _searchController = TextEditingController();
-  List<dynamic> _filteredOptions = [];
-  OverlayEntry? _overlayEntry;
-  List<OverlayEntry> _overlayEntries = [];
+class _SearchToolState extends State<SearchTool> {
+  final TextEditingController _controller = TextEditingController();
+  TagEntryMode _mode = TagEntryMode.include;
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  void removeAllOverlays() {
-    for (var entry in _overlayEntries) {
-      entry.remove();
+  List<String> get _filteredSuggestions {
+    final keyword = _controller.text.trim().toLowerCase();
+    if (keyword.isEmpty) {
+      return const [];
     }
-    _overlayEntries.clear(); // 清空列表
+    return widget.suggestions
+        .where((tag) => tag.toLowerCase().contains(keyword))
+        .take(12)
+        .toList();
   }
 
-  void _updateFilteredOptions(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        print(1);
-        _filteredOptions = [];
-        print(_overlayEntry);
-        print(_overlayEntry == null);
-        if (_overlayEntry != null) {
-          print("我要remove了");
-          removeAllOverlays();
-          _overlayEntry = null;
-        }
-      } else {
-        print(2);
-        _filteredOptions = widget.suggestions
-            .where(
-                (option) => option.toLowerCase().contains(query.toLowerCase()))
-            .toList();
-        print("我要show了");
-        showOverlayFunction(context);
-      }
-    });
+  void _submit(String value, {TagEntryMode? mode}) {
+    final tag = value.trim();
+    if (tag.isEmpty) {
+      return;
+    }
+
+    final targetMode = mode ?? _mode;
+    if (targetMode == TagEntryMode.include) {
+      widget.onInclude(tag);
+    } else {
+      widget.onExclude(tag);
+    }
+
+    _controller.clear();
+    setState(() {});
   }
 
-  void showOverlayFunction(BuildContext context) {
-    RenderBox renderBox = context.findRenderObject() as RenderBox;
-    Offset offset = renderBox.localToGlobal(Offset.zero);
+  Future<void> _openTagBrowser() async {
+    final allTags = widget.suggestions
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort(
+          (left, right) => left.toLowerCase().compareTo(right.toLowerCase()));
 
-    OverlayState overlayState = Overlay.of(context);
-    _overlayEntry = OverlayEntry(
+    if (allTags.isEmpty) {
+      return;
+    }
+
+    final searchController = TextEditingController();
+    String keyword = '';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) {
-        return Positioned(
-          top: offset.dy + renderBox.size.height,
-          left: offset.dx,
-          child: _buildOverlayContent(),
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final normalized = keyword.trim().toLowerCase();
+            final filteredTags = normalized.isEmpty
+                ? allTags
+                : allTags
+                    .where((tag) => tag.toLowerCase().contains(normalized))
+                    .toList();
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.76,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '全部标签',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '可以直接搜索并加入筛选，也可以分别点右侧的包含 / 排除。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF64748B),
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        onChanged: (value) {
+                          setSheetState(() => keyword = value);
+                        },
+                        decoration: const InputDecoration(
+                          hintText: '搜索 tag',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const _BrowserHint(
+                            icon: Icons.add_rounded,
+                            label: '包含',
+                            color: Color(0xFF2563EB),
+                          ),
+                          const SizedBox(width: 8),
+                          const _BrowserHint(
+                            icon: Icons.remove_rounded,
+                            label: '排除',
+                            color: Color(0xFFE11D48),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${filteredTags.length} 项',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: filteredTags.isEmpty
+                            ? const Center(child: Text('没有匹配的标签'))
+                            : ListView.separated(
+                                itemCount: filteredTags.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final tag = filteredTags[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(tag),
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      _submit(tag);
+                                    },
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                            _submit(
+                                              tag,
+                                              mode: TagEntryMode.include,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.add_rounded),
+                                          color: const Color(0xFF2563EB),
+                                          tooltip: '加入包含',
+                                        ),
+                                        IconButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                            _submit(
+                                              tag,
+                                              mode: TagEntryMode.exclude,
+                                            );
+                                          },
+                                          icon:
+                                              const Icon(Icons.remove_rounded),
+                                          color: const Color(0xFFE11D48),
+                                          tooltip: '加入排除',
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
-    _overlayEntries.add(_overlayEntry!);
-    overlayState.insert(_overlayEntry!);
-    // overlayState.insert(_overlayEntry!);
-  }
 
-  Widget _buildOverlayContent() {
-    return Center(
-      child: Container(
-
-        height: 500,
-        width: 3000,
-        child: Card(
-          elevation: 4,
-
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _filteredOptions.length,
-            itemBuilder: (BuildContext context, int index) {
-              return ListTile(
-                title: Text(_filteredOptions[index]),
-                onTap: () {
-                  _searchController.text = _filteredOptions[index];
-                  widget.onSelected(_filteredOptions[index]);
-                  _updateFilteredOptions('');
-                },
-              );
-            },
-          ),
-        ),
-      ),
-    );
+    searchController.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // color: Colors.grey,
-      decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(50.0),
-          bottomLeft: Radius.circular(50.0),
-          topRight: Radius.circular(50.0),
-          bottomRight: Radius.circular(50.0),
-        ),
-      ),
-      child:
-        Row(
-          children: [
-            SizedBox(width: 10.0),
-            Icon(Icons.search),
-            SizedBox(width: 10.0),
-            Flexible(
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: '在这里输入Tag',
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) {
-                  _updateFilteredOptions(value);
-                },
-                onSubmitted: (value) {
-                  if (_overlayEntry != null) {
-                    removeAllOverlays();
-                    _overlayEntry = null;
-                  }
-                  widget.onSelected(value);
-                },
-              ),
+    final suggestions = _filteredSuggestions;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MobileSegmentedControl<TagEntryMode>(
+          selected: _mode,
+          segments: const [
+            MobileSegment<TagEntryMode>(
+              value: TagEntryMode.include,
+              icon: Icons.add_rounded,
+              label: '包含',
             ),
-            IconButton(
-              icon: Icon(Icons.clear),
-              onPressed: () {
-                _searchController.clear();
-                _updateFilteredOptions('');
-              },
+            MobileSegment<TagEntryMode>(
+              value: TagEntryMode.exclude,
+              icon: Icons.remove_rounded,
+              label: '排除',
             ),
-            SizedBox(width: 10.0),
           ],
+          onChanged: (value) => setState(() => _mode = value),
         ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _controller,
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (value) => _submit(value),
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            prefixIcon: Icon(
+              _mode == TagEntryMode.include
+                  ? Icons.search_rounded
+                  : Icons.block_rounded,
+            ),
+            suffixIcon: IconButton(
+              onPressed: () => _submit(_controller.text),
+              icon: const Icon(Icons.keyboard_return_rounded),
+              tooltip: _mode == TagEntryMode.include ? '添加包含 tag' : '添加排除 tag',
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: widget.suggestions.isEmpty ? null : _openTagBrowser,
+            icon: const Icon(Icons.local_offer_outlined),
+            label: Text('查看全部标签 (${widget.suggestions.length})'),
+          ),
+        ),
+        if (suggestions.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            '快速建议',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: suggestions.map((tag) {
+              return ActionChip(
+                label: Text(tag),
+                onPressed: () => _submit(tag),
+                backgroundColor: const Color(0xFFF8FAFC),
+                side: const BorderSide(color: Color(0xFFE5E7EB)),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _BrowserHint extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _BrowserHint({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
