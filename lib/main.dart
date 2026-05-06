@@ -1,241 +1,644 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:sidebarx/sidebarx.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:tagselector/components/download_progress_sheet.dart';
+import 'package:tagselector/pages/daily_ranking_page.dart';
+import 'package:tagselector/pages/following_authors_page.dart';
 import 'package:tagselector/pages/image_follow_page.dart';
 import 'package:tagselector/pages/image_index_page.dart';
 import 'package:tagselector/pages/setting_page.dart';
 import 'package:tagselector/pages/statistics_page.dart';
+import 'package:tagselector/service/artwork_download_manager.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const PixivHelperApp());
 }
 
-class MyApp extends StatelessWidget {
-  MyApp({Key? key}) : super(key: key);
-
-  final _controller = SidebarXController(selectedIndex: 0, extended: true);
-  final _key = GlobalKey<ScaffoldState>();
+class PixivHelperApp extends StatelessWidget {
+  const PixivHelperApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    const borderColor = Color(0xFFE5E7EB);
+    const selectedBg = Color(0xFFF3F8FF);
+    const selectedBorder = Color(0xFFD6E8FF);
+    const selectedFg = Color(0xFF3B82F6);
+    const normalFg = Color(0xFF334155);
+    const inkFg = Color(0xFF243B53);
+
     return MaterialApp(
-      title: 'Pixiv_Helper',
+      title: 'Pixiv Helper',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: primaryColor,
-        canvasColor: canvasColor,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF2563EB),
+          secondary: inkFg,
+          surface: Colors.white,
+          outline: borderColor,
+          outlineVariant: borderColor,
+        ),
+        iconTheme: const IconThemeData(color: Color(0xFF526176)),
+        appBarTheme: const AppBarTheme(
+          foregroundColor: inkFg,
+          iconTheme: IconThemeData(color: Color(0xFF526176)),
+          actionsIconTheme: IconThemeData(color: Color(0xFF526176)),
+        ),
         textTheme: const TextTheme(
-          headlineSmall: TextStyle(
-            color: Colors.black,
-            fontSize: 46,
-            fontWeight: FontWeight.w800,
+          headlineMedium: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: inkFg,
+          ),
+          titleLarge: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: inkFg,
+          ),
+          titleMedium: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: inkFg,
+          ),
+          bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF334155)),
+          bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF526176)),
+          labelLarge: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: inkFg,
           ),
         ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: borderColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF2563EB)),
+          ),
+        ),
+        chipTheme: const ChipThemeData(
+          backgroundColor: Color(0xFFF8FAFC),
+          selectedColor: selectedBg,
+          side: BorderSide(color: borderColor),
+          shape: StadiumBorder(),
+          labelStyle: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: normalFg,
+          ),
+          secondaryLabelStyle: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selectedFg,
+          ),
+        ),
+        segmentedButtonTheme: SegmentedButtonThemeData(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return selectedBg;
+              }
+              return Colors.white;
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return selectedFg;
+              }
+              return normalFg;
+            }),
+            iconColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return selectedFg;
+              }
+              return const Color(0xFF64748B);
+            }),
+            side: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return const BorderSide(color: selectedBorder);
+              }
+              return const BorderSide(color: borderColor);
+            }),
+            textStyle: const WidgetStatePropertyAll(
+              TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        iconButtonTheme: IconButtonThemeData(
+          style: ButtonStyle(
+            foregroundColor: const WidgetStatePropertyAll(Color(0xFF526176)),
+            overlayColor: WidgetStatePropertyAll(
+              const Color(0xFF3B82F6).withValues(alpha: 0.08),
+            ),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: ButtonStyle(
+            foregroundColor: const WidgetStatePropertyAll(Color(0xFF2563EB)),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return const Color(0xFFE2E8F0);
+              }
+              return const Color(0xFFEFF6FF);
+            }),
+            side: const WidgetStatePropertyAll(
+              BorderSide(color: Color(0xFFBFDBFE)),
+            ),
+            iconColor: const WidgetStatePropertyAll(Color(0xFF3B82F6)),
+            textStyle: const WidgetStatePropertyAll(
+              TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        outlinedButtonTheme: const OutlinedButtonThemeData(
+          style: ButtonStyle(
+            foregroundColor: WidgetStatePropertyAll(Color(0xFF3B82F6)),
+            side: WidgetStatePropertyAll(
+              BorderSide(color: Color(0xFFD6E8FF)),
+            ),
+          ),
+        ),
+        textButtonTheme: const TextButtonThemeData(
+          style: ButtonStyle(
+            foregroundColor: WidgetStatePropertyAll(Color(0xFF3B82F6)),
+          ),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: selectedBg,
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: selectedFg, size: 23);
+            }
+            return const IconThemeData(color: Color(0xFF64748B), size: 22);
+          }),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(
+                color: selectedFg,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              );
+            }
+            return const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            );
+          }),
+        ),
       ),
-      home: Builder(
-        builder: (context) {
-          final isSmallScreen = MediaQuery.of(context).size.width < 600;
-          return Scaffold(
-            key: _key,
-            appBar: isSmallScreen
-                ? AppBar(
-                    backgroundColor: canvasColor,
-                    title: Text(_getTitleByIndex(_controller.selectedIndex)),
-                    leading: IconButton(
-                      onPressed: () {
-                        _key.currentState?.openDrawer();
-                      },
-                      icon: const Icon(Icons.menu),
-                    ),
-                  )
-                : null,
-            drawer: PixivSidebarX(controller: _controller),
-            body: Row(
-              children: [
-                if (!isSmallScreen) PixivSidebarX(controller: _controller),
-                Expanded(
-                  child: Center(
-                    child: _MainScreens(
-                      controller: _controller,
-                    ),
+      home: const _AppShell(),
+    );
+  }
+}
+
+class _AppShell extends StatefulWidget {
+  const _AppShell();
+
+  @override
+  State<_AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<_AppShell> {
+  int _selectedIndex = 0;
+
+  final _pages = const [
+    ImageListPage(),
+    FollowingPage(),
+    FollowingAuthorsPage(),
+    DailyRankingPage(),
+    SettingPage(),
+    TagCountPage(),
+  ];
+
+  final _navItems = const [
+    _NavItem(icon: Icons.image_outlined, label: '图库'),
+    _NavItem(icon: Icons.favorite_border_rounded, label: '关注'),
+    _NavItem(icon: Icons.groups_2_outlined, label: '作者'),
+    _NavItem(icon: Icons.auto_graph_rounded, label: '日榜'),
+    _NavItem(icon: Icons.settings_outlined, label: '设置'),
+    _NavItem(icon: Icons.pie_chart_outline_rounded, label: '总览'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final phone = width < 720;
+    final compact = width < 1000;
+
+    return Scaffold(
+      drawer: compact && !phone
+          ? Drawer(
+              backgroundColor: Colors.white,
+              child: _NavigationPane(
+                items: _navItems,
+                selectedIndex: _selectedIndex,
+                compact: false,
+                onSelect: (index) {
+                  setState(() => _selectedIndex = index);
+                  Navigator.of(context).pop();
+                },
+              ),
+            )
+          : null,
+      appBar: compact && !phone
+          ? AppBar(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              title: Text(_navItems[_selectedIndex].label),
+              actions: const [
+                _DownloadProgressButton(compact: false),
+                SizedBox(width: 8),
+              ],
+            )
+          : null,
+      floatingActionButton: phone || !compact
+          ? Padding(
+              padding: EdgeInsets.only(bottom: phone ? 74 : 0),
+              child: const _DownloadProgressButton(compact: true),
+            )
+          : null,
+      bottomNavigationBar: phone
+          ? _MobileBottomNav(
+              selectedIndex: _selectedIndex,
+              items: _navItems,
+              onSelect: (index) {
+                setState(() => _selectedIndex = index);
+              },
+            )
+          : null,
+      body: SafeArea(
+        top: phone,
+        left: false,
+        right: false,
+        bottom: false,
+        child: Row(
+          children: [
+            if (!compact)
+              Container(
+                width: 108,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFE5E7EB)),
                   ),
                 ),
-              ],
+                child: _NavigationPane(
+                  items: _navItems,
+                  selectedIndex: _selectedIndex,
+                  compact: true,
+                  onSelect: (index) => setState(() => _selectedIndex = index),
+                ),
+              ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(phone ? 0 : (compact ? 8 : 12)),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 160),
+                  child: KeyedSubtree(
+                    key: ValueKey(_selectedIndex),
+                    child: _pages[_selectedIndex],
+                  ),
+                ),
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 }
 
-class PixivSidebarX extends StatelessWidget {
-  const PixivSidebarX({
-    Key? key,
-    required SidebarXController controller,
-  })  : _controller = controller,
-        super(key: key);
+class _DownloadProgressButton extends StatelessWidget {
+  final bool compact;
 
-  final SidebarXController _controller;
+  const _DownloadProgressButton({required this.compact});
 
   @override
   Widget build(BuildContext context) {
-    return SidebarX(
-      controller: _controller,
-      animationDuration: Duration(milliseconds: 150),
-      theme: SidebarXTheme(
-        margin: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: canvasColor,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        hoverColor: hoverColor,
-        textStyle: TextStyle(color: Colors.black.withOpacity(0.7)),
-        selectedTextStyle: const TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
-        ),
-        hoverTextStyle: const TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.w500,
-        ),
-        itemTextPadding: const EdgeInsets.only(left: 30),
-        selectedItemTextPadding: const EdgeInsets.only(left: 30),
-        itemDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: canvasColor),
-        ),
-        selectedItemDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        iconTheme: IconThemeData(
-          color: Colors.black.withOpacity(0.7),
-          size: 20,
-        ),
-        selectedIconTheme: const IconThemeData(
-          color: Colors.black,
-          size: 20,
-        ),
-      ),
-      extendedTheme: const SidebarXTheme(
-        width: 200,
-        decoration: BoxDecoration(
-          color: canvasColor,
-        ),
-      ),
-      footerDivider: divider,
-      headerBuilder: (context, extended) {
-        return SizedBox(
-          height: 100,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SvgPicture.asset(
-              'assets/pixiv.svg',
-              width: 300, // 设置宽度
-              height: 300, // 设置高度
+    final manager = ArtworkDownloadManager.instance;
+    return AnimatedBuilder(
+      animation: manager,
+      builder: (context, _) {
+        final activeCount = manager.activeTaskCount;
+        final totalCount = manager.tasks.length;
+        final hasTasks = totalCount > 0;
+        final foreground =
+            activeCount > 0 ? const Color(0xFF0A84FF) : const Color(0xFF526176);
+
+        final button = Material(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          elevation: compact ? 4 : 0,
+          shadowColor: Colors.black.withValues(alpha: 0.16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => showDownloadProgressSheet(context),
+            child: SizedBox(
+              width: compact ? 46 : 42,
+              height: compact ? 46 : 42,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    activeCount > 0
+                        ? Icons.downloading_rounded
+                        : Icons.file_download_done_rounded,
+                    color: foreground,
+                    size: compact ? 24 : 22,
+                  ),
+                  if (activeCount > 0)
+                    Positioned.fill(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                        backgroundColor: const Color(0xFFEAF4FF),
+                      ),
+                    ),
+                  if (hasTasks)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        height: 17,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: activeCount > 0
+                              ? const Color(0xFF0A84FF)
+                              : const Color(0xFF64748B),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Text(
+                          activeCount > 0 ? '$activeCount' : '$totalCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
+
+        if (compact) {
+          return button;
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: button,
+        );
       },
-      items: [
-        SidebarXItem(
-          icon: Icons.home,
-          label: '首页',
-          onTap: () {
-            debugPrint('Home');
-          },
-        ),
-        SidebarXItem(
-          icon: Icons.favorite_border,
-          label: '关注的用户',
-        ),
-        const SidebarXItem(
-          icon: Icons.settings,
-          label: '设置',
-        ),
-        const SidebarXItem(
-          icon: Icons.bar_chart,
-          label: '统计',
-        ),
-      ],
     );
   }
+}
 
-  void _showDisabledAlert(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Item disabled for selecting',
-          style: TextStyle(color: Colors.black),
+class _MobileBottomNav extends StatelessWidget {
+  final List<_NavItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  const _MobileBottomNav({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(5, 4, 5, 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: const Color(0xFFE8EDF4)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              for (var index = 0; index < items.length; index++)
+                Expanded(
+                  child: _MobileNavItem(
+                    item: items[index],
+                    selected: index == selectedIndex,
+                    onTap: () => onSelect(index),
+                  ),
+                ),
+            ],
+          ),
         ),
-        backgroundColor: Colors.white,
       ),
     );
   }
 }
 
-class _MainScreens extends StatelessWidget {
-  const _MainScreens({
-    Key? key,
-    required this.controller,
-  }) : super(key: key);
+class _MobileNavItem extends StatelessWidget {
+  final _NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
 
-  final SidebarXController controller;
+  const _MobileNavItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        switch (controller.selectedIndex) {
-          case 0:
-            return ImageListPage();
-          case 1:
-            return FollowingPage();
-          case 2:
-            return SettingPage();
-          case 3:
-            return TagCountPage();
-          default:
-            return Text(
-              "test",
-              style: theme.textTheme.headlineSmall,
-            );
-        }
-      },
+    final color = selected ? const Color(0xFF0A84FF) : const Color(0xFF64748B);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          height: 44,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFEAF4FF) : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(item.icon, size: selected ? 21 : 20, color: color),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-String _getTitleByIndex(int index) {
-  switch (index) {
-    case 0:
-      return '首页';
-    case 1:
-      return '设置';
-    case 2:
-      return '统计';
-    case 3:
-      return 'Favorites';
-    case 4:
-      return 'Custom iconWidget';
-    case 5:
-      return 'Profile';
-    case 6:
-      return 'Settings';
-    default:
-      return 'Not found page';
+class _NavigationPane extends StatelessWidget {
+  final List<_NavItem> items;
+  final int selectedIndex;
+  final bool compact;
+  final ValueChanged<int> onSelect;
+
+  const _NavigationPane({
+    required this.items,
+    required this.selectedIndex,
+    required this.compact,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 10 : 14),
+        child: Column(
+          children: [
+            Container(
+              width: compact ? 52 : double.infinity,
+              height: 52,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: SvgPicture.asset('assets/pixiv.svg'),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final selected = index == selectedIndex;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onSelect(index),
+                    child: Ink(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 8 : 12,
+                        vertical: compact ? 10 : 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? const Color(0xFFF3F8FF)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: selected
+                              ? const Color(0xFFD6E8FF)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      child: compact
+                          ? Column(
+                              children: [
+                                Icon(
+                                  item.icon,
+                                  size: 20,
+                                  color: selected
+                                      ? const Color(0xFF3B82F6)
+                                      : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item.label,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: selected
+                                        ? const Color(0xFF3B82F6)
+                                        : const Color(0xFF243B53),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Icon(
+                                  item.icon,
+                                  size: 20,
+                                  color: selected
+                                      ? const Color(0xFF3B82F6)
+                                      : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  item.label,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: selected
+                                        ? const Color(0xFF3B82F6)
+                                        : const Color(0xFF243B53),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
-const primaryColor = Color(0xFF685BFF);
-const canvasColor = Color(0xFFFFFFFF);
-const scaffoldBackgroundColor = Color(0xFFE0E0E0);
-const accentCanvasColor = Color(0xFFB0C4DE);
-const hoverColor = Color(0xFFD3D3D3);
-const white = Colors.white;
-final actionColor = const Color(0xFF5F5FA7).withOpacity(0.6);
-final divider = Divider(color: white.withOpacity(0.3), height: 1);
+class _NavItem {
+  final IconData icon;
+  final String label;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+  });
+}
