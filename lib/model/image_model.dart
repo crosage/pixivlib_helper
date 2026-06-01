@@ -18,6 +18,7 @@ class ImageModel {
   final int width;
   final int height;
   final bool needsRefresh;
+  final String type;
   final ImageUrlsModel urls;
 
   const ImageModel({
@@ -34,6 +35,7 @@ class ImageModel {
     this.width = 0,
     this.height = 0,
     required this.needsRefresh,
+    this.type = '',
     required this.urls,
   });
 
@@ -51,6 +53,7 @@ class ImageModel {
     int? width,
     int? height,
     bool? needsRefresh,
+    String? type,
     ImageUrlsModel? urls,
   }) {
     return ImageModel(
@@ -67,6 +70,7 @@ class ImageModel {
       width: width ?? this.width,
       height: height ?? this.height,
       needsRefresh: needsRefresh ?? this.needsRefresh,
+      type: type ?? this.type,
       urls: urls ?? this.urls,
     );
   }
@@ -92,6 +96,7 @@ class ImageModel {
       width: json['width'] ?? 0,
       height: json['height'] ?? 0,
       needsRefresh: json['needs_refresh'] ?? false,
+      type: json['type'] ?? json['illust_type']?.toString() ?? '',
       urls: ImageUrlsModel.fromJson(
           Map<String, dynamic>.from(json['urls'] ?? {})),
     );

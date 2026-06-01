@@ -377,6 +377,18 @@ class _FullImagePageState extends State<FullImagePage> {
 
   bool get _hasNextPage => _pageCount > 1 && _currentPageIndex < _pageCount - 1;
 
+  bool get _isAnimatedArtwork {
+    final type = _image.type.toLowerCase();
+    return type.contains('ugoira') ||
+        type.contains('gif') ||
+        type.contains('animated');
+  }
+
+  bool _isPlayableAnimatedUrl(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+    return path.endsWith('.gif') || path.endsWith('.webp');
+  }
+
   String _resolveCurrentImageUrl({required bool fullQuality}) {
     final pageID =
         _image.pages.isEmpty ? 0 : _image.pages[_currentPageIndex].pageId;
@@ -802,6 +814,15 @@ class _FullImagePageState extends State<FullImagePage> {
                                               '${_currentPageIndex + 1} / $_pageCount',
                                         ),
                                       ),
+                                    if (_isAnimatedArtwork)
+                                      Positioned(
+                                        left: 12,
+                                        bottom: 12,
+                                        child: _AnimatedArtworkBadge(
+                                          playable:
+                                              _isPlayableAnimatedUrl(imageUrl),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -939,6 +960,8 @@ class _FullImagePageState extends State<FullImagePage> {
             imageUrl: imageUrl,
             height: imageViewportHeight,
             hasMultiplePages: hasMultiplePages,
+            isAnimatedArtwork: _isAnimatedArtwork,
+            isPlayableAnimatedUrl: _isPlayableAnimatedUrl(imageUrl),
             currentPageIndex: _currentPageIndex,
             pageCount: _pageCount,
             onHorizontalSwipe: _handleArtworkHorizontalSwipe,
@@ -1202,10 +1225,51 @@ class _ArtworkImage extends StatelessWidget {
   }
 }
 
+class _AnimatedArtworkBadge extends StatelessWidget {
+  final bool playable;
+
+  const _AnimatedArtworkBadge({required this.playable});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xCC111827),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.movie_filter_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              playable ? '动图播放中' : '动图预览',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                height: 1,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileArtworkStage extends StatelessWidget {
   final String imageUrl;
   final double height;
   final bool hasMultiplePages;
+  final bool isAnimatedArtwork;
+  final bool isPlayableAnimatedUrl;
   final int currentPageIndex;
   final int pageCount;
   final GestureDragEndCallback onHorizontalSwipe;
@@ -1216,6 +1280,8 @@ class _MobileArtworkStage extends StatelessWidget {
     required this.imageUrl,
     required this.height,
     required this.hasMultiplePages,
+    required this.isAnimatedArtwork,
+    required this.isPlayableAnimatedUrl,
     required this.currentPageIndex,
     required this.pageCount,
     required this.onHorizontalSwipe,
@@ -1248,6 +1314,12 @@ class _MobileArtworkStage extends StatelessWidget {
                 ),
               ),
             ],
+            if (isAnimatedArtwork)
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: _AnimatedArtworkBadge(playable: isPlayableAnimatedUrl),
+              ),
           ],
         ),
       ),

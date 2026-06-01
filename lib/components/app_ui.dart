@@ -41,6 +41,111 @@ class AppSurface extends StatelessWidget {
   }
 }
 
+class AppSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+  final double gap;
+
+  const AppSection({
+    super.key,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.gap = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppSectionHeader(title: title, trailing: trailing),
+        SizedBox(height: gap),
+        child,
+      ],
+    );
+  }
+}
+
+class AppSectionHeader extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+
+  const AppSectionHeader({
+    super.key,
+    required this.title,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
+            ),
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class AppInfoPill extends StatelessWidget {
+  final IconData? icon;
+  final String label;
+  final Color foregroundColor;
+  final Color backgroundColor;
+  final EdgeInsetsGeometry padding;
+
+  const AppInfoPill({
+    super.key,
+    this.icon,
+    required this.label,
+    this.foregroundColor = const Color(0xFF475569),
+    this.backgroundColor = const Color(0xFFF8FAFC),
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Padding(
+        padding: padding,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: foregroundColor),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: foregroundColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AppEmptyState extends StatelessWidget {
   final String title;
   final String? description;

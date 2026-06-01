@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -49,9 +50,11 @@ class _ImageListPageState extends State<ImageListPage> {
   late Future<List<String>> _tagSuggestionsFuture;
   Future<PagedImagesResponse>? _resultsFuture;
   Timer? _debounceTimer;
+  Timer? _scrollPrefetchTimer;
   List<SearchPreset> _presets = const [];
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
   final Set<int> _bookmarkHydrationInFlight = <int>{};
+  List<ImageModel> _visibleImagesForPrefetch = const [];
   final List<ImageModel> _discoveryImages = <ImageModel>[];
   final Set<int> _discoverySeenPids = <int>{};
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
@@ -76,6 +79,7 @@ class _ImageListPageState extends State<ImageListPage> {
   void dispose() {
     _session.removeListener(_handleUserChanged);
     _debounceTimer?.cancel();
+    _scrollPrefetchTimer?.cancel();
     _scrollController.dispose();
     _authorNameController.dispose();
     _authorUidController.dispose();
@@ -160,8 +164,23 @@ class _ImageListPageState extends State<ImageListPage> {
     _discoveryLoadMoreError = null;
     setState(() {
       _showingDiscovery = false;
-      _resultsFuture = _api.searchImages(_criteria);
+      _resultsFuture = _fetchSearchResults();
     });
+  }
+
+  Future<PagedImagesResponse> _fetchSearchResults() async {
+    final response = await _api.searchImages(_criteria);
+    _prepareImages(response.images);
+    return response;
+  }
+
+  void _prepareImages(List<ImageModel> images) {
+    _prefetcher.prefetchImageModels(
+      images.take(_displayMode == DisplayMode.grid ? 8 : 12),
+      highQuality: _displayMode == DisplayMode.list,
+      limit: _displayMode == DisplayMode.grid ? 8 : 12,
+    );
+    _hydrateBookmarkCounts(images);
   }
 
   void _refreshVisibleResults() {
@@ -227,12 +246,7 @@ class _ImageListPageState extends State<ImageListPage> {
     }
     _discoverySeenPids.addAll(images.map((image) => image.pid));
     _hasMoreDiscovery = images.isNotEmpty;
-    _prefetcher.prefetchImageModels(
-      images.take(8),
-      highQuality: _displayMode == DisplayMode.list,
-      limit: 8,
-    );
-    _hydrateBookmarkCounts(images);
+    _prepareImages(images);
     return PagedImagesResponse(
       images: List<ImageModel>.of(_discoveryImages),
       total: _discoverySeenPids.length,
@@ -251,6 +265,30 @@ class _ImageListPageState extends State<ImageListPage> {
     if (position.extentAfter < 900) {
       _loadMoreDiscoveryRecommendations();
     }
+    _scheduleScrollPrefetch();
+  }
+
+  void _scheduleScrollPrefetch() {
+    if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+      return;
+    }
+    _scrollPrefetchTimer?.cancel();
+    _scrollPrefetchTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+        return;
+      }
+      final position = _scrollController.position;
+      final estimatedItemExtent =
+          _displayMode == DisplayMode.list ? 420.0 : 220.0;
+      final index = (position.pixels / estimatedItemExtent)
+          .floor()
+          .clamp(
+            0,
+            math.max(0, _visibleImagesForPrefetch.length - 1),
+          )
+          .toInt();
+      _prefetchAround(_visibleImagesForPrefetch, index);
+    });
   }
 
   Future<void> _loadMoreDiscoveryRecommendations() async {
@@ -542,19 +580,13 @@ class _ImageListPageState extends State<ImageListPage> {
         final images = (snapshot.data?.images ?? const <ImageModel>[])
             .map((image) => _imageOverrides[image.pid] ?? image)
             .toList();
+        _visibleImagesForPrefetch = images;
         final total = snapshot.data?.total ?? 0;
         final totalPages = _showingDiscovery
             ? null
             : total == 0
                 ? 1
                 : ((total - 1) ~/ _criteria.pageSize) + 1;
-
-        _prefetcher.prefetchImageModels(
-          images.take(_showingDiscovery ? 8 : 12),
-          highQuality: _displayMode == DisplayMode.list,
-          limit: _displayMode == DisplayMode.grid ? 8 : 12,
-        );
-        _hydrateBookmarkCounts(images);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -1089,9 +1121,6 @@ class _ImageListPageState extends State<ImageListPage> {
           if (index >= images.length) {
             return _buildDiscoveryFooter(phone: phone);
           }
-          if (index % 3 == 0) {
-            _prefetchAround(images, index);
-          }
           final image = images[index];
           return ImageWithInfo(
             image: image,
@@ -1126,9 +1155,6 @@ class _ImageListPageState extends State<ImageListPage> {
           itemBuilder: (context, index) {
             if (index >= images.length) {
               return _buildDiscoveryFooter(phone: phone);
-            }
-            if (index % 6 == 0) {
-              _prefetchAround(images, index);
             }
             final image = images[index];
             return MasonryImageTile(

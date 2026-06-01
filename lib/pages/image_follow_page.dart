@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -46,6 +47,8 @@ class _FollowingPageState extends State<FollowingPage> {
   Future<List<ImageModel>>? _followingFuture;
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
   final Set<int> _bookmarkHydrationInFlight = <int>{};
+  Timer? _scrollPrefetchTimer;
+  List<ImageModel> _visibleImagesForPrefetch = const [];
 
   int _page = 1;
   String _selectedAuthor = '';
@@ -60,6 +63,7 @@ class _FollowingPageState extends State<FollowingPage> {
   void initState() {
     super.initState();
     _session.addListener(_handleUserChanged);
+    _scrollController.addListener(_scheduleScrollPrefetch);
     _sourceMode = widget.initialSourceMode;
     _bookmarkRestMode = widget.initialBookmarkRestMode;
     _tagSuggestionsFuture = _api.fetchTagSuggestions();
@@ -69,6 +73,7 @@ class _FollowingPageState extends State<FollowingPage> {
   @override
   void dispose() {
     _session.removeListener(_handleUserChanged);
+    _scrollPrefetchTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -85,18 +90,50 @@ class _FollowingPageState extends State<FollowingPage> {
   void _refreshFollowing() {
     setState(() {
       if (_sourceMode == FollowingSourceMode.bookmarks) {
-        _followingFuture = _api.fetchBookmarkImages(
+        _followingFuture = _fetchBookmarkImages(
           page: _page,
           rest: _bookmarkRestMode.name,
           mode: _feedMode.name,
         );
       } else {
-        _followingFuture = _api.fetchFollowingImages(
+        _followingFuture = _fetchFollowingImages(
           page: _page,
           mode: _feedMode.name,
         );
       }
     });
+  }
+
+  Future<List<ImageModel>> _fetchBookmarkImages({
+    required int page,
+    required String rest,
+    required String mode,
+  }) async {
+    final images = await _api.fetchBookmarkImages(
+      page: page,
+      rest: rest,
+      mode: mode,
+    );
+    _prepareImages(images);
+    return images;
+  }
+
+  Future<List<ImageModel>> _fetchFollowingImages({
+    required int page,
+    required String mode,
+  }) async {
+    final images = await _api.fetchFollowingImages(page: page, mode: mode);
+    _prepareImages(images);
+    return images;
+  }
+
+  void _prepareImages(List<ImageModel> images) {
+    _prefetcher.prefetchImageModels(
+      images.take(_displayMode == FollowingDisplayMode.grid ? 8 : 12),
+      highQuality: _displayMode == FollowingDisplayMode.list,
+      limit: _displayMode == FollowingDisplayMode.grid ? 8 : 12,
+    );
+    _hydrateBookmarkCounts(images);
   }
 
   void _updateImage(ImageModel image) {
@@ -241,6 +278,29 @@ class _FollowingPageState extends State<FollowingPage> {
     );
   }
 
+  void _scheduleScrollPrefetch() {
+    if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+      return;
+    }
+    _scrollPrefetchTimer?.cancel();
+    _scrollPrefetchTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+        return;
+      }
+      final position = _scrollController.position;
+      final estimatedItemExtent =
+          _displayMode == FollowingDisplayMode.list ? 420.0 : 220.0;
+      final index = (position.pixels / estimatedItemExtent)
+          .floor()
+          .clamp(
+            0,
+            math.max(0, _visibleImagesForPrefetch.length - 1),
+          )
+          .toInt();
+      _prefetchAround(_visibleImagesForPrefetch, index);
+    });
+  }
+
   Future<void> _openFilterSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -321,13 +381,7 @@ class _FollowingPageState extends State<FollowingPage> {
       builder: (context, snapshot) {
         final rawImages = snapshot.data ?? const <ImageModel>[];
         final images = _filterImages(rawImages);
-        _prefetcher.prefetchImageModels(
-          images.take(_displayMode == FollowingDisplayMode.grid ? 8 : 12),
-          highQuality: _displayMode == FollowingDisplayMode.list,
-          limit: _displayMode == FollowingDisplayMode.grid ? 8 : 12,
-        );
-        _hydrateBookmarkCounts(images);
-
+        _visibleImagesForPrefetch = images;
         return LayoutBuilder(
           builder: (context, constraints) {
             final phone = constraints.maxWidth < 720;
@@ -487,9 +541,6 @@ class _FollowingPageState extends State<FollowingPage> {
         padding: EdgeInsets.symmetric(horizontal: phone ? 0 : 10),
         itemCount: images.length,
         itemBuilder: (context, index) {
-          if (index % 3 == 0) {
-            _prefetchAround(images, index);
-          }
           final image = images[index];
           return ImageWithInfo(
             image: image,
@@ -521,9 +572,6 @@ class _FollowingPageState extends State<FollowingPage> {
           mainAxisSpacing: phone ? 6 : 10,
           itemCount: images.length,
           itemBuilder: (context, index) {
-            if (index % 6 == 0) {
-              _prefetchAround(images, index);
-            }
             final image = images[index];
             return MasonryImageTile(
               image: image,

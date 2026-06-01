@@ -203,85 +203,86 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
                 limit: 18,
               );
 
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  phone ? 0 : 24,
-                  phone ? 0 : 24,
-                  phone ? 0 : 24,
-                  phone ? 8 : 24,
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _RankingHeader(
-                            phone: phone,
-                            page: _page,
-                            mode: _mode,
-                            selectedDate: _selectedDate,
-                            dateLabel: ranking.dateLabel,
-                            onRefresh: _reload,
-                            onPrevPage:
-                                _page > 1 ? () => _changePage(-1) : null,
-                            onNextPage: () => _changePage(1),
-                            onModeChanged: _changeMode,
-                            onOpenModeSheet: _openModeSheet,
-                            onPickDate: _pickDate,
-                            onClearDate: _clearDate,
-                          ),
-                          SizedBox(height: phone ? 8 : 24),
-                          if (ranking.images.isEmpty)
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: phone ? 10 : 0,
-                                vertical: 20,
-                              ),
-                              child: const Text('当前没有获取到榜单数据。'),
-                            )
-                          else
-                            LayoutBuilder(
-                              builder: (context, gridConstraints) {
-                                final crossAxisCount = phone
-                                    ? (gridConstraints.maxWidth < 430 ? 2 : 3)
-                                    : (gridConstraints.maxWidth / 240)
-                                        .floor()
-                                        .clamp(1, 6);
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: ranking.images.length,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: phone ? 6 : 0,
-                                    vertical: phone ? 0 : 0,
-                                  ),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: phone ? 6 : 12,
-                                    mainAxisSpacing: phone ? 6 : 12,
-                                    childAspectRatio: phone ? 0.76 : 0.72,
-                                  ),
-                                  itemBuilder: (context, index) {
-                                    if (index % 6 == 0) {
-                                      _prefetchAround(ranking.images, index);
-                                    }
-                                    final item = ranking.images[index];
-                                    return _RankingCard(
-                                      phone: phone,
-                                      item: item,
-                                      onTap: () => _openImage(item),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                        ],
+              final horizontalPadding = phone ? 0.0 : 24.0;
+              final topPadding = phone ? 0.0 : 24.0;
+              final bottomPadding = phone ? 8.0 : 24.0;
+              final availableGridWidth =
+                  constraints.maxWidth - horizontalPadding * 2;
+              final crossAxisCount = phone
+                  ? (availableGridWidth < 430 ? 2 : 3)
+                  : (availableGridWidth / 240).floor().clamp(1, 6).toInt();
+
+              return CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      topPadding,
+                      horizontalPadding,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _RankingHeader(
+                        phone: phone,
+                        page: _page,
+                        mode: _mode,
+                        selectedDate: _selectedDate,
+                        dateLabel: ranking.dateLabel,
+                        onRefresh: _reload,
+                        onPrevPage: _page > 1 ? () => _changePage(-1) : null,
+                        onNextPage: () => _changePage(1),
+                        onModeChanged: _changeMode,
+                        onOpenModeSheet: _openModeSheet,
+                        onPickDate: _pickDate,
+                        onClearDate: _clearDate,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  SliverToBoxAdapter(child: SizedBox(height: phone ? 8 : 24)),
+                  if (ranking.images.isEmpty)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 10 : 24,
+                        20,
+                        phone ? 10 : 24,
+                        bottomPadding,
+                      ),
+                      sliver: const SliverToBoxAdapter(
+                        child: Text('当前没有获取到榜单数据。'),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 6 : horizontalPadding,
+                        0,
+                        phone ? 6 : horizontalPadding,
+                        bottomPadding,
+                      ),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: phone ? 6 : 12,
+                          mainAxisSpacing: phone ? 6 : 12,
+                          childAspectRatio: phone ? 0.76 : 0.72,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index % 6 == 0) {
+                              _prefetchAround(ranking.images, index);
+                            }
+                            final item = ranking.images[index];
+                            return _RankingCard(
+                              phone: phone,
+                              item: item,
+                              onTap: () => _openImage(item),
+                            );
+                          },
+                          childCount: ranking.images.length,
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),

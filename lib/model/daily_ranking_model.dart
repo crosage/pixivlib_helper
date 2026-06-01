@@ -79,6 +79,7 @@ class DailyRankingModel {
       isBookmarked: false,
       publishedAt: publishedAt,
       updatedAt: 0,
+      type: type,
       needsRefresh: false,
       urls: ImageUrlsModel(
         original: '',

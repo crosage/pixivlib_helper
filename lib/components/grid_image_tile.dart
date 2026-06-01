@@ -163,12 +163,6 @@ class _GridImageTileState extends State<GridImageTile> {
                               height: 1.1,
                               fontWeight: FontWeight.w900,
                               color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  color: Color(0x99000000),
-                                  blurRadius: 8,
-                                ),
-                              ],
                             ),
                           ),
                         const SizedBox(height: 4),
@@ -193,12 +187,6 @@ class _GridImageTileState extends State<GridImageTile> {
                                   height: 1,
                                   fontWeight: FontWeight.w800,
                                   color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                      color: Color(0x99000000),
-                                      blurRadius: 8,
-                                    ),
-                                  ],
                                 ),
                               ),
                             ),
@@ -383,8 +371,6 @@ class _MiniLikeButton extends StatelessWidget {
     return Material(
       color: Colors.white.withValues(alpha: 0.94),
       borderRadius: BorderRadius.circular(999),
-      elevation: 1,
-      shadowColor: Colors.black.withValues(alpha: 0.14),
       child: InkWell(
         onTap: isBusy ? null : onTap,
         borderRadius: BorderRadius.circular(999),

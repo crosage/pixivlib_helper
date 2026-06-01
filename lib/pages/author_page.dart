@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/author_profile_model.dart';
 import 'package:tagselector/model/followed_author_model.dart';
@@ -180,57 +182,65 @@ class _AuthorPageState extends State<AuthorPage> {
           if (showBlockingError)
             _BlockingError(error: _error!, onRetry: _refresh)
           else
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 22),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1280),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_error != null) ...[
-                        _StatusBanner(
-                          icon: Icons.cloud_off_rounded,
-                          text: '这次刷新失败了，先展示上一次加载到的作者信息。',
-                          actionLabel: '重试',
-                          onAction: _refresh,
+            CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_error != null) ...[
+                              _StatusBanner(
+                                icon: Icons.cloud_off_rounded,
+                                text: '这次刷新失败了，先展示上一次加载到的作者信息。',
+                                actionLabel: '重试',
+                                onAction: _refresh,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            if (_shouldShowSyncBanner(profile) &&
+                                (profile.syncSummary.inProgress ||
+                                    profile.syncSummary.queued > 0)) ...[
+                              _StatusBanner(
+                                icon: Icons.sync_rounded,
+                                text:
+                                    '作者同步仍在进行中，页面会自动刷新。当前待入库 ${profile.syncSummary.queued} 张。',
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            _AuthorHero(
+                              profile: profile,
+                              isLoading: _isLoading && !_hasLoadedOnce,
+                              onRefresh: _refresh,
+                            ),
+                            const SizedBox(height: 14),
+                            AppSurface(
+                              radius: 16,
+                              child: AppSectionHeader(
+                                title: '最近作品',
+                                trailing: _WorksHeaderTrailing(
+                                  count:
+                                      '${profile.recentWorks.length} / ${profile.pixivPreviewCount}',
+                                  mode: _worksDisplayMode,
+                                  onModeChanged: (mode) {
+                                    setState(() => _worksDisplayMode = mode);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                      ],
-                      if (_shouldShowSyncBanner(profile) &&
-                          (profile.syncSummary.inProgress ||
-                              profile.syncSummary.queued > 0)) ...[
-                        _StatusBanner(
-                          icon: Icons.sync_rounded,
-                          text:
-                              '作者同步仍在进行中，页面会自动刷新。当前待入库 ${profile.syncSummary.queued} 张。',
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-                      _AuthorHero(
-                        profile: profile,
-                        isLoading: _isLoading && !_hasLoadedOnce,
-                        onRefresh: _refresh,
                       ),
-                      const SizedBox(height: 14),
-                      _Surface(
-                        child: _InfoSection(
-                          title: '最近作品',
-                          trailing: _WorksHeaderTrailing(
-                            count:
-                                '${profile.recentWorks.length} / ${profile.pixivPreviewCount}',
-                            mode: _worksDisplayMode,
-                            onModeChanged: (mode) {
-                              setState(() => _worksDisplayMode = mode);
-                            },
-                          ),
-                          child: _buildRecentWorks(profile),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                ..._buildRecentWorkSlivers(profile),
+                const SliverToBoxAdapter(child: SizedBox(height: 22)),
+              ],
             ),
           if (_isLoading)
             const Positioned(
@@ -244,79 +254,112 @@ class _AuthorPageState extends State<AuthorPage> {
     );
   }
 
-  Widget _buildRecentWorks(AuthorProfileModel profile) {
+  List<Widget> _buildRecentWorkSlivers(AuthorProfileModel profile) {
     if (_isLoading && !_hasLoadedOnce) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = _gridColumnCount(constraints.maxWidth);
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: columns * 2,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: 0.76,
-            ),
-            itemBuilder: (_, __) => const _RecentWorkPlaceholder(),
-          );
-        },
-      );
+      return [
+        SliverLayoutBuilder(
+          builder: (context, constraints) {
+            final width = _contentWidthForSliver(constraints);
+            final columns = _gridColumnCount(width);
+            return SliverPadding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  childAspectRatio: 0.76,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (_, __) => const _RecentWorkPlaceholder(),
+                  childCount: columns * 2,
+                ),
+              ),
+            );
+          },
+        ),
+      ];
     }
 
     if (profile.recentWorks.isEmpty) {
-      if (profile.syncSummary.checked > 0) {
-        return const Text(
-          '最近作品已经识别到了，正在等待入库或缩略图生成。',
-          style: TextStyle(color: Color(0xFF64748B)),
-        );
-      }
-      return const Text(
-        '当前还没有可展示的最近作品。',
-        style: TextStyle(color: Color(0xFF64748B)),
-      );
+      final text = profile.syncSummary.checked > 0
+          ? '最近作品已经识别到了，正在等待入库或缩略图生成。'
+          : '当前还没有可展示的最近作品。';
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: Text(
+                  text,
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
     }
 
     if (_worksDisplayMode == _AuthorWorksDisplayMode.list) {
-      return ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: profile.recentWorks.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final preview = profile.recentWorks[index];
-          return _RecentWorkListTile(
-            preview: preview,
-            onTap: () => _openPreview(profile, preview),
-          );
-        },
-      );
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+          sliver: SliverList.separated(
+            itemCount: profile.recentWorks.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final preview = profile.recentWorks[index];
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1280),
+                  child: _RecentWorkListTile(
+                    preview: preview,
+                    onTap: () => _openPreview(profile, preview),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ];
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = _gridColumnCount(constraints.maxWidth);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: profile.recentWorks.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemBuilder: (context, index) {
-            final preview = profile.recentWorks[index];
-            return _RecentWorkCard(
-              preview: preview,
-              onTap: () => _openPreview(profile, preview),
-            );
-          },
-        );
-      },
-    );
+    return [
+      SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final width = _contentWidthForSliver(constraints);
+          final columns = _gridColumnCount(width);
+          return SliverPadding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final preview = profile.recentWorks[index];
+                  return _RecentWorkCard(
+                    preview: preview,
+                    onTap: () => _openPreview(profile, preview),
+                  );
+                },
+                childCount: profile.recentWorks.length,
+              ),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  double _contentWidthForSliver(dynamic constraints) {
+    return math.min(1280, constraints.crossAxisExtent - 20);
   }
 
   int _gridColumnCount(double width) {
@@ -348,8 +391,9 @@ class _AuthorHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final authorUrl = 'https://www.pixiv.net/users/${profile.author.uid}';
 
-    return _Surface(
+    return AppSurface(
       padding: const EdgeInsets.all(12),
+      radius: 16,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
@@ -385,11 +429,11 @@ class _AuthorHero extends StatelessWidget {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _PlainBadge(
+                            AppInfoPill(
                               icon: Icons.badge_outlined,
                               label: 'UID ${profile.author.uid}',
                             ),
-                            _PlainBadge(
+                            AppInfoPill(
                               icon: profile.profile.isFollowed
                                   ? Icons.favorite_rounded
                                   : Icons.person_outline_rounded,
@@ -624,7 +668,7 @@ class SyncSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InfoSection(
+    return AppSection(
       title: '同步状态',
       child: Wrap(
         spacing: 12,
@@ -657,44 +701,6 @@ class SyncSummarySection extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _InfoSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Widget? trailing;
-
-  const _InfoSection({
-    required this.title,
-    required this.child,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
-                ),
-              ),
-            ),
-            if (trailing != null) trailing!,
-          ],
-        ),
-        const SizedBox(height: 10),
-        child,
-      ],
     );
   }
 }
@@ -750,30 +756,6 @@ class _WorksHeaderTrailing extends StatelessWidget {
   }
 }
 
-class _Surface extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
-  const _Surface({
-    required this.child,
-    this.padding = const EdgeInsets.all(16),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: child,
-    );
-  }
-}
-
 class _Avatar extends StatelessWidget {
   final Author author;
   final double radius;
@@ -807,47 +789,6 @@ class _Avatar extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: const Color(0xFF1D4ED8),
         ),
-      ),
-    );
-  }
-}
-
-class _PlainBadge extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color foregroundColor;
-  final Color backgroundColor;
-
-  const _PlainBadge({
-    required this.icon,
-    required this.label,
-    this.foregroundColor = const Color(0xFF475569),
-    this.backgroundColor = const Color(0xFFF8FAFC),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: foregroundColor,
-            ),
-          ),
-        ],
       ),
     );
   }

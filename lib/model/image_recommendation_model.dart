@@ -109,6 +109,7 @@ class ImageRecommendationModel {
       updatedAt: 0,
       width: width,
       height: height,
+      type: type,
       needsRefresh: false,
       urls: ImageUrlsModel(
         original: '',
