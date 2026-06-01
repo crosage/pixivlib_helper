@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
+import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
 Future<void> showDownloadProgressSheet(BuildContext context) {
@@ -11,7 +12,15 @@ Future<void> showDownloadProgressSheet(BuildContext context) {
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: Colors.white,
-    builder: (context) => const DownloadProgressSheet(),
+    builder: (context) {
+      return DeferredSheetContent(
+        placeholder: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.42,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        builder: (_) => const DownloadProgressSheet(),
+      );
+    },
   );
 }
 
@@ -76,7 +85,6 @@ class DownloadProgressSheet extends StatelessWidget {
                   else
                     Flexible(
                       child: ListView.separated(
-                        shrinkWrap: true,
                         itemCount: tasks.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {

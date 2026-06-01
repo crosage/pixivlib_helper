@@ -51,10 +51,11 @@ class _ImageListPageState extends State<ImageListPage> {
   Timer? _debounceTimer;
   List<SearchPreset> _presets = const [];
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
+  final Set<int> _bookmarkHydrationInFlight = <int>{};
   final List<ImageModel> _discoveryImages = <ImageModel>[];
   final Set<int> _discoverySeenPids = <int>{};
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
-  DisplayMode _displayMode = DisplayMode.list;
+  DisplayMode _displayMode = DisplayMode.grid;
   bool _showingDiscovery = false;
   bool _isDiscoveryLoadingMore = false;
   bool _hasMoreDiscovery = true;
@@ -228,9 +229,10 @@ class _ImageListPageState extends State<ImageListPage> {
     _hasMoreDiscovery = images.isNotEmpty;
     _prefetcher.prefetchImageModels(
       images.take(8),
-      highQuality: true,
+      highQuality: _displayMode == DisplayMode.list,
       limit: 8,
     );
+    _hydrateBookmarkCounts(images);
     return PagedImagesResponse(
       images: List<ImageModel>.of(_discoveryImages),
       total: _discoverySeenPids.length,
@@ -301,8 +303,54 @@ class _ImageListPageState extends State<ImageListPage> {
 
   void _updateImage(ImageModel image) {
     setState(() {
-      _imageOverrides[image.pid] = image;
+      final currentImage = _imageOverrides[image.pid];
+      _imageOverrides[image.pid] = currentImage == null
+          ? image
+          : currentImage.copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
     });
+  }
+
+  void _hydrateBookmarkCounts(List<ImageModel> images) {
+    final targets = images
+        .where((image) =>
+            image.pid > 0 &&
+            image.bookmarkCount <= 0 &&
+            !_bookmarkHydrationInFlight.contains(image.pid))
+        .take(18)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    _bookmarkHydrationInFlight.addAll(targets.map((image) => image.pid));
+    unawaited(() async {
+      try {
+        final hydrated = await _api.hydrateImageBookmarkCounts(
+          targets,
+          maxItems: targets.length,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          for (final image in hydrated) {
+            if (image.pid <= 0) {
+              continue;
+            }
+            final current = _imageOverrides[image.pid];
+            _imageOverrides[image.pid] = (current ?? image).copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
+          }
+        });
+      } finally {
+        _bookmarkHydrationInFlight.removeAll(targets.map((image) => image.pid));
+      }
+    }());
   }
 
   void _scheduleRefresh() {
@@ -427,12 +475,13 @@ class _ImageListPageState extends State<ImageListPage> {
 
   void _prefetchAround(List<ImageModel> images, int index) {
     final start = (index + 1).clamp(0, images.length);
-    final end = (index + 13).clamp(0, images.length);
+    final end = (index + (_displayMode == DisplayMode.grid ? 7 : 13))
+        .clamp(0, images.length);
     if (start >= end) return;
     _prefetcher.prefetchImageModels(
       images.sublist(start, end),
-      highQuality: true,
-      limit: _showingDiscovery ? 6 : 8,
+      highQuality: _displayMode == DisplayMode.list,
+      limit: _displayMode == DisplayMode.grid ? 6 : 8,
     );
   }
 
@@ -443,19 +492,43 @@ class _ImageListPageState extends State<ImageListPage> {
       showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return MobileSheetFrame(
-          padding: EdgeInsets.fromLTRB(
-            12,
-            4,
-            12,
-            MediaQuery.viewInsetsOf(context).bottom + 12,
-          ),
-          child: SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.82,
-            child: MobileSheetSection(
-              child: _buildSidebarContent(phone: true, sheet: true),
+        final sheetHeight = MediaQuery.sizeOf(context).height * 0.82;
+        final padding = EdgeInsets.fromLTRB(
+          12,
+          4,
+          12,
+          MediaQuery.viewInsetsOf(context).bottom + 12,
+        );
+
+        Widget shell({required Widget child}) {
+          return MobileSheetFrame(
+            padding: padding,
+            child: SizedBox(
+              height: sheetHeight,
+              child: MobileSheetSection(child: child),
+            ),
+          );
+        }
+
+        return DeferredSheetContent(
+          placeholder: shell(
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
+          builder: (context) {
+            return StatefulBuilder(
+              builder: (context, setSheetState) {
+                return shell(
+                  child: _buildSidebarContent(
+                    phone: true,
+                    sheet: true,
+                    onSheetChanged: () => setSheetState(() {}),
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -478,9 +551,10 @@ class _ImageListPageState extends State<ImageListPage> {
 
         _prefetcher.prefetchImageModels(
           images.take(_showingDiscovery ? 8 : 12),
-          highQuality: true,
-          limit: _showingDiscovery ? 8 : 12,
+          highQuality: _displayMode == DisplayMode.list,
+          limit: _displayMode == DisplayMode.grid ? 8 : 12,
         );
+        _hydrateBookmarkCounts(images);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -585,41 +659,31 @@ class _ImageListPageState extends State<ImageListPage> {
     );
 
     if (phone) {
-      final chips = <Widget>[
-        MobilePill(
-          icon: Icons.auto_awesome_rounded,
-          label: '发现',
-          selected: _showingDiscovery,
-          onTap: _loadDiscoveryRecommendations,
-        ),
-        MobilePill(label: _showingDiscovery ? '推荐 $total' : '作品 $total'),
-        for (final option in _sortOptions)
-          MobilePill(
-            label: option.$2,
-            selected: _criteria.sortBy == option.$1,
-            onTap: () {
-              setState(() => _criteria.sortBy = option.$1);
-              _scheduleRefresh();
-            },
-          ),
-        for (final tag in _criteria.tags)
-          MobilePill(
-            label: '#$tag',
-            selected: true,
-            onTap: () => _toggleIncludeTag(tag),
-          ),
-        for (final tag in _criteria.excludedTags)
-          MobilePill(
-            label: '-$tag',
-            selected: true,
-            accent: const Color(0xFFE11D48),
-            onTap: () => _toggleExcludeTag(tag),
-          ),
-      ];
+      final sortLabel = _sortOptions
+          .firstWhere(
+            (option) => option.$1 == _criteria.sortBy,
+            orElse: () => _sortOptions.first,
+          )
+          .$2;
+      final subtitle = [
+        _showingDiscovery ? '推荐 $total' : '作品 $total',
+        '排序 $sortLabel',
+        if (_activeFilterCount > 0) '筛选 $_activeFilterCount',
+      ].join(' · ');
 
       return MobileToolbar(
-        topCenter: const MobileBrandMark(label: 'Pixiv'),
+        title: _showingDiscovery ? '发现' : '图库',
+        subtitle: subtitle,
+        leading: Icon(
+          _showingDiscovery ? Icons.auto_awesome_rounded : Icons.image_rounded,
+          color: mobileBlue,
+        ),
         actions: [
+          MobileIconButton(
+            icon: Icons.auto_awesome_rounded,
+            tooltip: '发现',
+            onTap: _loadDiscoveryRecommendations,
+          ),
           MobilePill(
             icon: Icons.tune_rounded,
             label: _activeFilterCount > 0 ? '筛选 $_activeFilterCount' : '筛选',
@@ -632,7 +696,6 @@ class _ImageListPageState extends State<ImageListPage> {
             onTap: _refreshVisibleResults,
           ),
         ],
-        chips: chips,
         bottom: MobileToolbarRow(
           children: [
             MobileSegmentedControl<DisplayMode>(
@@ -750,7 +813,23 @@ class _ImageListPageState extends State<ImageListPage> {
   Widget _buildSidebarContent({
     required bool phone,
     bool sheet = false,
+    VoidCallback? onSheetChanged,
   }) {
+    void toggleIncludeTag(String tag) {
+      _toggleIncludeTag(tag);
+      onSheetChanged?.call();
+    }
+
+    void toggleExcludeTag(String tag) {
+      _toggleExcludeTag(tag);
+      onSheetChanged?.call();
+    }
+
+    void applyPreset(SearchPreset preset) {
+      _applyPreset(preset);
+      onSheetChanged?.call();
+    }
+
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -770,10 +849,37 @@ class _ImageListPageState extends State<ImageListPage> {
           future: _tagSuggestionsFuture,
           builder: (context, snapshot) => SearchTool(
             suggestions: snapshot.data ?? const [],
-            onInclude: _toggleIncludeTag,
-            onExclude: _toggleExcludeTag,
+            onInclude: toggleIncludeTag,
+            onExclude: toggleExcludeTag,
           ),
         ),
+        if (_criteria.tags.isNotEmpty || _criteria.excludedTags.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            '已选标签',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in _criteria.tags)
+                InputChip(
+                  label: Text('#$tag'),
+                  selected: true,
+                  onDeleted: () => toggleIncludeTag(tag),
+                ),
+              for (final tag in _criteria.excludedTags)
+                InputChip(
+                  label: Text('-$tag'),
+                  selected: true,
+                  deleteIconColor: const Color(0xFFE11D48),
+                  onDeleted: () => toggleExcludeTag(tag),
+                ),
+            ],
+          ),
+        ],
         const SizedBox(height: 16),
         _field(
           '作者名',
@@ -927,7 +1033,7 @@ class _ImageListPageState extends State<ImageListPage> {
               for (final preset in _presets)
                 InputChip(
                   label: Text(preset.name),
-                  onPressed: () => _applyPreset(preset),
+                  onPressed: () => applyPreset(preset),
                   onDeleted: () => _deletePreset(preset.name),
                 ),
             ],
@@ -996,7 +1102,7 @@ class _ImageListPageState extends State<ImageListPage> {
             onAuthorTap: () => _openAuthorPage(image.author),
             onImageTap: () => _openImagePage(image),
             highQualityPreview: true,
-            showBookmarkCount: !_showingDiscovery,
+            showBookmarkCount: true,
           );
         },
       );
@@ -1011,11 +1117,11 @@ class _ImageListPageState extends State<ImageListPage> {
         final itemCount = images.length + (_showingDiscovery ? 1 : 0);
         return MasonryGridView.count(
           controller: _scrollController,
-          cacheExtent: phone ? 1200 : 900,
-          padding: EdgeInsets.fromLTRB(phone ? 0 : 8, 0, phone ? 0 : 8, 0),
+          cacheExtent: phone ? 700 : 650,
+          padding: EdgeInsets.fromLTRB(phone ? 6 : 8, 0, phone ? 6 : 8, 0),
           crossAxisCount: count,
-          crossAxisSpacing: phone ? 2 : 10,
-          mainAxisSpacing: phone ? 2 : 10,
+          crossAxisSpacing: phone ? 6 : 10,
+          mainAxisSpacing: phone ? 6 : 10,
           itemCount: itemCount,
           itemBuilder: (context, index) {
             if (index >= images.length) {
@@ -1028,7 +1134,7 @@ class _ImageListPageState extends State<ImageListPage> {
             return MasonryImageTile(
               image: image,
               highQualityPreview: !phone,
-              showBookmarkCount: !_showingDiscovery,
+              showBookmarkCount: true,
               onImageChanged: _updateImage,
               onTap: () => _openImagePage(image),
               onAuthorTap: () => _openAuthorPage(image.author),

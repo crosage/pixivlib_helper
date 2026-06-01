@@ -59,8 +59,12 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
           ? await _api.unbookmarkImage(_image.pid)
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
-      setState(() => _image = updatedImage);
-      widget.onImageChanged?.call(updatedImage);
+      final mergedImage = _image.copyWith(
+        bookmarkCount: updatedImage.bookmarkCount,
+        isBookmarked: updatedImage.isBookmarked,
+      );
+      setState(() => _image = mergedImage);
+      widget.onImageChanged?.call(mergedImage);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -76,7 +80,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('鏀惰棌鎿嶄綔澶辫触: $error')),
+        SnackBar(content: Text('收藏操作失败: $error')),
       );
     } finally {
       if (mounted) {
@@ -100,69 +104,71 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
       highQuality: widget.highQualityPreview,
     );
     final aspectRatio = _tileAspectRatio(_image);
-    final radius = BorderRadius.circular(compact ? 0 : 16);
+    final radius = BorderRadius.circular(compact ? 8 : 16);
     final showLike = _image.pid > 0;
 
-    return Material(
-      color: Colors.white,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: widget.onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: aspectRatio,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _ArtworkImage(url: imageUrl),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x00000000),
-                          Color(0x0A000000),
-                          Color(0x8A000000),
-                        ],
-                        stops: [0, 0.58, 1],
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.white,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: aspectRatio,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _ArtworkImage(url: imageUrl),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x00000000),
+                            Color(0x0A000000),
+                            Color(0x8A000000),
+                          ],
+                          stops: [0, 0.58, 1],
+                        ),
                       ),
                     ),
-                  ),
-                  if (_image.pages.length > 1)
+                    if (_image.pages.length > 1)
+                      Positioned(
+                        top: 7,
+                        left: 7,
+                        child: _OverlayPill(label: '${_image.pages.length}P'),
+                      ),
+                    if (showLike)
+                      Positioned(
+                        top: 7,
+                        right: 7,
+                        child: _LikePill(
+                          isBookmarked: _image.isBookmarked,
+                          count: _image.bookmarkCount,
+                          showCount: widget.showBookmarkCount,
+                          isBusy: _isBookmarkSubmitting,
+                          onTap: _toggleBookmark,
+                        ),
+                      ),
                     Positioned(
-                      top: 7,
-                      left: 7,
-                      child: _OverlayPill(label: '${_image.pages.length}P'),
-                    ),
-                  if (showLike)
-                    Positioned(
-                      top: 7,
-                      right: 7,
-                      child: _LikePill(
-                        isBookmarked: _image.isBookmarked,
-                        count: _image.bookmarkCount,
-                        showCount: widget.showBookmarkCount,
-                        isBusy: _isBookmarkSubmitting,
-                        onTap: _toggleBookmark,
+                      left: 8,
+                      right: 8,
+                      bottom: 8,
+                      child: _Caption(
+                        image: _image,
+                        onAuthorTap: widget.onAuthorTap,
                       ),
                     ),
-                  Positioned(
-                    left: 8,
-                    right: 8,
-                    bottom: 8,
-                    child: _Caption(
-                      image: _image,
-                      onAuthorTap: widget.onAuthorTap,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -197,12 +203,24 @@ class _ArtworkImage extends StatelessWidget {
       imageUrl: proxiedImageUrl(url),
       httpHeaders: imageRequestHeaders(url),
       fit: BoxFit.cover,
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      filterQuality: FilterQuality.low,
+      memCacheWidth: _thumbnailCacheExtent(context),
+      maxWidthDiskCache: _thumbnailCacheExtent(context),
       placeholder: (_, __) => const ColoredBox(color: Color(0xFFF1F5F9)),
       errorWidget: (_, __, ___) => const ColoredBox(
         color: Color(0xFFF1F5F9),
         child: Center(child: Icon(Icons.broken_image_outlined, size: 24)),
       ),
     );
+  }
+
+  int _thumbnailCacheExtent(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final logicalTileWidth = width < 640 ? width / 2 : 260.0;
+    return (logicalTileWidth * dpr).round().clamp(320, 900);
   }
 }
 
@@ -309,9 +327,9 @@ class _LikePill extends StatelessWidget {
               if (showCount) ...[
                 const SizedBox(width: 3),
                 Text(
-                  '$count',
+                  count <= 0 ? '获取中' : '$count',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: count <= 0 ? 9 : 10,
                     fontWeight: FontWeight.w800,
                     color: color,
                   ),

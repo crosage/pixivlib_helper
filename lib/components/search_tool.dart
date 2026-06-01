@@ -22,6 +22,8 @@ class SearchTool extends StatefulWidget {
 }
 
 class _SearchToolState extends State<SearchTool> {
+  static const int _maxBrowserTagCount = 240;
+
   final TextEditingController _controller = TextEditingController();
   TagEntryMode _mode = TagEntryMode.include;
 
@@ -58,9 +60,7 @@ class _SearchToolState extends State<SearchTool> {
         .map((tag) => tag.trim())
         .where((tag) => tag.isNotEmpty)
         .toSet()
-        .toList()
-      ..sort(
-          (left, right) => left.toLowerCase().compareTo(right.toLowerCase()));
+        .toList();
 
     if (allTags.isEmpty) {
       return;
@@ -68,6 +68,20 @@ class _SearchToolState extends State<SearchTool> {
 
     final searchController = TextEditingController();
     String keyword = '';
+
+    List<String> visibleTagsFor(String value) {
+      final normalized = value.trim().toLowerCase();
+      final result = <String>[];
+      for (final tag in allTags) {
+        if (normalized.isEmpty || tag.toLowerCase().contains(normalized)) {
+          result.add(tag);
+          if (result.length >= _maxBrowserTagCount) {
+            break;
+          }
+        }
+      }
+      return result;
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -77,11 +91,8 @@ class _SearchToolState extends State<SearchTool> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final normalized = keyword.trim().toLowerCase();
-            final filteredTags = normalized.isEmpty
-                ? allTags
-                : allTags
-                    .where((tag) => tag.toLowerCase().contains(normalized))
-                    .toList();
+            final filteredTags = visibleTagsFor(keyword);
+            final capped = filteredTags.length >= _maxBrowserTagCount;
 
             return SafeArea(
               child: Padding(
@@ -135,7 +146,9 @@ class _SearchToolState extends State<SearchTool> {
                           ),
                           const Spacer(),
                           Text(
-                            '${filteredTags.length} 项',
+                            normalized.isEmpty
+                                ? '前 ${filteredTags.length} 项'
+                                : '${filteredTags.length}${capped ? '+' : ''} 项',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],

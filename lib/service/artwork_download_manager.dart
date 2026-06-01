@@ -18,6 +18,7 @@ enum ArtworkDownloadStatus {
 
 class ArtworkDownloadTask {
   final String id;
+  final String batchId;
   final int pid;
   final int pageIndex;
   final int pageCount;
@@ -35,6 +36,7 @@ class ArtworkDownloadTask {
 
   ArtworkDownloadTask({
     required this.id,
+    required this.batchId,
     required this.pid,
     required this.pageIndex,
     required this.pageCount,
@@ -101,11 +103,15 @@ class ArtworkDownloadManager extends ChangeNotifier {
   final List<ArtworkDownloadTask> _tasks = [];
   final List<ArtworkDownloadTask> _queue = [];
   final Map<String, Completer<ArtworkDownloadBatch>> _batchCompleters = {};
+  final Map<String, Completer<void>> _batchProgressWaiters = {};
 
   int _activeCount = 0;
   int _sequence = 0;
+  DateTime _lastProgressNotifyAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _progressNotifyTimer;
 
   static const int _maxConcurrentDownloads = 3;
+  static const Duration _progressNotifyInterval = Duration(milliseconds: 220);
 
   List<ArtworkDownloadTask> get tasks => List.unmodifiable(_tasks);
 
@@ -118,6 +124,12 @@ class ArtworkDownloadManager extends ChangeNotifier {
   int get failedTaskCount => _tasks
       .where((task) => task.status == ArtworkDownloadStatus.failed)
       .length;
+
+  @override
+  void dispose() {
+    _progressNotifyTimer?.cancel();
+    super.dispose();
+  }
 
   Future<ArtworkDownloadBatch> downloadOriginalArtwork(ImageModel image) async {
     final pageIds = image.pages.isEmpty
@@ -145,6 +157,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       );
       final task = ArtworkDownloadTask(
         id: '$batchId-${_sequence++}',
+        batchId: batchId,
         pid: image.pid,
         pageIndex: index,
         pageCount: pageIds.length,
@@ -250,14 +263,16 @@ class ArtworkDownloadManager extends ChangeNotifier {
         onReceiveProgress: (received, total) {
           task.receivedBytes = received;
           task.totalBytes = total;
-          notifyListeners();
+          _notifyProgressChanged();
         },
       );
+      await _waitForEarlierBatchTasks(task);
       final publishedUri = await GallerySaver.publishImage(
         sourcePath: task.savePath,
         displayName: path.basename(task.savePath),
         pid: task.pid,
         mimeType: _mimeTypeForPath(task.savePath),
+        dateTaken: _gallerySortTimeForTask(task),
       );
       if (publishedUri != null) {
         task.publishedUri = publishedUri;
@@ -278,8 +293,55 @@ class ArtworkDownloadManager extends ChangeNotifier {
     } finally {
       _activeCount--;
       notifyListeners();
+      _notifyBatchProgress(task.batchId);
       _completeFinishedBatches();
       _pumpQueue();
+    }
+  }
+
+  void _notifyProgressChanged() {
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastProgressNotifyAt);
+    if (elapsed >= _progressNotifyInterval) {
+      _progressNotifyTimer?.cancel();
+      _progressNotifyTimer = null;
+      _lastProgressNotifyAt = now;
+      notifyListeners();
+      return;
+    }
+
+    _progressNotifyTimer ??= Timer(_progressNotifyInterval - elapsed, () {
+      _progressNotifyTimer = null;
+      _lastProgressNotifyAt = DateTime.now();
+      notifyListeners();
+    });
+  }
+
+  Future<void> _waitForEarlierBatchTasks(ArtworkDownloadTask task) async {
+    if (task.pageCount <= 1 || task.pageIndex == 0) {
+      return;
+    }
+
+    // Downloading may finish out of order, but gallery insertion order should
+    // stay p0, p1, p2... so albums sort manga pages predictably.
+    while (_tasks.any(
+      (candidate) =>
+          candidate.batchId == task.batchId &&
+          candidate.pageIndex < task.pageIndex &&
+          candidate.isActive,
+    )) {
+      final waiter = _batchProgressWaiters.putIfAbsent(
+        task.batchId,
+        () => Completer<void>(),
+      );
+      await waiter.future;
+    }
+  }
+
+  void _notifyBatchProgress(String batchId) {
+    final waiter = _batchProgressWaiters.remove(batchId);
+    if (waiter != null && !waiter.isCompleted) {
+      waiter.complete();
     }
   }
 
@@ -288,7 +350,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       _batchCompleters,
     );
     for (final entry in pending.entries) {
-      final batchTasks = _tasks.where((task) => task.id.startsWith(entry.key));
+      final batchTasks = _tasks.where((task) => task.batchId == entry.key);
       if (batchTasks.isEmpty || batchTasks.any((task) => task.isActive)) {
         continue;
       }
@@ -303,6 +365,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
         ),
       );
       _batchCompleters.remove(entry.key);
+      _batchProgressWaiters.remove(entry.key);
     }
   }
 
@@ -368,8 +431,23 @@ class ArtworkDownloadManager extends ChangeNotifier {
   }) {
     final uri = Uri.tryParse(sourceUrl);
     final extension = _extensionFromUrl(uri?.path ?? sourceUrl);
-    final pageSuffix = pageCount > 1 ? '_p$pageIndex' : '';
+    final width = pageCount <= 1 ? 1 : (pageCount - 1).toString().length;
+    final pageSuffix = pageCount > 1
+        ? '_p${pageIndex.toString().padLeft(width.clamp(3, 6), '0')}'
+        : '';
     return '$pid$pageSuffix$extension';
+  }
+
+  DateTime _gallerySortTimeForTask(ArtworkDownloadTask task) {
+    if (task.pageCount <= 1) {
+      return task.createdAt;
+    }
+
+    // Android gallery apps commonly sort albums by newest media first. Keep
+    // later manga pages newer so multi-page works display as pN, pN-1...
+    // consistently even when MediaStore scanning completes unpredictably.
+    final reverseOffset = task.pageCount - 1 - task.pageIndex;
+    return task.createdAt.subtract(Duration(seconds: reverseOffset));
   }
 
   String _extensionFromUrl(String sourcePath) {

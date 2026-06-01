@@ -61,7 +61,10 @@ class _AuthorPageState extends State<AuthorPage> {
     }
 
     try {
-      final profile = await _api.fetchAuthorProfile(widget.author.uid);
+      final profile = await _api.fetchAuthorProfile(
+        widget.author.uid,
+        localOnly: silent,
+      );
       if (!mounted) return;
       setState(() {
         _profile = profile;
@@ -87,7 +90,7 @@ class _AuthorPageState extends State<AuthorPage> {
     }
 
     _pollTimer = Timer(
-      const Duration(seconds: 2),
+      const Duration(seconds: 6),
       () => _fetchProfile(silent: true),
     );
   }
@@ -211,13 +214,6 @@ class _AuthorPageState extends State<AuthorPage> {
                       ),
                       const SizedBox(height: 14),
                       _Surface(
-                        child: _AboutSection(
-                          profile: profile,
-                          isLoading: _isLoading && !_hasLoadedOnce,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _Surface(
                         child: _InfoSection(
                           title: '最近作品',
                           trailing: _WorksHeaderTrailing(
@@ -333,10 +329,7 @@ class _AuthorPageState extends State<AuthorPage> {
     if (width >= 640) {
       return 3;
     }
-    if (width >= 360) {
-      return 2;
-    }
-    return 1;
+    return 2;
   }
 }
 
@@ -360,6 +353,10 @@ class _AuthorHero extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
+          final aboutSummary = _AuthorAboutSummary(
+            profile: profile,
+            isLoading: isLoading,
+          );
           final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -443,6 +440,8 @@ class _AuthorHero extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              aboutSummary,
             ],
           );
 
@@ -491,11 +490,11 @@ class _AuthorHero extends StatelessWidget {
   }
 }
 
-class _AboutSection extends StatelessWidget {
+class _AuthorAboutSummary extends StatelessWidget {
   final AuthorProfileModel profile;
   final bool isLoading;
 
-  const _AboutSection({
+  const _AuthorAboutSummary({
     required this.profile,
     required this.isLoading,
   });
@@ -523,39 +522,90 @@ class _AboutSection extends StatelessWidget {
         ),
     ];
 
-    return _InfoSection(
-      title: '作者简介',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isLoading && profile.profile.comment.isEmpty)
-            const _LoadingParagraph(lines: 3)
-          else
-            Text(
-              profile.profile.comment.isEmpty
-                  ? 'Pixiv 没有返回作者简介。'
-                  : profile.profile.comment,
-              style: const TextStyle(
-                height: 1.65,
-                color: Color(0xFF334155),
+    final comment = profile.profile.comment.trim();
+    final hasDetails = comment.isNotEmpty || links.isNotEmpty;
+
+    if (isLoading && comment.isEmpty) {
+      return const _LoadingParagraph(lines: 2);
+    }
+
+    return InkWell(
+      onTap: hasDetails ? () => _showDetails(context, comment, links) : null,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.notes_rounded,
+              size: 16,
+              color: Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                comment.isEmpty ? 'Pixiv 没有返回作者简介。' : comment,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  height: 1.45,
+                  fontSize: 13,
+                  color: Color(0xFF334155),
+                ),
               ),
             ),
-          const SizedBox(height: 14),
-          if (isLoading && links.isEmpty)
-            const Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _LoadingPill(width: 98),
-                _LoadingPill(width: 118),
+            if (hasDetails) ...[
+              const SizedBox(width: 8),
+              const Text(
+                '详情',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDetails(
+    BuildContext context,
+    String comment,
+    List<Widget> links,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('作者简介'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                comment.isEmpty ? 'Pixiv 没有返回作者简介。' : comment,
+                style: const TextStyle(height: 1.6),
+              ),
+              if (links.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: links,
+                ),
               ],
-            )
-          else if (links.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: links,
-            ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
         ],
       ),
     );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:tagselector/components/image_with_info.dart';
@@ -43,12 +45,13 @@ class _FollowingPageState extends State<FollowingPage> {
   late Future<List<String>> _tagSuggestionsFuture;
   Future<List<ImageModel>>? _followingFuture;
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
+  final Set<int> _bookmarkHydrationInFlight = <int>{};
 
   int _page = 1;
   String _selectedAuthor = '';
   final List<String> _selectedTags = [];
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
-  FollowingDisplayMode _displayMode = FollowingDisplayMode.list;
+  FollowingDisplayMode _displayMode = FollowingDisplayMode.grid;
   FollowingFeedMode _feedMode = FollowingFeedMode.all;
   FollowingSourceMode _sourceMode = FollowingSourceMode.following;
   BookmarkRestMode _bookmarkRestMode = BookmarkRestMode.hide;
@@ -98,8 +101,54 @@ class _FollowingPageState extends State<FollowingPage> {
 
   void _updateImage(ImageModel image) {
     setState(() {
-      _imageOverrides[image.pid] = image;
+      final currentImage = _imageOverrides[image.pid];
+      _imageOverrides[image.pid] = currentImage == null
+          ? image
+          : currentImage.copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
     });
+  }
+
+  void _hydrateBookmarkCounts(List<ImageModel> images) {
+    final targets = images
+        .where((image) =>
+            image.pid > 0 &&
+            image.bookmarkCount <= 0 &&
+            !_bookmarkHydrationInFlight.contains(image.pid))
+        .take(18)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    _bookmarkHydrationInFlight.addAll(targets.map((image) => image.pid));
+    unawaited(() async {
+      try {
+        final hydrated = await _api.hydrateImageBookmarkCounts(
+          targets,
+          maxItems: targets.length,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          for (final image in hydrated) {
+            if (image.pid <= 0) {
+              continue;
+            }
+            final current = _imageOverrides[image.pid];
+            _imageOverrides[image.pid] = (current ?? image).copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
+          }
+        });
+      } finally {
+        _bookmarkHydrationInFlight.removeAll(targets.map((image) => image.pid));
+      }
+    }());
   }
 
   void _toggleTag(String tag) {
@@ -182,12 +231,13 @@ class _FollowingPageState extends State<FollowingPage> {
 
   void _prefetchAround(List<ImageModel> images, int index) {
     final start = (index + 1).clamp(0, images.length);
-    final end = (index + 13).clamp(0, images.length);
+    final end = (index + (_displayMode == FollowingDisplayMode.grid ? 7 : 13))
+        .clamp(0, images.length);
     if (start >= end) return;
     _prefetcher.prefetchImageModels(
       images.sublist(start, end),
       highQuality: _displayMode == FollowingDisplayMode.list,
-      limit: 12,
+      limit: _displayMode == FollowingDisplayMode.grid ? 6 : 8,
     );
   }
 
@@ -198,27 +248,47 @@ class _FollowingPageState extends State<FollowingPage> {
       showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return MobileSheetFrame(
-          padding: EdgeInsets.fromLTRB(
-            12,
-            4,
-            12,
-            MediaQuery.viewInsetsOf(context).bottom + 12,
-          ),
-          child: SingleChildScrollView(
-            child: MobileSheetSection(
-              child: _FollowSidebar(
-                compact: true,
-                tagSearch: _buildTagSearch(),
-                activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
-                selectedAuthor: _selectedAuthor,
-                selectedTags: _selectedTags,
-                onClearAuthor: _clearSelectedAuthor,
-                onClearFilters: _clearMobileFilters,
-                onRemoveTag: _toggleTag,
+        final padding = EdgeInsets.fromLTRB(
+          12,
+          4,
+          12,
+          MediaQuery.viewInsetsOf(context).bottom + 12,
+        );
+
+        Widget shell({required Widget child}) {
+          return MobileSheetFrame(
+            padding: padding,
+            child: child,
+          );
+        }
+
+        return DeferredSheetContent(
+          placeholder: shell(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.42,
+              child: const MobileSheetSection(
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
               ),
             ),
           ),
+          builder: (context) {
+            return shell(
+              child: SingleChildScrollView(
+                child: MobileSheetSection(
+                  child: _FollowSidebar(
+                    compact: true,
+                    tagSearch: _buildTagSearch(),
+                    activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
+                    selectedAuthor: _selectedAuthor,
+                    selectedTags: _selectedTags,
+                    onClearAuthor: _clearSelectedAuthor,
+                    onClearFilters: _clearMobileFilters,
+                    onRemoveTag: _toggleTag,
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -252,10 +322,11 @@ class _FollowingPageState extends State<FollowingPage> {
         final rawImages = snapshot.data ?? const <ImageModel>[];
         final images = _filterImages(rawImages);
         _prefetcher.prefetchImageModels(
-          images.take(18),
+          images.take(_displayMode == FollowingDisplayMode.grid ? 8 : 12),
           highQuality: _displayMode == FollowingDisplayMode.list,
-          limit: 18,
+          limit: _displayMode == FollowingDisplayMode.grid ? 8 : 12,
         );
+        _hydrateBookmarkCounts(images);
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -440,14 +511,14 @@ class _FollowingPageState extends State<FollowingPage> {
             (constraints.maxWidth / (phone ? 176 : 230)).floor().clamp(2, 6);
         return MasonryGridView.count(
           controller: _scrollController,
-          cacheExtent: phone ? 1200 : 900,
+          cacheExtent: phone ? 700 : 650,
           padding: EdgeInsets.symmetric(
-            horizontal: phone ? 0 : 10,
+            horizontal: phone ? 6 : 10,
             vertical: phone ? 2 : 10,
           ),
           crossAxisCount: count,
-          crossAxisSpacing: phone ? 2 : 10,
-          mainAxisSpacing: phone ? 2 : 10,
+          crossAxisSpacing: phone ? 6 : 10,
+          mainAxisSpacing: phone ? 6 : 10,
           itemCount: images.length,
           itemBuilder: (context, index) {
             if (index % 6 == 0) {
@@ -510,9 +581,20 @@ class _TopPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (phone) {
+      final subtitle = [
+        '$resultCount 个作品',
+        if (selectedAuthor.isNotEmpty) selectedAuthor,
+        if (selectedTags.isNotEmpty) '${selectedTags.length} 个标签',
+      ].join(' · ');
+
       return MobileToolbar(
-        topCenter: MobileBrandMark(
-          label: sourceMode == FollowingSourceMode.bookmarks ? '收藏' : '关注',
+        title: sourceMode == FollowingSourceMode.bookmarks ? '收藏' : '关注',
+        subtitle: subtitle,
+        leading: Icon(
+          sourceMode == FollowingSourceMode.bookmarks
+              ? Icons.bookmarks_rounded
+              : Icons.favorite_rounded,
+          color: mobileBlue,
         ),
         actions: [
           MobilePill(
@@ -526,21 +608,6 @@ class _TopPanel extends StatelessWidget {
             tooltip: '刷新',
             onTap: onRefresh,
           ),
-        ],
-        chips: [
-          MobilePill(label: '$resultCount 个作品'),
-          if (selectedAuthor.isNotEmpty)
-            MobilePill(
-              label: selectedAuthor,
-              selected: true,
-              onTap: onClearAuthor,
-            ),
-          for (final tag in selectedTags)
-            MobilePill(
-              label: '#$tag',
-              selected: true,
-              onTap: () => onRemoveTag(tag),
-            ),
         ],
         bottom: MobileToolbarRow(
           children: [

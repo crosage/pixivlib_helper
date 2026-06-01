@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -513,6 +515,56 @@ class MobileSheetSection extends StatelessWidget {
       ),
       child: child,
     );
+  }
+}
+
+class DeferredSheetContent extends StatefulWidget {
+  final WidgetBuilder builder;
+  final Widget placeholder;
+  final Duration delay;
+
+  const DeferredSheetContent({
+    super.key,
+    required this.builder,
+    required this.placeholder,
+    this.delay = const Duration(milliseconds: 260),
+  });
+
+  @override
+  State<DeferredSheetContent> createState() => _DeferredSheetContentState();
+}
+
+class _DeferredSheetContentState extends State<DeferredSheetContent> {
+  Timer? _timer;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _timer = Timer(widget.delay, () {
+        if (mounted) {
+          setState(() => _ready = true);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return widget.placeholder;
+    }
+    return widget.builder(context);
   }
 }
 

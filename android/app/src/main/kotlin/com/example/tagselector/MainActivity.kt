@@ -52,12 +52,19 @@ class MainActivity : FlutterActivity() {
             call.argument<String>("relativePath") ?: "PixivHelper"
         )
         val mimeType = call.argument<String>("mimeType") ?: guessMimeType(displayName)
+        val dateTakenMillis = call.argument<Number>("dateTakenMillis")?.toLong()
 
         try {
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                publishImageWithMediaStore(sourceFile, displayName, relativePath, mimeType)
+                publishImageWithMediaStore(
+                    sourceFile,
+                    displayName,
+                    relativePath,
+                    mimeType,
+                    dateTakenMillis
+                )
             } else {
-                publishImageLegacy(sourceFile, displayName, relativePath, mimeType)
+                publishImageLegacy(sourceFile, displayName, relativePath, mimeType, dateTakenMillis)
             }
             result.success(uri.toString())
         } catch (error: Exception) {
@@ -69,7 +76,8 @@ class MainActivity : FlutterActivity() {
         sourceFile: File,
         displayName: String,
         relativePath: String,
-        mimeType: String
+        mimeType: String,
+        dateTakenMillis: Long?
     ): Uri {
         val resolver = applicationContext.contentResolver
         val collection = MediaStore.Images.Media.getContentUri(
@@ -85,6 +93,7 @@ class MainActivity : FlutterActivity() {
             put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Images.Media.MIME_TYPE, mimeType)
             put(MediaStore.Images.Media.RELATIVE_PATH, fullRelativePath)
+            putStableMediaDates(dateTakenMillis)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
 
@@ -103,6 +112,7 @@ class MainActivity : FlutterActivity() {
             } ?: throw IllegalStateException("Unable to open MediaStore stream.")
 
             values.clear()
+            values.putStableMediaDates(dateTakenMillis)
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
             return uri
@@ -111,6 +121,7 @@ class MainActivity : FlutterActivity() {
                 resolver.delete(uri, null, null)
             } else {
                 values.clear()
+                values.putStableMediaDates(dateTakenMillis)
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
             }
@@ -151,7 +162,8 @@ class MainActivity : FlutterActivity() {
         sourceFile: File,
         displayName: String,
         relativePath: String,
-        mimeType: String
+        mimeType: String,
+        dateTakenMillis: Long?
     ): Uri {
         val directory = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
@@ -167,6 +179,9 @@ class MainActivity : FlutterActivity() {
                 input.copyTo(output)
             }
         }
+        if (dateTakenMillis != null) {
+            targetFile.setLastModified(dateTakenMillis)
+        }
 
         MediaScannerConnection.scanFile(
             applicationContext,
@@ -175,6 +190,13 @@ class MainActivity : FlutterActivity() {
             null
         )
         return Uri.fromFile(targetFile)
+    }
+
+    private fun ContentValues.putStableMediaDates(dateTakenMillis: Long?) {
+        val millis = dateTakenMillis ?: System.currentTimeMillis()
+        put(MediaStore.Images.Media.DATE_TAKEN, millis)
+        put(MediaStore.Images.Media.DATE_ADDED, millis / 1000)
+        put(MediaStore.Images.Media.DATE_MODIFIED, millis / 1000)
     }
 
     private fun sanitizeFileName(value: String): String {

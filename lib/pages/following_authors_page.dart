@@ -421,8 +421,20 @@ class _HeaderPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (phone) {
+      final query = queryController.text.trim();
+      final subtitle = [
+        '$totalCount 关注',
+        '本页 $resultCount',
+        if (query.isNotEmpty) query,
+      ].join(' · ');
+
       return MobileToolbar(
-        topCenter: const MobileBrandMark(label: 'Creators'),
+        title: '关注作者',
+        subtitle: subtitle,
+        leading: const Icon(
+          Icons.groups_2_rounded,
+          color: mobileBlue,
+        ),
         actions: [
           MobilePill(
             icon: Icons.tune_rounded,
@@ -437,15 +449,6 @@ class _HeaderPanel extends StatelessWidget {
               onRefresh();
             },
           ),
-        ],
-        chips: [
-          MobilePill(label: '$totalCount 关注'),
-          MobilePill(label: '本页 $resultCount'),
-          if (queryController.text.trim().isNotEmpty)
-            MobilePill(
-              label: queryController.text.trim(),
-              selected: true,
-            ),
         ],
         bottom: MobileSegmentedControl<FollowedAuthorSortMode>(
           selected: sortMode,

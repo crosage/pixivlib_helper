@@ -69,8 +69,12 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
           ? await _api.unbookmarkImage(_image.pid)
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
-      setState(() => _image = updatedImage);
-      widget.onImageChanged?.call(updatedImage);
+      final mergedImage = _image.copyWith(
+        bookmarkCount: updatedImage.bookmarkCount,
+        isBookmarked: updatedImage.isBookmarked,
+      );
+      setState(() => _image = mergedImage);
+      widget.onImageChanged?.call(mergedImage);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
@@ -575,7 +579,7 @@ class _BookmarkButton extends StatelessWidget {
               if (showCount) ...[
                 const SizedBox(width: 4),
                 Text(
-                  '$bookmarkCount',
+                  bookmarkCount <= 0 ? '获取中' : '$bookmarkCount',
                   style: TextStyle(
                     fontSize: compact ? 11 : 12,
                     fontWeight: FontWeight.w700,

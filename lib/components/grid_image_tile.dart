@@ -57,8 +57,12 @@ class _GridImageTileState extends State<GridImageTile> {
           ? await _api.unbookmarkImage(_image.pid)
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
-      setState(() => _image = updatedImage);
-      widget.onImageChanged?.call(updatedImage);
+      final mergedImage = _image.copyWith(
+        bookmarkCount: updatedImage.bookmarkCount,
+        isBookmarked: updatedImage.isBookmarked,
+      );
+      setState(() => _image = mergedImage);
+      widget.onImageChanged?.call(mergedImage);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
@@ -89,213 +93,219 @@ class _GridImageTileState extends State<GridImageTile> {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 640;
-    final coverUrl = previewUrlForImage(_image, highQuality: !compact);
-    final radius = BorderRadius.circular(compact ? 0 : 16);
+    final coverUrl = previewUrlForImage(_image, highQuality: false);
+    final radius = BorderRadius.circular(compact ? 8 : 16);
     final showLike = _image.pid > 0;
 
     if (compact) {
-      return Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.zero,
-        clipBehavior: Clip.none,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              _NetworkArtwork(url: coverUrl),
-              const Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x00000000),
-                        Color(0x00000000),
-                        Color(0xB3000000),
-                      ],
-                      stops: [0, 0.54, 1],
+      return RepaintBoundary(
+        child: Material(
+          color: Colors.white,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: widget.onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _NetworkArtwork(url: coverUrl),
+                const Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0x00000000),
+                          Color(0x00000000),
+                          Color(0xB3000000),
+                        ],
+                        stops: [0, 0.54, 1],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (showLike)
-                Positioned(
-                  top: 7,
-                  right: 7,
-                  child: _MiniLikeButton(
-                    isBookmarked: _image.isBookmarked,
-                    count: _image.bookmarkCount,
-                    isBusy: _isBookmarkSubmitting,
-                    onTap: _toggleBookmark,
+                if (showLike)
+                  Positioned(
+                    top: 7,
+                    right: 7,
+                    child: _MiniLikeButton(
+                      isBookmarked: _image.isBookmarked,
+                      count: _image.bookmarkCount,
+                      isBusy: _isBookmarkSubmitting,
+                      onTap: _toggleBookmark,
+                    ),
                   ),
-                ),
-              if (_image.pages.length > 1)
+                if (_image.pages.length > 1)
+                  Positioned(
+                    top: 7,
+                    left: 7,
+                    child: _MobileOverlayPill(label: '${_image.pages.length}P'),
+                  ),
                 Positioned(
-                  top: 7,
-                  left: 7,
-                  child: _MobileOverlayPill(label: '${_image.pages.length}P'),
-                ),
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
-                child: InkWell(
-                  onTap: widget.onAuthorTap,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_image.name.trim().isNotEmpty)
-                        Text(
-                          _image.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            height: 1.1,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(
-                                color: Color(0x99000000),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          _AuthorAvatar(
-                            name: _image.author.name,
-                            uid: _image.author.uid,
-                            avatarUrl: _image.author.avatarUrl,
-                            compact: true,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              _image.author.name.trim().isEmpty
-                                  ? '未知作者'
-                                  : _image.author.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                height: 1,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color(0x99000000),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: InkWell(
+                    onTap: widget.onAuthorTap,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_image.name.trim().isNotEmpty)
+                          Text(
+                            _image.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.1,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  color: Color(0x99000000),
+                                  blurRadius: 8,
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            _AuthorAvatar(
+                              name: _image.author.name,
+                              uid: _image.author.uid,
+                              avatarUrl: _image.author.avatarUrl,
+                              compact: true,
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                _image.author.name.trim().isEmpty
+                                    ? '未知作者'
+                                    : _image.author.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  height: 1,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Color(0x99000000),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
     }
 
-    return Material(
-      color: Colors.white,
-      borderRadius: radius,
-      clipBehavior: Clip.none,
-      child: InkWell(
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.white,
         borderRadius: radius,
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: compact ? null : Border.all(color: const Color(0xFFE5E7EB)),
-            borderRadius: radius,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _NetworkArtwork(url: coverUrl),
-                    if (showLike)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _MiniLikeButton(
-                          isBookmarked: _image.isBookmarked,
-                          count: _image.bookmarkCount,
-                          isBusy: _isBookmarkSubmitting,
-                          onTap: _toggleBookmark,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? 6 : 10,
-                  compact ? 6 : 9,
-                  compact ? 6 : 10,
-                  compact ? 7 : 10,
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: widget.onAuthorTap,
-                  child: Row(
+        clipBehavior: Clip.none,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: widget.onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border:
+                  compact ? null : Border.all(color: const Color(0xFFE5E7EB)),
+              borderRadius: radius,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      _AuthorAvatar(
-                        name: _image.author.name,
-                        uid: _image.author.uid,
-                        avatarUrl: _image.author.avatarUrl,
-                        compact: compact,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _image.author.name.trim().isEmpty
-                                  ? '未知作者'
-                                  : _image.author.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: compact ? 11 : 12,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF111827),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _buildPublishedLabel(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: compact ? 10 : 11,
-                                color: const Color(0xFF6B7280),
-                              ),
-                            ),
-                          ],
+                      _NetworkArtwork(url: coverUrl),
+                      if (showLike)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _MiniLikeButton(
+                            isBookmarked: _image.isBookmarked,
+                            count: _image.bookmarkCount,
+                            isBusy: _isBookmarkSubmitting,
+                            onTap: _toggleBookmark,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    compact ? 6 : 10,
+                    compact ? 6 : 9,
+                    compact ? 6 : 10,
+                    compact ? 7 : 10,
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: widget.onAuthorTap,
+                    child: Row(
+                      children: [
+                        _AuthorAvatar(
+                          name: _image.author.name,
+                          uid: _image.author.uid,
+                          avatarUrl: _image.author.avatarUrl,
+                          compact: compact,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _image.author.name.trim().isEmpty
+                                    ? '未知作者'
+                                    : _image.author.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: compact ? 11 : 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _buildPublishedLabel(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: compact ? 10 : 11,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -331,15 +341,24 @@ class _NetworkArtwork extends StatelessWidget {
       imageUrl: proxiedImageUrl(url),
       httpHeaders: imageRequestHeaders(url),
       fit: BoxFit.cover,
-      placeholder: (context, _) => Container(
-        color: const Color(0xFFF8FAFC),
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      filterQuality: FilterQuality.low,
+      memCacheWidth: _thumbnailCacheExtent(context),
+      maxWidthDiskCache: _thumbnailCacheExtent(context),
+      placeholder: (context, _) => const ColoredBox(color: Color(0xFFF8FAFC)),
       errorWidget: (context, _, __) => Container(
         color: const Color(0xFFF8FAFC),
         child: const Center(child: Icon(Icons.broken_image_outlined, size: 28)),
       ),
     );
+  }
+
+  int _thumbnailCacheExtent(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final logicalTileWidth = width < 640 ? width / 2 : 260.0;
+    return (logicalTileWidth * dpr).round().clamp(320, 900);
   }
 }
 
@@ -393,9 +412,9 @@ class _MiniLikeButton extends StatelessWidget {
                 ),
               const SizedBox(width: 3),
               Text(
-                '$count',
+                count <= 0 ? '获取中' : '$count',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: count <= 0 ? 9 : 10,
                   fontWeight: FontWeight.w700,
                   color: color,
                 ),

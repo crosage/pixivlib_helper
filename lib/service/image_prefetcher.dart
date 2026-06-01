@@ -15,12 +15,12 @@ class ImagePrefetcher {
   final List<_PrefetchRequest> _queue = <_PrefetchRequest>[];
   int _active = 0;
 
-  static const int _maxConcurrentDownloads = 6;
+  static const int _maxConcurrentDownloads = 3;
 
   void prefetchImageModels(
     Iterable<ImageModel> images, {
     bool highQuality = false,
-    int limit = 18,
+    int limit = 8,
   }) {
     prefetchUrls(
       images
@@ -31,7 +31,7 @@ class ImagePrefetcher {
 
   void prefetchRankingModels(
     Iterable<DailyRankingModel> images, {
-    int limit = 18,
+    int limit = 8,
   }) {
     prefetchUrls(
       images.map((image) => image.thumbUrl),
@@ -41,7 +41,7 @@ class ImagePrefetcher {
 
   void prefetchUrls(
     Iterable<String> rawUrls, {
-    int limit = 18,
+    int limit = 8,
   }) {
     var added = 0;
     for (final rawUrl in rawUrls) {

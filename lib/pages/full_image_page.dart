@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
 import 'package:tagselector/components/like_recommendation_sheet.dart';
 import 'package:tagselector/model/author_model.dart';
@@ -33,6 +34,10 @@ enum _ArtworkCopyAction {
   image,
 }
 
+String _formatBookmarkCount(int count) {
+  return count <= 0 ? '获取中' : '$count';
+}
+
 class _FullImagePageState extends State<FullImagePage> {
   static const int _bookmarkTrayRecommendationCount = 6;
 
@@ -40,6 +45,7 @@ class _FullImagePageState extends State<FullImagePage> {
 
   late ImageModel _image;
   List<ImageRecommendationModel> _recommendations = const [];
+  final Set<int> _recommendationHydrationInFlight = <int>{};
   int _currentPageIndex = 0;
   bool _imageInteractionEnabled = false;
   bool _isDetailLoading = true;
@@ -102,6 +108,7 @@ class _FullImagePageState extends State<FullImagePage> {
         _isRecommendationLoading = false;
         _recommendationError = null;
       });
+      _hydrateRecommendationBookmarkCounts(recommendations);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -109,6 +116,49 @@ class _FullImagePageState extends State<FullImagePage> {
         _recommendationError = error;
       });
     }
+  }
+
+  void _hydrateRecommendationBookmarkCounts(
+    List<ImageRecommendationModel> recommendations,
+  ) {
+    final targets = recommendations
+        .where((recommendation) =>
+            recommendation.pid > 0 &&
+            recommendation.bookmarkCount <= 0 &&
+            !_recommendationHydrationInFlight.contains(recommendation.pid))
+        .take(12)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    _recommendationHydrationInFlight.addAll(
+      targets.map((recommendation) => recommendation.pid),
+    );
+    unawaited(() async {
+      try {
+        final hydrated = await _api.hydrateRecommendationBookmarkCounts(
+          targets,
+          maxItems: targets.length,
+        );
+        if (!mounted) {
+          return;
+        }
+        final hydratedByPid = {
+          for (final recommendation in hydrated)
+            if (recommendation.pid > 0) recommendation.pid: recommendation,
+        };
+        setState(() {
+          _recommendations = _recommendations.map((recommendation) {
+            return hydratedByPid[recommendation.pid] ?? recommendation;
+          }).toList();
+        });
+      } finally {
+        _recommendationHydrationInFlight.removeAll(
+          targets.map((recommendation) => recommendation.pid),
+        );
+      }
+    }());
   }
 
   Future<void> _openAuthorPage(Author author) async {
@@ -263,7 +313,10 @@ class _FullImagePageState extends State<FullImagePage> {
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
       setState(() {
-        _image = updatedImage;
+        _image = _image.copyWith(
+          bookmarkCount: updatedImage.bookmarkCount,
+          isBookmarked: updatedImage.isBookmarked,
+        );
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -272,7 +325,6 @@ class _FullImagePageState extends State<FullImagePage> {
       );
 
       if (!wasBookmarked && updatedImage.isBookmarked) {
-        unawaited(_loadRecommendations());
         showBookmarkRecommendationTray(
           context,
           seedImage: updatedImage,
@@ -471,8 +523,8 @@ class _FullImagePageState extends State<FullImagePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_detailError != null) ...[
-                        _StatusBanner(
-                          text: '详情刷新失败，先展示当前内容。${_detailError.toString()}',
+                        const _StatusBanner(
+                          text: '详情刷新失败，先展示当前内容。请稍后重试。',
                           icon: Icons.cloud_off_rounded,
                         ),
                         const SizedBox(height: 12),
@@ -576,7 +628,9 @@ class _FullImagePageState extends State<FullImagePage> {
                                 children: [
                                   _MetaChip(label: 'PID ${_image.pid}'),
                                   _MetaChip(
-                                      label: '收藏 ${_image.bookmarkCount}'),
+                                    label:
+                                        '收藏 ${_formatBookmarkCount(_image.bookmarkCount)}',
+                                  ),
                                   if (publishedAt.isNotEmpty)
                                     _MetaChip(label: '上传 $publishedAt')
                                   else if (updatedAt.isNotEmpty)
@@ -874,10 +928,10 @@ class _FullImagePageState extends State<FullImagePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_detailError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: _StatusBanner(
-                text: '详情刷新失败，先展示当前内容。${_detailError.toString()}',
+                text: '详情刷新失败，先展示当前内容。请稍后重试。',
                 icon: Icons.cloud_off_rounded,
               ),
             ),
@@ -978,7 +1032,7 @@ class _FullImagePageState extends State<FullImagePage> {
                   children: [
                     _MobileInfoPill(
                       icon: Icons.favorite_rounded,
-                      label: '${_image.bookmarkCount}',
+                      label: _formatBookmarkCount(_image.bookmarkCount),
                     ),
                     if (hasMultiplePages)
                       _MobileInfoPill(
@@ -1089,7 +1143,7 @@ class _FullImagePageState extends State<FullImagePage> {
     }
 
     if (_recommendationError != null) {
-      return Text('相关推荐加载失败：${_recommendationError.toString()}');
+      return const Text('相关推荐加载失败，请稍后重试');
     }
 
     if (_recommendations.isEmpty) {
@@ -1780,9 +1834,10 @@ class _RecommendationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = recommendation.toPlaceholderImage();
     final publishedAt = formatUnixTimestamp(recommendation.publishedAt);
     final narrow = MediaQuery.sizeOf(context).width < 720;
-    final radius = BorderRadius.circular(narrow ? 0 : 18);
+    final radius = BorderRadius.circular(narrow ? 0 : 8);
     return Material(
       color: Colors.white,
       borderRadius: radius,
@@ -1794,18 +1849,36 @@ class _RecommendationTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: recommendation.thumbUrl.isEmpty
-                  ? const _ImageLoadingPlaceholder()
-                  : CachedNetworkImage(
-                      imageUrl: proxiedImageUrl(recommendation.thumbUrl),
-                      cacheManager: imageProxyCacheManager,
-                      httpHeaders: imageRequestHeaders(recommendation.thumbUrl),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (_, __) => const _ImageLoadingPlaceholder(),
-                      errorWidget: (_, __, ___) =>
-                          const _ImageLoadingPlaceholder(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  recommendation.thumbUrl.isEmpty
+                      ? const _ImageLoadingPlaceholder()
+                      : CachedNetworkImage(
+                          imageUrl: proxiedImageUrl(recommendation.thumbUrl),
+                          cacheManager: imageProxyCacheManager,
+                          httpHeaders:
+                              imageRequestHeaders(recommendation.thumbUrl),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (_, __) =>
+                              const _ImageLoadingPlaceholder(),
+                          errorWidget: (_, __, ___) =>
+                              const _ImageLoadingPlaceholder(),
+                        ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: AppBookmarkButton(
+                      image: image,
+                      iconSize: 14,
+                      showCount: true,
+                      elevated: true,
+                      onChanged: (_) {},
                     ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: EdgeInsets.fromLTRB(

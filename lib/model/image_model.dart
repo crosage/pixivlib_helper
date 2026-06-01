@@ -38,25 +38,36 @@ class ImageModel {
   });
 
   ImageModel copyWith({
+    int? id,
+    int? pid,
     Author? author,
+    List<Tag>? tags,
+    String? name,
+    List<Page>? pages,
     int? bookmarkCount,
     bool? isBookmarked,
+    int? publishedAt,
+    int? updatedAt,
+    int? width,
+    int? height,
+    bool? needsRefresh,
+    ImageUrlsModel? urls,
   }) {
     return ImageModel(
-      id: id,
-      pid: pid,
+      id: id ?? this.id,
+      pid: pid ?? this.pid,
       author: author ?? this.author,
-      tags: tags,
-      name: name,
-      pages: pages,
+      tags: tags ?? this.tags,
+      name: name ?? this.name,
+      pages: pages ?? this.pages,
       bookmarkCount: bookmarkCount ?? this.bookmarkCount,
       isBookmarked: isBookmarked ?? this.isBookmarked,
-      publishedAt: publishedAt,
-      updatedAt: updatedAt,
-      width: width,
-      height: height,
-      needsRefresh: needsRefresh,
-      urls: urls,
+      publishedAt: publishedAt ?? this.publishedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      needsRefresh: needsRefresh ?? this.needsRefresh,
+      urls: urls ?? this.urls,
     );
   }
 
