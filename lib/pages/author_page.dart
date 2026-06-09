@@ -31,13 +31,18 @@ class AuthorPage extends StatefulWidget {
 enum _AuthorWorksDisplayMode { list, grid }
 
 class _AuthorPageState extends State<AuthorPage> {
+  static const int _worksPageSize = 12;
+
   final ApiService _api = ApiService.instance;
+  final Map<int, FollowedAuthorWorkPreview> _workPreviewCache = {};
+  final Set<int> _workPreviewLoading = {};
 
   AuthorProfileModel? _profile;
   Object? _error;
   bool _isLoading = true;
   bool _hasLoadedOnce = false;
   Timer? _pollTimer;
+  int _worksPage = 1;
   _AuthorWorksDisplayMode _worksDisplayMode = _AuthorWorksDisplayMode.grid;
 
   @override
@@ -70,10 +75,13 @@ class _AuthorPageState extends State<AuthorPage> {
       if (!mounted) return;
       setState(() {
         _profile = profile;
+        _mergeWorkPreviews(profile.recentWorks);
+        _worksPage = _worksPage.clamp(1, _worksTotalPages(profile)).toInt();
         _error = null;
         _isLoading = false;
         _hasLoadedOnce = true;
       });
+      _loadVisibleWorkPreviews(profile);
       _schedulePoll(profile);
     } catch (error) {
       if (!mounted) return;
@@ -105,6 +113,118 @@ class _AuthorPageState extends State<AuthorPage> {
     return false;
   }
 
+  void _mergeWorkPreviews(List<FollowedAuthorWorkPreview> previews) {
+    for (final preview in previews) {
+      if (preview.pid > 0) {
+        _workPreviewCache[preview.pid] = preview;
+      }
+    }
+  }
+
+  List<int> _workPids(AuthorProfileModel profile) {
+    final ids = profile.pixivRecentIds
+        .map((id) => int.tryParse(id))
+        .whereType<int>()
+        .where((pid) => pid > 0)
+        .toList(growable: false);
+    if (ids.isNotEmpty) {
+      return ids;
+    }
+    return profile.recentWorks.map((work) => work.pid).toList(growable: false);
+  }
+
+  int _worksTotalPages(AuthorProfileModel profile) {
+    final total =
+        math.max(_workPids(profile).length, profile.recentWorks.length);
+    if (total <= 0) {
+      return 1;
+    }
+    return ((total - 1) ~/ _worksPageSize) + 1;
+  }
+
+  List<int> _visibleWorkPids(AuthorProfileModel profile) {
+    final pids = _workPids(profile);
+    if (pids.isEmpty) {
+      return const [];
+    }
+    final start = (_worksPage - 1) * _worksPageSize;
+    if (start >= pids.length) {
+      return const [];
+    }
+    final end = math.min(start + _worksPageSize, pids.length);
+    return pids.sublist(start, end);
+  }
+
+  void _changeWorksPage(int page) {
+    final profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    final nextPage = page.clamp(1, _worksTotalPages(profile)).toInt();
+    if (nextPage == _worksPage) {
+      return;
+    }
+    setState(() => _worksPage = nextPage);
+    _loadVisibleWorkPreviews(profile);
+  }
+
+  void _loadVisibleWorkPreviews(AuthorProfileModel profile) {
+    final missingPids = _visibleWorkPids(profile)
+        .where(
+          (pid) {
+            final preview = _workPreviewCache[pid];
+            return (preview == null || preview.isBookmarked == null) &&
+                !_workPreviewLoading.contains(pid);
+          },
+        )
+        .take(_worksPageSize)
+        .toList(growable: false);
+    if (missingPids.isEmpty) {
+      return;
+    }
+
+    _workPreviewLoading.addAll(missingPids);
+    unawaited(() async {
+      for (final pid in missingPids) {
+        try {
+          final image = await _api.fetchImageDetail(pid);
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            final existing = _workPreviewCache[pid];
+            _workPreviewCache[pid] = FollowedAuthorWorkPreview(
+              pid: image.pid,
+              title: image.name.isNotEmpty ? image.name : existing?.title ?? '',
+              thumbUrl: image.urls.regular.isNotEmpty
+                  ? image.urls.regular
+                  : (image.urls.thumb.isNotEmpty
+                      ? image.urls.thumb
+                      : (image.urls.small.isNotEmpty
+                          ? image.urls.small
+                          : existing?.thumbUrl ?? '')),
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+              publishedAt: image.publishedAt,
+              width: image.width,
+              height: image.height,
+            );
+          });
+        } catch (_) {
+          // Some Pixiv ids may not exist in the local library yet. Keep their
+          // lightweight PID placeholder instead of blocking the whole page.
+        } finally {
+          if (mounted) {
+            setState(() => _workPreviewLoading.remove(pid));
+          } else {
+            _workPreviewLoading.remove(pid);
+          }
+        }
+        await Future.delayed(const Duration(milliseconds: 140));
+      }
+    }());
+  }
+
   Future<void> _openPreview(
     AuthorProfileModel profile,
     FollowedAuthorWorkPreview preview,
@@ -117,7 +237,7 @@ class _AuthorPageState extends State<AuthorPage> {
       name: preview.title,
       pages: const [],
       bookmarkCount: preview.bookmarkCount,
-      isBookmarked: false,
+      isBookmarked: preview.isBookmarked ?? false,
       publishedAt: preview.publishedAt,
       updatedAt: 0,
       needsRefresh: false,
@@ -127,6 +247,42 @@ class _AuthorPageState extends State<AuthorPage> {
         thumb: preview.thumbUrl,
         small: preview.thumbUrl,
         regular: preview.thumbUrl,
+      ),
+    );
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => FullImagePage(image: image)),
+    );
+  }
+
+  Future<void> _openPidPreview(
+    AuthorProfileModel profile,
+    int pid,
+  ) async {
+    final cached = _workPreviewCache[pid];
+    if (cached != null) {
+      await _openPreview(profile, cached);
+      return;
+    }
+
+    final image = ImageModel(
+      id: 0,
+      pid: pid,
+      author: profile.author,
+      tags: const [],
+      name: '',
+      pages: const [],
+      bookmarkCount: 0,
+      isBookmarked: false,
+      publishedAt: 0,
+      updatedAt: 0,
+      needsRefresh: false,
+      urls: ImageUrlsModel(
+        original: '',
+        mini: '',
+        thumb: '',
+        small: '',
+        regular: '',
       ),
     );
 
@@ -224,7 +380,16 @@ class _AuthorPageState extends State<AuthorPage> {
                                 title: '最近作品',
                                 trailing: _WorksHeaderTrailing(
                                   count:
-                                      '${profile.recentWorks.length} / ${profile.pixivPreviewCount}',
+                                      '${_visibleWorkPids(profile).length} / ${_workPids(profile).length}',
+                                  page: _worksPage,
+                                  totalPages: _worksTotalPages(profile),
+                                  onPreviousPage: _worksPage > 1
+                                      ? () => _changeWorksPage(_worksPage - 1)
+                                      : null,
+                                  onNextPage: _worksPage <
+                                          _worksTotalPages(profile)
+                                      ? () => _changeWorksPage(_worksPage + 1)
+                                      : null,
                                   mode: _worksDisplayMode,
                                   onModeChanged: (mode) {
                                     setState(() => _worksDisplayMode = mode);
@@ -281,7 +446,8 @@ class _AuthorPageState extends State<AuthorPage> {
       ];
     }
 
-    if (profile.recentWorks.isEmpty) {
+    final visiblePids = _visibleWorkPids(profile);
+    if (visiblePids.isEmpty) {
       final text = profile.syncSummary.checked > 0
           ? '最近作品已经识别到了，正在等待入库或缩略图生成。'
           : '当前还没有可展示的最近作品。';
@@ -308,17 +474,24 @@ class _AuthorPageState extends State<AuthorPage> {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
           sliver: SliverList.separated(
-            itemCount: profile.recentWorks.length,
+            itemCount: visiblePids.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final preview = profile.recentWorks[index];
+              final pid = visiblePids[index];
+              final preview = _workPreviewCache[pid];
               return Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1280),
-                  child: _RecentWorkListTile(
-                    preview: preview,
-                    onTap: () => _openPreview(profile, preview),
-                  ),
+                  child: preview == null
+                      ? _RecentWorkLoadingTile(
+                          pid: pid,
+                          isLoading: _workPreviewLoading.contains(pid),
+                          onTap: () => _openPidPreview(profile, pid),
+                        )
+                      : _RecentWorkListTile(
+                          preview: preview,
+                          onTap: () => _openPreview(profile, preview),
+                        ),
                 ),
               );
             },
@@ -343,13 +516,20 @@ class _AuthorPageState extends State<AuthorPage> {
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final preview = profile.recentWorks[index];
-                  return _RecentWorkCard(
-                    preview: preview,
-                    onTap: () => _openPreview(profile, preview),
-                  );
+                  final pid = visiblePids[index];
+                  final preview = _workPreviewCache[pid];
+                  return preview == null
+                      ? _RecentWorkLoadingCard(
+                          pid: pid,
+                          isLoading: _workPreviewLoading.contains(pid),
+                          onTap: () => _openPidPreview(profile, pid),
+                        )
+                      : _RecentWorkCard(
+                          preview: preview,
+                          onTap: () => _openPreview(profile, preview),
+                        );
                 },
-                childCount: profile.recentWorks.length,
+                childCount: visiblePids.length,
               ),
             ),
           );
@@ -707,19 +887,29 @@ class SyncSummarySection extends StatelessWidget {
 
 class _WorksHeaderTrailing extends StatelessWidget {
   final String count;
+  final int page;
+  final int totalPages;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
   final _AuthorWorksDisplayMode mode;
   final ValueChanged<_AuthorWorksDisplayMode> onModeChanged;
 
   const _WorksHeaderTrailing({
     required this.count,
+    required this.page,
+    required this.totalPages,
+    required this.onPreviousPage,
+    required this.onNextPage,
     required this.mode,
     required this.onModeChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         Text(
           count,
@@ -729,7 +919,26 @@ class _WorksHeaderTrailing extends StatelessWidget {
             color: Color(0xFF64748B),
           ),
         ),
-        const SizedBox(width: 8),
+        IconButton(
+          onPressed: onPreviousPage,
+          visualDensity: VisualDensity.compact,
+          tooltip: '上一页',
+          icon: const Icon(Icons.chevron_left_rounded, size: 18),
+        ),
+        Text(
+          '$page/$totalPages',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF334155),
+          ),
+        ),
+        IconButton(
+          onPressed: onNextPage,
+          visualDensity: VisualDensity.compact,
+          tooltip: '下一页',
+          icon: const Icon(Icons.chevron_right_rounded, size: 18),
+        ),
         SegmentedButton<_AuthorWorksDisplayMode>(
           showSelectedIcon: false,
           selected: {mode},
@@ -954,9 +1163,13 @@ class _RecentWorkListTile extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _TinyMetaPill(
-                          icon: Icons.favorite_rounded,
+                          icon: preview.isBookmarked == true
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
                           label: '${preview.bookmarkCount}',
-                          color: const Color(0xFFBE123C),
+                          color: preview.isBookmarked == true
+                              ? const Color(0xFFBE123C)
+                              : const Color(0xFF64748B),
                         ),
                         _TinyMetaPill(
                           icon: Icons.schedule_rounded,
@@ -1080,10 +1293,14 @@ class _RecentWorkCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.favorite_rounded,
+                        Icon(
+                          preview.isBookmarked == true
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
                           size: 13,
-                          color: Color(0xFFBE123C),
+                          color: preview.isBookmarked == true
+                              ? const Color(0xFFBE123C)
+                              : const Color(0xFF64748B),
                         ),
                         const SizedBox(width: 5),
                         Text(
@@ -1106,6 +1323,137 @@ class _RecentWorkCard extends StatelessWidget {
                       textAlign: TextAlign.right,
                       style: const TextStyle(
                         fontSize: 11,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentWorkLoadingTile extends StatelessWidget {
+  final int pid;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _RecentWorkLoadingTile({
+    required this.pid,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 112,
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 86,
+                height: 112,
+                child: ColoredBox(
+                  color: Color(0xFFF1F5F9),
+                  child: Center(child: Icon(Icons.image_outlined)),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PID $pid',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        isLoading ? '正在获取 like 状态...' : '点击打开作品详情',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const Spacer(),
+                      const _TinyMetaPill(
+                        icon: Icons.favorite_border_rounded,
+                        label: '确认中',
+                        color: Color(0xFF64748B),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentWorkLoadingCard extends StatelessWidget {
+  final int pid;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _RecentWorkLoadingCard({
+    required this.pid,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.none,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Column(
+          children: [
+            const Expanded(
+              child: ColoredBox(
+                color: Color(0xFFF1F5F9),
+                child: Center(child: Icon(Icons.image_outlined)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.favorite_border_rounded,
+                    size: 13,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      isLoading ? '确认中' : 'PID $pid',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                         color: Color(0xFF64748B),
                       ),
                     ),

@@ -52,6 +52,7 @@ class FollowedAuthorWorkPreview {
   final String title;
   final String thumbUrl;
   final int bookmarkCount;
+  final bool? isBookmarked;
   final int publishedAt;
   final int width;
   final int height;
@@ -61,10 +62,32 @@ class FollowedAuthorWorkPreview {
     required this.title,
     required this.thumbUrl,
     required this.bookmarkCount,
+    this.isBookmarked,
     required this.publishedAt,
     required this.width,
     required this.height,
   });
+
+  FollowedAuthorWorkPreview copyWith({
+    String? title,
+    String? thumbUrl,
+    int? bookmarkCount,
+    bool? isBookmarked,
+    int? publishedAt,
+    int? width,
+    int? height,
+  }) {
+    return FollowedAuthorWorkPreview(
+      pid: pid,
+      title: title ?? this.title,
+      thumbUrl: thumbUrl ?? this.thumbUrl,
+      bookmarkCount: bookmarkCount ?? this.bookmarkCount,
+      isBookmarked: isBookmarked ?? this.isBookmarked,
+      publishedAt: publishedAt ?? this.publishedAt,
+      width: width ?? this.width,
+      height: height ?? this.height,
+    );
+  }
 
   factory FollowedAuthorWorkPreview.fromJson(Map<String, dynamic> json) {
     return FollowedAuthorWorkPreview(
@@ -72,6 +95,7 @@ class FollowedAuthorWorkPreview {
       title: json['title'] ?? '',
       thumbUrl: json['thumb_url'] ?? '',
       bookmarkCount: json['bookmark_count'] ?? 0,
+      isBookmarked: json['is_bookmarked'] as bool?,
       publishedAt: json['published_at'] ?? 0,
       width: json['width'] ?? 0,
       height: json['height'] ?? 0,
