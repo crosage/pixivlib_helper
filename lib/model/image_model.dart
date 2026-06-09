@@ -17,7 +17,6 @@ class ImageModel {
   final int updatedAt;
   final int width;
   final int height;
-  final int pageCount;
   final bool needsRefresh;
   final String type;
   final ImageUrlsModel urls;
@@ -35,7 +34,6 @@ class ImageModel {
     required this.updatedAt,
     this.width = 0,
     this.height = 0,
-    this.pageCount = 0,
     required this.needsRefresh,
     this.type = '',
     required this.urls,
@@ -54,7 +52,6 @@ class ImageModel {
     int? updatedAt,
     int? width,
     int? height,
-    int? pageCount,
     bool? needsRefresh,
     String? type,
     ImageUrlsModel? urls,
@@ -72,7 +69,6 @@ class ImageModel {
       updatedAt: updatedAt ?? this.updatedAt,
       width: width ?? this.width,
       height: height ?? this.height,
-      pageCount: pageCount ?? this.pageCount,
       needsRefresh: needsRefresh ?? this.needsRefresh,
       type: type ?? this.type,
       urls: urls ?? this.urls,
@@ -99,7 +95,6 @@ class ImageModel {
       updatedAt: json['updated_at'] ?? 0,
       width: json['width'] ?? 0,
       height: json['height'] ?? 0,
-      pageCount: json['page_count'] ?? 0,
       needsRefresh: json['needs_refresh'] ?? false,
       type: json['type'] ?? json['illust_type']?.toString() ?? '',
       urls: ImageUrlsModel.fromJson(

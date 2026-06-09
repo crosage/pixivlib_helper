@@ -96,8 +96,6 @@ class _GridImageTileState extends State<GridImageTile> {
     final coverUrl = previewUrlForImage(_image, highQuality: false);
     final radius = BorderRadius.circular(compact ? 8 : 16);
     final showLike = _image.pid > 0;
-    final pageCount =
-        _image.pageCount > 0 ? _image.pageCount : _image.pages.length;
 
     if (compact) {
       return RepaintBoundary(
@@ -139,11 +137,11 @@ class _GridImageTileState extends State<GridImageTile> {
                       onTap: _toggleBookmark,
                     ),
                   ),
-                if (pageCount > 1)
+                if (_image.pages.length > 1)
                   Positioned(
                     top: 7,
                     left: 7,
-                    child: _MobileOverlayPill(label: '${pageCount}P'),
+                    child: _MobileOverlayPill(label: '${_image.pages.length}P'),
                   ),
                 Positioned(
                   left: 8,
