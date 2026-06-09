@@ -106,6 +106,8 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     final aspectRatio = _tileAspectRatio(_image);
     final radius = BorderRadius.circular(compact ? 8 : 16);
     final showLike = _image.pid > 0;
+    final pageCount =
+        _image.pageCount > 0 ? _image.pageCount : _image.pages.length;
 
     return RepaintBoundary(
       child: Material(
@@ -137,11 +139,11 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
                         ),
                       ),
                     ),
-                    if (_image.pages.length > 1)
+                    if (pageCount > 1)
                       Positioned(
                         top: 7,
                         left: 7,
-                        child: _OverlayPill(label: '${_image.pages.length}P'),
+                        child: _OverlayPill(label: '${pageCount}P'),
                       ),
                     if (showLike)
                       Positioned(

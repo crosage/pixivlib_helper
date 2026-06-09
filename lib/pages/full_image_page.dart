@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
 import 'package:tagselector/components/like_recommendation_sheet.dart';
 import 'package:tagselector/model/author_model.dart';
@@ -85,7 +84,7 @@ class _FullImagePageState extends State<FullImagePage> {
       if (!mounted) return;
       setState(() {
         _image = detail;
-        final maxIndex = math.max(0, detail.pages.length - 1);
+        final maxIndex = math.max(0, _effectivePageCount(detail) - 1);
         _currentPageIndex = _currentPageIndex.clamp(0, maxIndex);
         _isDetailLoading = false;
         _detailError = null;
@@ -214,12 +213,12 @@ class _FullImagePageState extends State<FullImagePage> {
         if (!mounted) return;
         setState(() {
           _image = image;
-          final maxIndex = math.max(0, image.pages.length - 1);
+          final maxIndex = math.max(0, _effectivePageCount(image) - 1);
           _currentPageIndex = _currentPageIndex.clamp(0, maxIndex);
         });
       }
 
-      final pageCount = image.pages.isEmpty ? 1 : image.pages.length;
+      final pageCount = _effectivePageCount(image);
       final batchFuture =
           ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
 
@@ -371,7 +370,14 @@ class _FullImagePageState extends State<FullImagePage> {
     });
   }
 
-  int get _pageCount => _image.pages.isEmpty ? 1 : _image.pages.length;
+  int get _pageCount => _effectivePageCount(_image);
+
+  int _effectivePageCount(ImageModel image) {
+    if (image.pageCount > 0) {
+      return image.pageCount;
+    }
+    return image.pages.isEmpty ? 1 : image.pages.length;
+  }
 
   bool get _hasPreviousPage => _pageCount > 1 && _currentPageIndex > 0;
 
@@ -390,9 +396,15 @@ class _FullImagePageState extends State<FullImagePage> {
   }
 
   String _resolveCurrentImageUrl({required bool fullQuality}) {
-    final pageID =
-        _image.pages.isEmpty ? 0 : _image.pages[_currentPageIndex].pageId;
+    final pageID = _pageIdForIndex(_currentPageIndex);
     return _resolveImageUrlForPage(pageID, fullQuality: fullQuality);
+  }
+
+  int _pageIdForIndex(int index) {
+    if (index >= 0 && index < _image.pages.length) {
+      return _image.pages[index].pageId;
+    }
+    return index;
   }
 
   String _resolveImageUrlForPage(int pageID, {bool fullQuality = true}) {
@@ -648,8 +660,7 @@ class _FullImagePageState extends State<FullImagePage> {
                                   else if (updatedAt.isNotEmpty)
                                     _MetaChip(label: '更新 $updatedAt'),
                                   if (hasMultiplePages)
-                                    _MetaChip(
-                                        label: '${_image.pages.length} 页'),
+                                    _MetaChip(label: '$_pageCount 页'),
                                   if (_image.isBookmarked)
                                     const _MetaChip(label: '已收藏'),
                                 ],
@@ -837,8 +848,9 @@ class _FullImagePageState extends State<FullImagePage> {
                                   separatorBuilder: (_, __) =>
                                       SizedBox(width: narrow ? 6 : 10),
                                   itemBuilder: (context, index) {
-                                    final pageUrl =
-                                        _resolveImageUrlForPage(index);
+                                    final pageUrl = _resolveImageUrlForPage(
+                                      _pageIdForIndex(index),
+                                    );
                                     return _PageThumbnail(
                                       imageUrl: pageUrl,
                                       label: '${index + 1}',
@@ -973,8 +985,10 @@ class _FullImagePageState extends State<FullImagePage> {
             _MobilePageStrip(
               pageCount: _pageCount,
               currentPageIndex: _currentPageIndex,
-              resolveImageUrl: (index) =>
-                  _resolveImageUrlForPage(index, fullQuality: false),
+              resolveImageUrl: (index) => _resolveImageUrlForPage(
+                _pageIdForIndex(index),
+                fullQuality: false,
+              ),
               onSelect: (index) {
                 setState(() {
                   _currentPageIndex = index;
@@ -1054,7 +1068,7 @@ class _FullImagePageState extends State<FullImagePage> {
                   runSpacing: 6,
                   children: [
                     _MobileInfoPill(
-                      icon: Icons.favorite_rounded,
+                      icon: Icons.visibility_rounded,
                       label: _formatBookmarkCount(_image.bookmarkCount),
                     ),
                     if (hasMultiplePages)
@@ -1906,7 +1920,6 @@ class _RecommendationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = recommendation.toPlaceholderImage();
     final publishedAt = formatUnixTimestamp(recommendation.publishedAt);
     final narrow = MediaQuery.sizeOf(context).width < 720;
     final radius = BorderRadius.circular(narrow ? 0 : 8);
@@ -1941,12 +1954,9 @@ class _RecommendationTile extends StatelessWidget {
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: AppBookmarkButton(
-                      image: image,
-                      iconSize: 14,
-                      showCount: true,
-                      elevated: true,
-                      onChanged: (_) {},
+                    child: _BookmarkCountBadge(
+                      count: recommendation.bookmarkCount,
+                      isBookmarked: recommendation.isBookmarked,
                     ),
                   ),
                 ],
@@ -2016,6 +2026,58 @@ class _RecommendationTile extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookmarkCountBadge extends StatelessWidget {
+  final int count;
+  final bool isBookmarked;
+
+  const _BookmarkCountBadge({
+    required this.count,
+    required this.isBookmarked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        isBookmarked ? const Color(0xFFE11D48) : const Color(0xFF334155);
+    final background = Colors.white.withValues(alpha: 0.94);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isBookmarked ? Icons.favorite_rounded : Icons.visibility_rounded,
+              size: 13,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              count <= 0 ? '获取中' : '$count',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: color,
               ),
             ),
           ],

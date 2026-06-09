@@ -132,9 +132,15 @@ class ArtworkDownloadManager extends ChangeNotifier {
   }
 
   Future<ArtworkDownloadBatch> downloadOriginalArtwork(ImageModel image) async {
-    final pageIds = image.pages.isEmpty
-        ? const [0]
-        : image.pages.map((page) => page.pageId).toList(growable: false);
+    final pageCount = image.pageCount > 0
+        ? image.pageCount
+        : (image.pages.isEmpty ? 1 : image.pages.length);
+    final pageIds = List<int>.generate(pageCount, (index) {
+      if (index < image.pages.length) {
+        return image.pages[index].pageId;
+      }
+      return index;
+    }, growable: false);
     final downloadDirectory = await _resolveDownloadDirectory(image.pid);
     final createdAt = DateTime.now();
     final batchId = '${image.pid}-${createdAt.microsecondsSinceEpoch}';
