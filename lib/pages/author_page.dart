@@ -376,25 +376,22 @@ class _AuthorPageState extends State<AuthorPage> {
                             const SizedBox(height: 14),
                             AppSurface(
                               radius: 16,
-                              child: AppSectionHeader(
-                                title: '最近作品',
-                                trailing: _WorksHeaderTrailing(
-                                  count:
-                                      '${_visibleWorkPids(profile).length} / ${_workPids(profile).length}',
-                                  page: _worksPage,
-                                  totalPages: _worksTotalPages(profile),
-                                  onPreviousPage: _worksPage > 1
-                                      ? () => _changeWorksPage(_worksPage - 1)
-                                      : null,
-                                  onNextPage: _worksPage <
-                                          _worksTotalPages(profile)
-                                      ? () => _changeWorksPage(_worksPage + 1)
-                                      : null,
-                                  mode: _worksDisplayMode,
-                                  onModeChanged: (mode) {
-                                    setState(() => _worksDisplayMode = mode);
-                                  },
-                                ),
+                              child: _RecentWorksHeader(
+                                count:
+                                    '${_visibleWorkPids(profile).length} / ${_workPids(profile).length}',
+                                page: _worksPage,
+                                totalPages: _worksTotalPages(profile),
+                                onPreviousPage: _worksPage > 1
+                                    ? () => _changeWorksPage(_worksPage - 1)
+                                    : null,
+                                onNextPage:
+                                    _worksPage < _worksTotalPages(profile)
+                                        ? () => _changeWorksPage(_worksPage + 1)
+                                        : null,
+                                mode: _worksDisplayMode,
+                                onModeChanged: (mode) {
+                                  setState(() => _worksDisplayMode = mode);
+                                },
                               ),
                             ),
                           ],
@@ -881,6 +878,68 @@ class SyncSummarySection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RecentWorksHeader extends StatelessWidget {
+  final String count;
+  final int page;
+  final int totalPages;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+  final _AuthorWorksDisplayMode mode;
+  final ValueChanged<_AuthorWorksDisplayMode> onModeChanged;
+
+  const _RecentWorksHeader({
+    required this.count,
+    required this.page,
+    required this.totalPages,
+    required this.onPreviousPage,
+    required this.onNextPage,
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final trailing = _WorksHeaderTrailing(
+      count: count,
+      page: page,
+      totalPages: totalPages,
+      onPreviousPage: onPreviousPage,
+      onNextPage: onNextPage,
+      mode: mode,
+      onModeChanged: onModeChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '最近作品',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              trailing,
+            ],
+          );
+        }
+
+        return AppSectionHeader(
+          title: '最近作品',
+          trailing: trailing,
+        );
+      },
     );
   }
 }
