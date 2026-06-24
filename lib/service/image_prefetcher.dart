@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:tagselector/model/daily_ranking_model.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
@@ -14,13 +13,14 @@ class ImagePrefetcher {
   final Set<String> _queuedOrCached = <String>{};
   final List<_PrefetchRequest> _queue = <_PrefetchRequest>[];
   int _active = 0;
+  int _head = 0;
 
-  static const int _maxConcurrentDownloads = 3;
+  static const int _maxConcurrentDownloads = 5;
 
   void prefetchImageModels(
     Iterable<ImageModel> images, {
     bool highQuality = false,
-    int limit = 8,
+    int limit = 12,
   }) {
     prefetchUrls(
       images
@@ -31,7 +31,7 @@ class ImagePrefetcher {
 
   void prefetchRankingModels(
     Iterable<DailyRankingModel> images, {
-    int limit = 8,
+    int limit = 12,
   }) {
     prefetchUrls(
       images.map((image) => image.thumbUrl),
@@ -41,7 +41,7 @@ class ImagePrefetcher {
 
   void prefetchUrls(
     Iterable<String> rawUrls, {
-    int limit = 8,
+    int limit = 12,
   }) {
     var added = 0;
     for (final rawUrl in rawUrls) {
@@ -62,10 +62,14 @@ class ImagePrefetcher {
   }
 
   void _pump() {
-    while (_active < _maxConcurrentDownloads && _queue.isNotEmpty) {
-      final request = _queue.removeAt(0);
+    while (_active < _maxConcurrentDownloads && _head < _queue.length) {
+      final request = _queue[_head++];
       _active++;
       unawaited(_download(request));
+    }
+    if (_head > 64 && _head * 2 >= _queue.length) {
+      _queue.removeRange(0, _head);
+      _head = 0;
     }
   }
 
@@ -75,11 +79,8 @@ class ImagePrefetcher {
         request.url,
         authHeaders: request.headers,
       );
-    } catch (error) {
+    } catch (_) {
       _queuedOrCached.remove(request.url);
-      if (kDebugMode) {
-        debugPrint('Image prefetch failed: $error');
-      }
     } finally {
       _active--;
       _pump();
