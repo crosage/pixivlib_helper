@@ -4,8 +4,8 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/app_ui.dart';
+import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
-import 'package:tagselector/components/like_recommendation_sheet.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/model/image_recommendation_model.dart';
@@ -13,7 +13,9 @@ import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
+import 'package:tagselector/service/detail_visit_stats.dart';
 import 'package:tagselector/service/native_image_clipboard.dart';
+import 'package:tagselector/service/image_state_merger.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,7 +41,7 @@ String _formatBookmarkCount(int count) {
 }
 
 class _FullImagePageState extends State<FullImagePage> {
-  static const int _bookmarkTrayRecommendationCount = 6;
+  static const int _detailRecommendationCount = 8;
 
   final ApiService _api = ApiService.instance;
 
@@ -60,7 +62,22 @@ class _FullImagePageState extends State<FullImagePage> {
   void initState() {
     super.initState();
     _image = widget.image;
+    unawaited(_trackDetailVisit());
     _loadPage();
+  }
+
+  Future<void> _trackDetailVisit() async {
+    final pid = widget.image.pid;
+    try {
+      await DetailVisitStats.instance.record(
+        pid: pid,
+        title: widget.image.name,
+        authorName: widget.image.author.name,
+        tags: widget.image.tags.map((tag) => tag.name).toList(),
+      );
+    } catch (error) {
+      // Ignore local analytics failures.
+    }
   }
 
   Future<void> _loadPage({bool showLoading = false}) async {
@@ -101,7 +118,10 @@ class _FullImagePageState extends State<FullImagePage> {
 
   Future<void> _loadRecommendations() async {
     try {
-      final recommendations = await _api.fetchImageRecommendations(_image.pid);
+      final recommendations = await _api.fetchImageRecommendations(
+        _image.pid,
+        limit: _detailRecommendationCount,
+      );
       if (!mounted) return;
       setState(() {
         _recommendations = recommendations;
@@ -126,7 +146,7 @@ class _FullImagePageState extends State<FullImagePage> {
             recommendation.pid > 0 &&
             recommendation.bookmarkCount <= 0 &&
             !_recommendationHydrationInFlight.contains(recommendation.pid))
-        .take(12)
+        .take(_detailRecommendationCount)
         .toList();
     if (targets.isEmpty) {
       return;
@@ -313,24 +333,13 @@ class _FullImagePageState extends State<FullImagePage> {
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
       setState(() {
-        _image = _image.copyWith(
-          bookmarkCount: updatedImage.bookmarkCount,
-          isBookmarked: updatedImage.isBookmarked,
-        );
+        _image = mergeImageState(_image, updatedImage);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
         ),
       );
-
-      if (!wasBookmarked && updatedImage.isBookmarked) {
-        showBookmarkRecommendationTray(
-          context,
-          seedImage: updatedImage,
-          limit: _bookmarkTrayRecommendationCount,
-        );
-      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -482,7 +491,7 @@ class _FullImagePageState extends State<FullImagePage> {
     final hasMultiplePages = _pageCount > 1;
     final screenSize = MediaQuery.sizeOf(context);
     final narrow = screenSize.width < 720;
-    final imageUrl = _resolveCurrentImageUrl(fullQuality: !narrow);
+    final imageUrl = _resolveCurrentImageUrl(fullQuality: false);
     final imageViewportHeight = (screenSize.height * (narrow ? 0.56 : 0.72))
         .clamp(narrow ? 260.0 : 360.0, narrow ? 520.0 : 820.0)
         .toDouble();
@@ -1865,30 +1874,11 @@ class _AuthorAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final narrow = MediaQuery.sizeOf(context).width < 720;
-    final radius = narrow ? 15.0 : 20.0;
-    if (author.avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(author.avatarUrl),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(author.avatarUrl),
-        ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor:
-          getRandomColor(author.uid.hashCode).withValues(alpha: 0.18),
-      child: Text(
-        author.name.isEmpty ? '?' : author.name.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontSize: narrow ? 12 : 16,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1D4ED8),
-        ),
-      ),
+    return AppAvatar(
+      name: author.name,
+      uid: author.uid,
+      avatarUrl: author.avatarUrl,
+      radius: narrow ? 15 : 20,
     );
   }
 }
