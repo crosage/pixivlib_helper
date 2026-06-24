@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -56,6 +57,7 @@ class _ImageListPageState extends State<ImageListPage> {
   final Set<int> _bookmarkHydrationInFlight = <int>{};
   List<ImageModel> _visibleImagesForPrefetch = const [];
   final List<ImageModel> _discoveryImages = <ImageModel>[];
+  final Set<int> _inlineRecommendationPids = <int>{};
   final Set<int> _discoverySeenPids = <int>{};
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
   DisplayMode _displayMode = DisplayMode.grid;
@@ -158,6 +160,7 @@ class _ImageListPageState extends State<ImageListPage> {
     _applyFormFilters();
     _discoveryRequestId++;
     _discoveryImages.clear();
+    _inlineRecommendationPids.clear();
     _discoverySeenPids.clear();
     _hasMoreDiscovery = true;
     _isDiscoveryLoadingMore = false;
@@ -183,6 +186,54 @@ class _ImageListPageState extends State<ImageListPage> {
     _hydrateBookmarkCounts(images);
   }
 
+  Future<void> _insertBookmarkedRecommendations(ImageModel seedImage) async {
+    if (!_showingDiscovery || seedImage.pid <= 0) {
+      return;
+    }
+
+    try {
+      final recommendations = await _api.fetchImageRecommendations(
+        seedImage.pid,
+        limit: 4,
+      );
+      if (!mounted || !_showingDiscovery) {
+        return;
+      }
+
+      final existingPids = {
+        ..._discoveryImages.map((image) => image.pid),
+        ..._inlineRecommendationPids,
+      };
+      final images = recommendations
+          .map((recommendation) => recommendation.toPlaceholderImage())
+          .where((image) => image.pid > 0 && !existingPids.contains(image.pid))
+          .take(4)
+          .toList(growable: false);
+      if (images.isEmpty) {
+        return;
+      }
+
+      final seedIndex =
+          _discoveryImages.indexWhere((image) => image.pid == seedImage.pid);
+      final insertIndex =
+          seedIndex < 0 ? _discoveryImages.length : seedIndex + 1;
+      setState(() {
+        _discoveryImages.insertAll(insertIndex, images);
+        _discoverySeenPids.addAll(images.map((image) => image.pid));
+        _inlineRecommendationPids.addAll(images.map((image) => image.pid));
+        _resultsFuture = Future.value(
+          PagedImagesResponse(
+            images: List<ImageModel>.of(_discoveryImages),
+            total: _discoverySeenPids.length,
+          ),
+        );
+      });
+      _prepareImages(images);
+    } catch (_) {
+      // Inline recommendations should not make the like action feel broken.
+    }
+  }
+
   void _refreshVisibleResults() {
     if (_showingDiscovery) {
       _loadDiscoveryRecommendations();
@@ -199,6 +250,7 @@ class _ImageListPageState extends State<ImageListPage> {
     if (resetPage) {
       _criteria.page = 1;
       _discoveryImages.clear();
+      _inlineRecommendationPids.clear();
       _discoverySeenPids.clear();
       _hasMoreDiscovery = true;
       _isDiscoveryLoadingMore = false;
@@ -767,16 +819,6 @@ class _ImageListPageState extends State<ImageListPage> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _metaChip('$total 项'),
-            for (final option in _sortOptions)
-              ChoiceChip(
-                label: Text(option.$2),
-                selected: _criteria.sortBy == option.$1,
-                onSelected: (_) {
-                  setState(() => _criteria.sortBy = option.$1);
-                  _scheduleRefresh();
-                },
-                visualDensity: VisualDensity.compact,
-              ),
             modeSelector,
             if (compact)
               _flatActionButton(
@@ -793,14 +835,12 @@ class _ImageListPageState extends State<ImageListPage> {
               label: _showingDiscovery ? '推荐中' : '随机推荐',
               onTap: _loadDiscoveryRecommendations,
             ),
-            TextButton(
-              onPressed: _clearAllFilters,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            if (_activeFilterCount > 0)
+              IconButton(
+                onPressed: _clearAllFilters,
+                icon: const Icon(Icons.close_rounded),
+                tooltip: '清空筛选',
               ),
-              child: const Text('清空'),
-            ),
           ],
         ),
         if (_criteria.tags.isNotEmpty || _criteria.excludedTags.isNotEmpty) ...[
@@ -1122,16 +1162,37 @@ class _ImageListPageState extends State<ImageListPage> {
             return _buildDiscoveryFooter(phone: phone);
           }
           final image = images[index];
-          return ImageWithInfo(
+          final tile = ImageWithInfo(
+            key: ValueKey('discovery-list-image-${image.pid}'),
             image: image,
             selectedTags: _criteria.tags,
             onSelectedTagsChanged: _toggleIncludeTag,
             onSelectedAuthor: _toggleAuthor,
             onImageChanged: _updateImage,
+            onImageBookmarked: _insertBookmarkedRecommendations,
             onAuthorTap: () => _openAuthorPage(image.author),
             onImageTap: () => _openImagePage(image),
             highQualityPreview: true,
             showBookmarkCount: true,
+          );
+          if (!_inlineRecommendationPids.contains(image.pid)) {
+            return tile;
+          }
+          return TweenAnimationBuilder<double>(
+            key: ValueKey('inline-list-recommendation-${image.pid}'),
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - value) * 14),
+                  child: child,
+                ),
+              );
+            },
+            child: tile,
           );
         },
       );
@@ -1157,13 +1218,35 @@ class _ImageListPageState extends State<ImageListPage> {
               return _buildDiscoveryFooter(phone: phone);
             }
             final image = images[index];
-            return MasonryImageTile(
+            final tile = MasonryImageTile(
+              key: ValueKey('discovery-image-${image.pid}'),
               image: image,
-              highQualityPreview: !phone,
+              highQualityPreview:
+                  !phone && defaultTargetPlatform != TargetPlatform.windows,
               showBookmarkCount: true,
               onImageChanged: _updateImage,
+              onImageBookmarked: _insertBookmarkedRecommendations,
               onTap: () => _openImagePage(image),
               onAuthorTap: () => _openAuthorPage(image.author),
+            );
+            if (!_inlineRecommendationPids.contains(image.pid)) {
+              return tile;
+            }
+            return TweenAnimationBuilder<double>(
+              key: ValueKey('inline-recommendation-${image.pid}'),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - value) * 14),
+                    child: child,
+                  ),
+                );
+              },
+              child: tile,
             );
           },
         );
