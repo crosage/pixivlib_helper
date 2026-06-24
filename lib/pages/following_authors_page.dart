@@ -11,6 +11,7 @@ import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/app_user_session.dart';
+import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
@@ -771,25 +772,11 @@ class _CardTop extends StatelessWidget {
                 alignment: Alignment.center,
                 child: const Icon(Icons.person_outline_rounded),
               )
-            : CachedNetworkImage(
-                imageUrl: proxiedImageUrl(author.author.avatarUrl),
-                cacheManager: imageProxyCacheManager,
-                httpHeaders: imageRequestHeaders(author.author.avatarUrl),
-                width: avatarSize,
-                height: avatarSize,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  color: const Color(0xFFE2E8F0),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  color: const Color(0xFFE2E8F0),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.broken_image_outlined),
-                ),
+            : AppAvatar(
+                name: author.author.name,
+                uid: author.author.uid,
+                avatarUrl: author.author.avatarUrl,
+                radius: avatarSize / 2,
               ),
         SizedBox(width: phone ? 8 : 14),
         Expanded(

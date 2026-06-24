@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/app_ui.dart';
+import 'package:tagselector/components/image_card.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/author_profile_model.dart';
 import 'package:tagselector/model/followed_author_model.dart';
@@ -11,8 +11,8 @@ import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/model/image_url_model.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
-import 'package:tagselector/service/cache_proxy_manager.dart';
-import 'package:tagselector/service/remote_image_url.dart';
+import 'package:tagselector/components/app_avatar.dart';
+import 'package:tagselector/service/image_prefetcher.dart';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -320,6 +320,36 @@ class _AuthorPageState extends State<AuthorPage> {
     );
   }
 
+  ImageModel _previewToImageModel(
+    AuthorProfileModel profile,
+    FollowedAuthorWorkPreview preview,
+  ) {
+    final existing = _workPreviewCache[preview.pid];
+    final imageUrl = preview.thumbUrl.trim();
+    return ImageModel(
+      id: 0,
+      pid: preview.pid,
+      author: profile.author,
+      tags: const [],
+      name: preview.title.isNotEmpty ? preview.title : (existing?.title ?? ''),
+      pages: const [],
+      bookmarkCount: preview.bookmarkCount,
+      isBookmarked: preview.isBookmarked ?? false,
+      publishedAt: preview.publishedAt,
+      updatedAt: 0,
+      needsRefresh: false,
+      urls: ImageUrlsModel(
+        original: '',
+        mini: imageUrl,
+        thumb: imageUrl,
+        small: imageUrl,
+        regular: imageUrl,
+      ),
+      width: preview.width,
+      height: preview.height,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile ?? _buildPlaceholderProfile(widget.author);
@@ -485,8 +515,8 @@ class _AuthorPageState extends State<AuthorPage> {
                           isLoading: _workPreviewLoading.contains(pid),
                           onTap: () => _openPidPreview(profile, pid),
                         )
-                      : _RecentWorkListTile(
-                          preview: preview,
+                      : _AuthorRecentWorkCard(
+                          image: _previewToImageModel(profile, preview),
                           onTap: () => _openPreview(profile, preview),
                         ),
                 ),
@@ -521,8 +551,8 @@ class _AuthorPageState extends State<AuthorPage> {
                           isLoading: _workPreviewLoading.contains(pid),
                           onTap: () => _openPidPreview(profile, pid),
                         )
-                      : _RecentWorkCard(
-                          preview: preview,
+                      : _AuthorRecentWorkCard(
+                          image: _previewToImageModel(profile, preview),
                           onTap: () => _openPreview(profile, preview),
                         );
                 },
@@ -1035,29 +1065,11 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (author.avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(author.avatarUrl),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(author.avatarUrl),
-        ),
-      );
-    }
-
-    return CircleAvatar(
+    return AppAvatar(
+      name: author.name,
+      uid: author.uid,
+      avatarUrl: author.avatarUrl,
       radius: radius,
-      backgroundColor:
-          getRandomColor(author.uid.hashCode).withValues(alpha: 0.18),
-      child: Text(
-        author.name.isEmpty ? '?' : author.name.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontSize: radius * 0.68,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1D4ED8),
-        ),
-      ),
     );
   }
 }
@@ -1155,102 +1167,54 @@ class _SummaryBox extends StatelessWidget {
   }
 }
 
-class _RecentWorkListTile extends StatelessWidget {
-  final FollowedAuthorWorkPreview preview;
+class _AuthorRecentWorkCard extends StatelessWidget {
+  final ImageModel image;
   final VoidCallback onTap;
 
-  const _RecentWorkListTile({
-    required this.preview,
+  const _AuthorRecentWorkCard({
+    required this.image,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final publishedAt = formatUnixTimestamp(preview.publishedAt);
+    final compact = MediaQuery.sizeOf(context).width < 640;
+    final publishedAt = formatUnixTimestamp(image.publishedAt);
 
-    return Material(
-      color: const Color(0xFFF8FAFC),
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 86,
-              height: 112,
-              child: preview.thumbUrl.isEmpty
-                  ? const ColoredBox(
-                      color: Color(0xFFF1F5F9),
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      ),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: proxiedImageUrl(preview.thumbUrl),
-                      cacheManager: imageProxyCacheManager,
-                      httpHeaders: imageRequestHeaders(preview.thumbUrl),
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) =>
-                          const ColoredBox(color: Color(0xFFF1F5F9)),
-                      errorWidget: (_, __, ___) => const ColoredBox(
-                        color: Color(0xFFF1F5F9),
-                        child: Center(child: Icon(Icons.broken_image_outlined)),
-                      ),
-                    ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      preview.title.isEmpty ? '未命名作品' : preview.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.2,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _TinyMetaPill(
-                          icon: preview.isBookmarked == true
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          label: '${preview.bookmarkCount}',
-                          color: preview.isBookmarked == true
-                              ? const Color(0xFFBE123C)
-                              : const Color(0xFF64748B),
-                        ),
-                        _TinyMetaPill(
-                          icon: Icons.schedule_rounded,
-                          label: publishedAt.isEmpty ? '时间未知' : publishedAt,
-                          color: const Color(0xFF64748B),
-                        ),
-                        _TinyMetaPill(
-                          icon: Icons.tag_rounded,
-                          label: 'PID ${preview.pid}',
-                          color: const Color(0xFF64748B),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+    return AppImageCard(
+      image: image,
+      imageUrl: previewUrlForImage(image, highQuality: false),
+      onTap: onTap,
+      topLeft: image.pages.length > 1
+          ? AppImageBadge(label: '${image.pages.length}P')
+          : null,
+      bottom: AppImageCardCaption(
+        image: image,
+        trailing: Text(
+          publishedAt.isEmpty ? '时间未知' : publishedAt,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 9,
+            height: 1.05,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
+      radius: compact ? 8 : 16,
+      aspectRatio: _tileAspectRatio(image),
     );
   }
+
+  double _tileAspectRatio(ImageModel image) {
+    if (image.width > 0 && image.height > 0) {
+      return (image.width / image.height).clamp(0.58, 1.45).toDouble();
+    }
+    const fallbacks = [0.72, 0.82, 1.0, 1.18, 0.66, 0.92];
+    return fallbacks[image.pid.abs() % fallbacks.length];
+  }
+
 }
 
 class _TinyMetaPill extends StatelessWidget {
@@ -1287,110 +1251,6 @@ class _TinyMetaPill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RecentWorkCard extends StatelessWidget {
-  final FollowedAuthorWorkPreview preview;
-  final VoidCallback onTap;
-
-  const _RecentWorkCard({
-    required this.preview,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final publishedAt = formatUnixTimestamp(preview.publishedAt);
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.none,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                color: const Color(0xFFF1F5F9),
-                child: preview.thumbUrl.isEmpty
-                    ? const Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: proxiedImageUrl(preview.thumbUrl),
-                        cacheManager: imageProxyCacheManager,
-                        httpHeaders: imageRequestHeaders(preview.thumbUrl),
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        errorWidget: (_, __, ___) => const Center(
-                          child: Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          preview.isBookmarked == true
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          size: 13,
-                          color: preview.isBookmarked == true
-                              ? const Color(0xFFBE123C)
-                              : const Color(0xFF64748B),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${preview.bookmarkCount}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      publishedAt.isEmpty ? '时间未知' : publishedAt,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:tagselector/components/image_with_info.dart';
@@ -575,7 +576,8 @@ class _FollowingPageState extends State<FollowingPage> {
             final image = images[index];
             return MasonryImageTile(
               image: image,
-              highQualityPreview: !phone,
+              highQualityPreview:
+                  !phone && defaultTargetPlatform != TargetPlatform.windows,
               onImageChanged: _updateImage,
               onTap: () => _openImagePage(image),
               onAuthorTap: () => _openAuthorPage(image.author),
@@ -715,193 +717,106 @@ class _TopPanel extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (phone)
-          Row(
-            children: [
-              _SoftChip(label: '$resultCount'),
-              const SizedBox(width: 6),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<FollowingFeedMode>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: FollowingFeedMode.all,
-                        label: Text('全部'),
-                      ),
-                      ButtonSegment(
-                        value: FollowingFeedMode.safe,
-                        label: Text('Safe'),
-                      ),
-                      ButtonSegment(
-                        value: FollowingFeedMode.r18,
-                        label: Text('R18'),
-                      ),
-                    ],
-                    selected: {feedMode},
-                    onSelectionChanged: (values) =>
-                        onFeedModeChanged(values.first),
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          )
-        else
-          Row(
-            children: [
-              _SoftChip(label: '$resultCount'),
-              const SizedBox(width: 8),
-              SegmentedButton<FollowingSourceMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingSourceMode.following,
-                    label: Text('关注'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingSourceMode.bookmarks,
-                    label: Text('收藏'),
-                  ),
-                ],
-                selected: {sourceMode},
-                onSelectionChanged: (values) =>
-                    onSourceModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              if (sourceMode == FollowingSourceMode.bookmarks) ...[
-                const SizedBox(width: 8),
-                SegmentedButton<BookmarkRestMode>(
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: BookmarkRestMode.hide,
-                      label: Text('私有'),
-                    ),
-                    ButtonSegment(
-                      value: BookmarkRestMode.show,
-                      label: Text('公开'),
-                    ),
-                  ],
-                  selected: {bookmarkRestMode},
-                  onSelectionChanged: (values) =>
-                      onBookmarkRestModeChanged(values.first),
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
-              const SizedBox(width: 8),
-              SegmentedButton<FollowingFeedMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingFeedMode.all,
-                    label: Text('全部'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingFeedMode.safe,
-                    label: Text('Safe'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingFeedMode.r18,
-                    label: Text('R18'),
-                  ),
-                ],
-                selected: {feedMode},
-                onSelectionChanged: (values) => onFeedModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              const Spacer(),
-              SegmentedButton<FollowingDisplayMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingDisplayMode.list,
-                    label: Text('列表'),
-                    icon: Icon(Icons.view_agenda_rounded),
-                  ),
-                  ButtonSegment(
-                    value: FollowingDisplayMode.grid,
-                    label: Text('网格'),
-                    icon: Icon(Icons.grid_view_rounded),
-                  ),
-                ],
-                selected: {displayMode},
-                onSelectionChanged: (values) {
-                  onDisplayModeChanged(values.first);
-                },
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: '刷新',
-              ),
-            ],
-          ),
-        SizedBox(height: phone ? 6 : 8),
         Row(
           children: [
-            if (phone)
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<FollowingDisplayMode>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: FollowingDisplayMode.list,
-                        label: Text('列表'),
-                        icon: Icon(Icons.view_agenda_rounded),
-                      ),
-                      ButtonSegment(
-                        value: FollowingDisplayMode.grid,
-                        label: Text('网格'),
-                        icon: Icon(Icons.grid_view_rounded),
-                      ),
-                    ],
-                    selected: {displayMode},
-                    onSelectionChanged: (values) {
-                      onDisplayModeChanged(values.first);
-                    },
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
+            _SoftChip(label: '$resultCount'),
+            const SizedBox(width: 8),
+            SegmentedButton<FollowingSourceMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingSourceMode.following,
+                  label: Text('关注'),
                 ),
-              )
-            else
-              const Spacer(),
-            if (phone) const SizedBox(width: 6),
-            _FilterButton(
-              activeFilterCount: activeFilterCount,
-              onTap: onOpenFilters,
+                ButtonSegment(
+                  value: FollowingSourceMode.bookmarks,
+                  label: Text('收藏'),
+                ),
+              ],
+              selected: {sourceMode},
+              onSelectionChanged: (values) => onSourceModeChanged(values.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
-            SizedBox(width: phone ? 4 : 8),
+            if (sourceMode == FollowingSourceMode.bookmarks) ...[
+              const SizedBox(width: 8),
+              SegmentedButton<BookmarkRestMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: BookmarkRestMode.hide,
+                    label: Text('私有'),
+                  ),
+                  ButtonSegment(
+                    value: BookmarkRestMode.show,
+                    label: Text('公开'),
+                  ),
+                ],
+                selected: {bookmarkRestMode},
+                onSelectionChanged: (values) =>
+                    onBookmarkRestModeChanged(values.first),
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            SegmentedButton<FollowingFeedMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingFeedMode.all,
+                  label: Text('全部'),
+                ),
+                ButtonSegment(
+                  value: FollowingFeedMode.safe,
+                  label: Text('Safe'),
+                ),
+                ButtonSegment(
+                  value: FollowingFeedMode.r18,
+                  label: Text('R18'),
+                ),
+              ],
+              selected: {feedMode},
+              onSelectionChanged: (values) => onFeedModeChanged(values.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const Spacer(),
+            SegmentedButton<FollowingDisplayMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingDisplayMode.list,
+                  label: Text('列表'),
+                  icon: Icon(Icons.view_agenda_rounded),
+                ),
+                ButtonSegment(
+                  value: FollowingDisplayMode.grid,
+                  label: Text('网格'),
+                  icon: Icon(Icons.grid_view_rounded),
+                ),
+              ],
+              selected: {displayMode},
+              onSelectionChanged: (values) {
+                onDisplayModeChanged(values.first);
+              },
+            ),
+            const SizedBox(width: 8),
             IconButton(
               onPressed: onRefresh,
-              visualDensity:
-                  phone ? VisualDensity.compact : VisualDensity.standard,
               icon: const Icon(Icons.refresh_rounded),
               tooltip: '刷新',
             ),
           ],
         ),
         if (selectedAuthor.isNotEmpty || selectedTags.isNotEmpty) ...[
-          SizedBox(height: phone ? 6 : 8),
+          const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1082,30 +997,6 @@ class _SoftChip extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _FilterButton extends StatelessWidget {
-  final int activeFilterCount;
-  final VoidCallback onTap;
-
-  const _FilterButton({
-    required this.activeFilterCount,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: const Icon(Icons.tune_rounded, size: 18),
-      label: Text(activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选'),
-      style: FilledButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       ),
     );
   }
