@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:tagselector/components/pixiv_mark.dart';
 
 const Color mobileInk = Color(0xFF111827);
 const Color mobileSubtleInk = Color(0xFF64748B);
@@ -256,7 +256,7 @@ class MobileBrandMark extends StatelessWidget {
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: const Color(0xFFDCEEFF)),
           ),
-          child: SvgPicture.asset('assets/pixiv.svg'),
+          child: const PixivMark(size: 22, radius: 7),
         ),
         const SizedBox(width: 6),
         Text(

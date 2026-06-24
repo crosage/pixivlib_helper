@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
+import 'package:tagselector/components/pixiv_mark.dart';
 import 'package:tagselector/pages/daily_ranking_page.dart';
 import 'package:tagselector/pages/image_follow_page.dart';
 import 'package:tagselector/pages/image_index_page.dart';
@@ -11,8 +11,8 @@ import 'package:tagselector/service/artwork_download_manager.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final imageCache = PaintingBinding.instance.imageCache;
-  imageCache.maximumSize = 300;
-  imageCache.maximumSizeBytes = 180 << 20;
+  imageCache.maximumSize = 800;
+  imageCache.maximumSizeBytes = 384 << 20;
   runApp(const PixivHelperApp());
 }
 
@@ -786,7 +786,10 @@ class _NavigationPane extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              child: SvgPicture.asset('assets/pixiv.svg'),
+              child: PixivMark(
+                size: compact ? 32 : 34,
+                radius: 10,
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(

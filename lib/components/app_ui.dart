@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/service/api_service.dart';
+import 'package:tagselector/service/image_state_merger.dart';
 
 class AppSurface extends StatelessWidget {
   final Widget child;
@@ -451,10 +452,7 @@ class _AppBookmarkButtonState extends State<AppBookmarkButton> {
       if (!mounted) {
         return;
       }
-      final merged = _image.copyWith(
-        bookmarkCount: updated.bookmarkCount,
-        isBookmarked: updated.isBookmarked,
-      );
+      final merged = mergeImageState(_image, updated);
       setState(() => _localImage = merged);
       widget.onChanged?.call(merged);
       if (!wasBookmarked && updated.isBookmarked) {
