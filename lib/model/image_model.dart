@@ -18,6 +18,7 @@ class ImageModel {
   final int width;
   final int height;
   final bool needsRefresh;
+  final String type;
   final ImageUrlsModel urls;
 
   const ImageModel({
@@ -34,29 +35,43 @@ class ImageModel {
     this.width = 0,
     this.height = 0,
     required this.needsRefresh,
+    this.type = '',
     required this.urls,
   });
 
   ImageModel copyWith({
+    int? id,
+    int? pid,
     Author? author,
+    List<Tag>? tags,
+    String? name,
+    List<Page>? pages,
     int? bookmarkCount,
     bool? isBookmarked,
+    int? publishedAt,
+    int? updatedAt,
+    int? width,
+    int? height,
+    bool? needsRefresh,
+    String? type,
+    ImageUrlsModel? urls,
   }) {
     return ImageModel(
-      id: id,
-      pid: pid,
+      id: id ?? this.id,
+      pid: pid ?? this.pid,
       author: author ?? this.author,
-      tags: tags,
-      name: name,
-      pages: pages,
+      tags: tags ?? this.tags,
+      name: name ?? this.name,
+      pages: pages ?? this.pages,
       bookmarkCount: bookmarkCount ?? this.bookmarkCount,
       isBookmarked: isBookmarked ?? this.isBookmarked,
-      publishedAt: publishedAt,
-      updatedAt: updatedAt,
-      width: width,
-      height: height,
-      needsRefresh: needsRefresh,
-      urls: urls,
+      publishedAt: publishedAt ?? this.publishedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      needsRefresh: needsRefresh ?? this.needsRefresh,
+      type: type ?? this.type,
+      urls: urls ?? this.urls,
     );
   }
 
@@ -81,6 +96,7 @@ class ImageModel {
       width: json['width'] ?? 0,
       height: json['height'] ?? 0,
       needsRefresh: json['needs_refresh'] ?? false,
+      type: json['type'] ?? json['illust_type']?.toString() ?? '',
       urls: ImageUrlsModel.fromJson(
           Map<String, dynamic>.from(json['urls'] ?? {})),
     );

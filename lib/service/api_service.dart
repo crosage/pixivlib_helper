@@ -29,6 +29,7 @@ class ApiService {
   final HttpHelper _http = HttpHelper.getInstance();
   final Set<String> _avatarRefreshInFlight = <String>{};
   final Map<String, DateTime> _avatarRefreshAttemptedAt = <String, DateTime>{};
+  final Map<int, ImageModel> _imageDetailCache = <int, ImageModel>{};
 
   static const Set<int> _transientStatusCodes = {408, 429, 500, 502, 503, 504};
   static const Duration _avatarRefreshCooldown = Duration(minutes: 30);
@@ -210,8 +211,12 @@ class ApiService {
         .toList();
   }
 
-  Future<AuthorProfileModel> fetchAuthorProfile(String uid) async {
-    final payload = await _get('/api/author/$uid/profile');
+  Future<AuthorProfileModel> fetchAuthorProfile(
+    String uid, {
+    bool localOnly = false,
+  }) async {
+    final suffix = localOnly ? '?local=1' : '';
+    final payload = await _get('/api/author/$uid/profile$suffix');
     return AuthorProfileModel.fromJson(payload);
   }
 
@@ -219,6 +224,9 @@ class ApiService {
     final payload = await _get('/api/image/$pid');
     final image =
         ImageModel.fromJson(Map<String, dynamic>.from(payload['image'] ?? {}));
+    if (image.pid > 0) {
+      _imageDetailCache[image.pid] = image;
+    }
     _scheduleAuthorAvatarRefresh([image]);
     return image;
   }
@@ -231,13 +239,14 @@ class ApiService {
     final payload = await _get(
       '/api/image/$pid/recommendations?limit=$limit&offset=$offset',
     );
-    return (payload['images'] as List? ?? [])
+    final recommendations = (payload['images'] as List? ?? [])
         .map(
           (json) => ImageRecommendationModel.fromJson(
             Map<String, dynamic>.from(json),
           ),
         )
         .toList();
+    return recommendations;
   }
 
   Future<List<ImageRecommendationModel>> fetchDiscoveryRecommendations({
@@ -296,13 +305,14 @@ class ApiService {
       queryParameters: queryParameters,
     ).toString();
     final payload = await _get(path);
-    return (payload['images'] as List? ?? [])
+    final recommendations = (payload['images'] as List? ?? [])
         .map(
           (json) => ImageRecommendationModel.fromJson(
             Map<String, dynamic>.from(json),
           ),
         )
         .toList();
+    return recommendations;
   }
 
   Future<SystemSummaryModel> fetchSystemSummary() async {
@@ -369,6 +379,112 @@ class ApiService {
         ImageModel.fromJson(Map<String, dynamic>.from(payload['image'] ?? {}));
     _scheduleAuthorAvatarRefresh([image]);
     return image;
+  }
+
+  Future<List<ImageRecommendationModel>> hydrateRecommendationBookmarkCounts(
+    List<ImageRecommendationModel> recommendations, {
+    required int maxItems,
+  }) async {
+    if (recommendations.isEmpty) {
+      return recommendations;
+    }
+
+    final images =
+        recommendations.map((item) => item.toPlaceholderImage()).toList();
+    final hydratedImages = await hydrateImageBookmarkCounts(
+      images,
+      maxItems: maxItems,
+    );
+    final hydratedByPid = {
+      for (final image in hydratedImages)
+        if (image.pid > 0) image.pid: image,
+    };
+    return recommendations.map((recommendation) {
+      final hydrated = hydratedByPid[recommendation.pid];
+      if (hydrated == null) {
+        return recommendation;
+      }
+      return recommendation.copyWith(
+        bookmarkCount: hydrated.bookmarkCount,
+        isBookmarked: hydrated.isBookmarked,
+      );
+    }).toList();
+  }
+
+  Future<List<ImageModel>> hydrateImageBookmarkCounts(
+    List<ImageModel> images, {
+    required int maxItems,
+  }) async {
+    if (images.isEmpty || maxItems <= 0) {
+      return images;
+    }
+    final hydratedImages = List<ImageModel>.of(images);
+
+    final targets = hydratedImages
+        .where((image) => image.pid > 0 && image.bookmarkCount <= 0)
+        .take(maxItems)
+        .toList();
+    if (targets.isEmpty) {
+      return hydratedImages;
+    }
+
+    final details = await _fetchImageDetailsForBookmarkCounts(targets);
+    for (var index = 0; index < hydratedImages.length; index++) {
+      final detail = details[hydratedImages[index].pid];
+      if (detail == null) {
+        continue;
+      }
+      hydratedImages[index] = hydratedImages[index].copyWith(
+        bookmarkCount: detail.bookmarkCount,
+        isBookmarked: detail.isBookmarked,
+      );
+    }
+    return hydratedImages;
+  }
+
+  Future<Map<int, ImageModel>> _fetchImageDetailsForBookmarkCounts(
+    List<ImageModel> images,
+  ) async {
+    final result = <int, ImageModel>{};
+    final missing = <ImageModel>[];
+    for (final image in images) {
+      final cached = _imageDetailCache[image.pid];
+      if (cached != null) {
+        result[image.pid] = cached;
+      } else {
+        missing.add(image);
+      }
+    }
+
+    const batchSize = 3;
+    for (var start = 0; start < missing.length; start += batchSize) {
+      final end = math.min(start + batchSize, missing.length);
+      final batch = missing.sublist(start, end);
+      final fetched = await Future.wait(
+        batch.map((image) async {
+          try {
+            final payload = await _get('/api/image/${image.pid}');
+            final detail = ImageModel.fromJson(
+              Map<String, dynamic>.from(payload['image'] ?? {}),
+            );
+            if (detail.pid > 0) {
+              _imageDetailCache[detail.pid] = detail;
+              return detail;
+            }
+          } catch (_) {
+            return null;
+          }
+          return null;
+        }),
+      );
+      for (final detail in fetched) {
+        if (detail != null) {
+          result[detail.pid] = detail;
+        }
+      }
+    }
+
+    return result;
   }
 
   Future<Map<String, dynamic>> _get(

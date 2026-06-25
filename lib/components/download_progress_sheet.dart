@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
+import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
 Future<void> showDownloadProgressSheet(BuildContext context) {
@@ -11,7 +12,15 @@ Future<void> showDownloadProgressSheet(BuildContext context) {
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: Colors.white,
-    builder: (context) => const DownloadProgressSheet(),
+    builder: (context) {
+      return DeferredSheetContent(
+        placeholder: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.42,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        builder: (_) => const DownloadProgressSheet(),
+      );
+    },
   );
 }
 
@@ -75,8 +84,7 @@ class DownloadProgressSheet extends StatelessWidget {
                     const _EmptyDownloads()
                   else
                     Flexible(
-                      child: ListView.separated(
-                        shrinkWrap: true,
+              child: ListView.separated(
                         itemCount: tasks.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
@@ -140,10 +148,12 @@ class _DownloadTaskTile extends StatelessWidget {
           : '下载中 ${(progress * 100).toStringAsFixed(0)}%',
       ArtworkDownloadStatus.completed => '已保存',
       ArtworkDownloadStatus.failed => '失败',
+      ArtworkDownloadStatus.canceled => '已取消',
     };
     final statusColor = switch (task.status) {
       ArtworkDownloadStatus.completed => const Color(0xFF16A34A),
       ArtworkDownloadStatus.failed => const Color(0xFFE11D48),
+      ArtworkDownloadStatus.canceled => const Color(0xFF94A3B8),
       ArtworkDownloadStatus.queued => const Color(0xFF64748B),
       ArtworkDownloadStatus.downloading => const Color(0xFF0A84FF),
     };
@@ -151,16 +161,16 @@ class _DownloadTaskTile extends StatelessWidget {
         task.pageCount > 1 ? 'P${task.pageIndex + 1}/${task.pageCount}' : '单图';
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: const Color(0xFFFBFCFE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE9EEF5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -170,19 +180,19 @@ class _DownloadTaskTile extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.10),
+                  color: statusColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Icon(
                   _iconForStatus(task.status),
-                  size: 18,
+                  size: 17,
                   color: statusColor,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,38 +223,30 @@ class _DownloadTaskTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                statusText,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: statusColor,
-                ),
+              _TaskActionStrip(
+                task: task,
+                statusText: statusText,
+                statusColor: statusColor,
               ),
-              if (task.status == ArtworkDownloadStatus.failed) ...[
-                const SizedBox(width: 4),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '重试',
-                  onPressed: () =>
-                      ArtworkDownloadManager.instance.retryTask(task),
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  color: statusColor,
-                ),
-              ],
             ],
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 6,
-              value: progress,
-              backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+          if (task.status == ArtworkDownloadStatus.downloading ||
+              task.status == ArtworkDownloadStatus.queued) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                value: progress,
+                backgroundColor: const Color(0xFFEFF2F7),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  statusColor.withValues(alpha: 0.9),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 7),
+          ] else
+            const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -292,6 +294,7 @@ class _DownloadTaskTile extends StatelessWidget {
       ArtworkDownloadStatus.downloading => Icons.downloading_rounded,
       ArtworkDownloadStatus.completed => Icons.check_rounded,
       ArtworkDownloadStatus.failed => Icons.error_outline_rounded,
+      ArtworkDownloadStatus.canceled => Icons.close_rounded,
     };
   }
 
@@ -332,5 +335,83 @@ class _DownloadTaskTile extends StatelessWidget {
     if (Platform.isLinux) {
       await Process.run('xdg-open', [directory]);
     }
+  }
+}
+
+class _TaskActionStrip extends StatelessWidget {
+  final ArtworkDownloadTask task;
+  final String statusText;
+  final Color statusColor;
+
+  const _TaskActionStrip({
+    required this.task,
+    required this.statusText,
+    required this.statusColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = ArtworkDownloadManager.instance;
+    final canCancel = task.status == ArtworkDownloadStatus.queued ||
+        task.status == ArtworkDownloadStatus.downloading;
+    final canDelete = task.status == ArtworkDownloadStatus.canceled ||
+        task.status == ArtworkDownloadStatus.failed ||
+        task.status == ArtworkDownloadStatus.completed;
+    final canRetry = task.status == ArtworkDownloadStatus.failed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          statusText,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: statusColor,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Wrap(
+          spacing: 4,
+          children: [
+            if (canCancel)
+              TextButton(
+                onPressed: () => manager.cancelTask(task),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('取消'),
+              ),
+            if (canDelete)
+              TextButton(
+                onPressed: () => manager.removeTask(task),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('删除'),
+              ),
+            if (canRetry)
+              TextButton(
+                onPressed: () => manager.retryTask(task),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('重试'),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 }

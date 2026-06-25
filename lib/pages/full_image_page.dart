@@ -3,8 +3,9 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
+import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
-import 'package:tagselector/components/like_recommendation_sheet.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/model/image_recommendation_model.dart';
@@ -12,7 +13,9 @@ import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
+import 'package:tagselector/service/detail_visit_stats.dart';
 import 'package:tagselector/service/native_image_clipboard.dart';
+import 'package:tagselector/service/image_state_merger.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,13 +36,18 @@ enum _ArtworkCopyAction {
   image,
 }
 
+String _formatBookmarkCount(int count) {
+  return count <= 0 ? '获取中' : '$count';
+}
+
 class _FullImagePageState extends State<FullImagePage> {
-  static const int _bookmarkTrayRecommendationCount = 6;
+  static const int _detailRecommendationCount = 8;
 
   final ApiService _api = ApiService.instance;
 
   late ImageModel _image;
   List<ImageRecommendationModel> _recommendations = const [];
+  final Set<int> _recommendationHydrationInFlight = <int>{};
   int _currentPageIndex = 0;
   bool _imageInteractionEnabled = false;
   bool _isDetailLoading = true;
@@ -54,7 +62,22 @@ class _FullImagePageState extends State<FullImagePage> {
   void initState() {
     super.initState();
     _image = widget.image;
+    unawaited(_trackDetailVisit());
     _loadPage();
+  }
+
+  Future<void> _trackDetailVisit() async {
+    final pid = widget.image.pid;
+    try {
+      await DetailVisitStats.instance.record(
+        pid: pid,
+        title: widget.image.name,
+        authorName: widget.image.author.name,
+        tags: widget.image.tags.map((tag) => tag.name).toList(),
+      );
+    } catch (error) {
+      // Ignore local analytics failures.
+    }
   }
 
   Future<void> _loadPage({bool showLoading = false}) async {
@@ -95,13 +118,17 @@ class _FullImagePageState extends State<FullImagePage> {
 
   Future<void> _loadRecommendations() async {
     try {
-      final recommendations = await _api.fetchImageRecommendations(_image.pid);
+      final recommendations = await _api.fetchImageRecommendations(
+        _image.pid,
+        limit: _detailRecommendationCount,
+      );
       if (!mounted) return;
       setState(() {
         _recommendations = recommendations;
         _isRecommendationLoading = false;
         _recommendationError = null;
       });
+      _hydrateRecommendationBookmarkCounts(recommendations);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -109,6 +136,49 @@ class _FullImagePageState extends State<FullImagePage> {
         _recommendationError = error;
       });
     }
+  }
+
+  void _hydrateRecommendationBookmarkCounts(
+    List<ImageRecommendationModel> recommendations,
+  ) {
+    final targets = recommendations
+        .where((recommendation) =>
+            recommendation.pid > 0 &&
+            recommendation.bookmarkCount <= 0 &&
+            !_recommendationHydrationInFlight.contains(recommendation.pid))
+        .take(_detailRecommendationCount)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    _recommendationHydrationInFlight.addAll(
+      targets.map((recommendation) => recommendation.pid),
+    );
+    unawaited(() async {
+      try {
+        final hydrated = await _api.hydrateRecommendationBookmarkCounts(
+          targets,
+          maxItems: targets.length,
+        );
+        if (!mounted) {
+          return;
+        }
+        final hydratedByPid = {
+          for (final recommendation in hydrated)
+            if (recommendation.pid > 0) recommendation.pid: recommendation,
+        };
+        setState(() {
+          _recommendations = _recommendations.map((recommendation) {
+            return hydratedByPid[recommendation.pid] ?? recommendation;
+          }).toList();
+        });
+      } finally {
+        _recommendationHydrationInFlight.removeAll(
+          targets.map((recommendation) => recommendation.pid),
+        );
+      }
+    }());
   }
 
   Future<void> _openAuthorPage(Author author) async {
@@ -263,22 +333,13 @@ class _FullImagePageState extends State<FullImagePage> {
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
       setState(() {
-        _image = updatedImage;
+        _image = mergeImageState(_image, updatedImage);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
         ),
       );
-
-      if (!wasBookmarked && updatedImage.isBookmarked) {
-        unawaited(_loadRecommendations());
-        showBookmarkRecommendationTray(
-          context,
-          seedImage: updatedImage,
-          limit: _bookmarkTrayRecommendationCount,
-        );
-      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -324,6 +385,18 @@ class _FullImagePageState extends State<FullImagePage> {
   bool get _hasPreviousPage => _pageCount > 1 && _currentPageIndex > 0;
 
   bool get _hasNextPage => _pageCount > 1 && _currentPageIndex < _pageCount - 1;
+
+  bool get _isAnimatedArtwork {
+    final type = _image.type.toLowerCase();
+    return type.contains('ugoira') ||
+        type.contains('gif') ||
+        type.contains('animated');
+  }
+
+  bool _isPlayableAnimatedUrl(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+    return path.endsWith('.gif') || path.endsWith('.webp');
+  }
 
   String _resolveCurrentImageUrl({required bool fullQuality}) {
     final pageID =
@@ -418,7 +491,7 @@ class _FullImagePageState extends State<FullImagePage> {
     final hasMultiplePages = _pageCount > 1;
     final screenSize = MediaQuery.sizeOf(context);
     final narrow = screenSize.width < 720;
-    final imageUrl = _resolveCurrentImageUrl(fullQuality: !narrow);
+    final imageUrl = _resolveCurrentImageUrl(fullQuality: false);
     final imageViewportHeight = (screenSize.height * (narrow ? 0.56 : 0.72))
         .clamp(narrow ? 260.0 : 360.0, narrow ? 520.0 : 820.0)
         .toDouble();
@@ -471,8 +544,8 @@ class _FullImagePageState extends State<FullImagePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_detailError != null) ...[
-                        _StatusBanner(
-                          text: '详情刷新失败，先展示当前内容。${_detailError.toString()}',
+                        const _StatusBanner(
+                          text: '详情刷新失败，先展示当前内容。请稍后重试。',
                           icon: Icons.cloud_off_rounded,
                         ),
                         const SizedBox(height: 12),
@@ -576,7 +649,9 @@ class _FullImagePageState extends State<FullImagePage> {
                                 children: [
                                   _MetaChip(label: 'PID ${_image.pid}'),
                                   _MetaChip(
-                                      label: '收藏 ${_image.bookmarkCount}'),
+                                    label:
+                                        '收藏 ${_formatBookmarkCount(_image.bookmarkCount)}',
+                                  ),
                                   if (publishedAt.isNotEmpty)
                                     _MetaChip(label: '上传 $publishedAt')
                                   else if (updatedAt.isNotEmpty)
@@ -748,6 +823,15 @@ class _FullImagePageState extends State<FullImagePage> {
                                               '${_currentPageIndex + 1} / $_pageCount',
                                         ),
                                       ),
+                                    if (_isAnimatedArtwork)
+                                      Positioned(
+                                        left: 12,
+                                        bottom: 12,
+                                        child: _AnimatedArtworkBadge(
+                                          playable:
+                                              _isPlayableAnimatedUrl(imageUrl),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -874,10 +958,10 @@ class _FullImagePageState extends State<FullImagePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_detailError != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: _StatusBanner(
-                text: '详情刷新失败，先展示当前内容。${_detailError.toString()}',
+                text: '详情刷新失败，先展示当前内容。请稍后重试。',
                 icon: Icons.cloud_off_rounded,
               ),
             ),
@@ -885,6 +969,8 @@ class _FullImagePageState extends State<FullImagePage> {
             imageUrl: imageUrl,
             height: imageViewportHeight,
             hasMultiplePages: hasMultiplePages,
+            isAnimatedArtwork: _isAnimatedArtwork,
+            isPlayableAnimatedUrl: _isPlayableAnimatedUrl(imageUrl),
             currentPageIndex: _currentPageIndex,
             pageCount: _pageCount,
             onHorizontalSwipe: _handleArtworkHorizontalSwipe,
@@ -978,7 +1064,7 @@ class _FullImagePageState extends State<FullImagePage> {
                   children: [
                     _MobileInfoPill(
                       icon: Icons.favorite_rounded,
-                      label: '${_image.bookmarkCount}',
+                      label: _formatBookmarkCount(_image.bookmarkCount),
                     ),
                     if (hasMultiplePages)
                       _MobileInfoPill(
@@ -1089,7 +1175,7 @@ class _FullImagePageState extends State<FullImagePage> {
     }
 
     if (_recommendationError != null) {
-      return Text('相关推荐加载失败：${_recommendationError.toString()}');
+      return const Text('相关推荐加载失败，请稍后重试');
     }
 
     if (_recommendations.isEmpty) {
@@ -1148,10 +1234,51 @@ class _ArtworkImage extends StatelessWidget {
   }
 }
 
+class _AnimatedArtworkBadge extends StatelessWidget {
+  final bool playable;
+
+  const _AnimatedArtworkBadge({required this.playable});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xCC111827),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.movie_filter_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              playable ? '动图播放中' : '动图预览',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                height: 1,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MobileArtworkStage extends StatelessWidget {
   final String imageUrl;
   final double height;
   final bool hasMultiplePages;
+  final bool isAnimatedArtwork;
+  final bool isPlayableAnimatedUrl;
   final int currentPageIndex;
   final int pageCount;
   final GestureDragEndCallback onHorizontalSwipe;
@@ -1162,6 +1289,8 @@ class _MobileArtworkStage extends StatelessWidget {
     required this.imageUrl,
     required this.height,
     required this.hasMultiplePages,
+    required this.isAnimatedArtwork,
+    required this.isPlayableAnimatedUrl,
     required this.currentPageIndex,
     required this.pageCount,
     required this.onHorizontalSwipe,
@@ -1194,6 +1323,12 @@ class _MobileArtworkStage extends StatelessWidget {
                 ),
               ),
             ],
+            if (isAnimatedArtwork)
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: _AnimatedArtworkBadge(playable: isPlayableAnimatedUrl),
+              ),
           ],
         ),
       ),
@@ -1739,30 +1874,11 @@ class _AuthorAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final narrow = MediaQuery.sizeOf(context).width < 720;
-    final radius = narrow ? 15.0 : 20.0;
-    if (author.avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(author.avatarUrl),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(author.avatarUrl),
-        ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor:
-          getRandomColor(author.uid.hashCode).withValues(alpha: 0.18),
-      child: Text(
-        author.name.isEmpty ? '?' : author.name.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontSize: narrow ? 12 : 16,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1D4ED8),
-        ),
-      ),
+    return AppAvatar(
+      name: author.name,
+      uid: author.uid,
+      avatarUrl: author.avatarUrl,
+      radius: narrow ? 15 : 20,
     );
   }
 }
@@ -1780,9 +1896,10 @@ class _RecommendationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = recommendation.toPlaceholderImage();
     final publishedAt = formatUnixTimestamp(recommendation.publishedAt);
     final narrow = MediaQuery.sizeOf(context).width < 720;
-    final radius = BorderRadius.circular(narrow ? 0 : 18);
+    final radius = BorderRadius.circular(narrow ? 0 : 8);
     return Material(
       color: Colors.white,
       borderRadius: radius,
@@ -1794,18 +1911,36 @@ class _RecommendationTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: recommendation.thumbUrl.isEmpty
-                  ? const _ImageLoadingPlaceholder()
-                  : CachedNetworkImage(
-                      imageUrl: proxiedImageUrl(recommendation.thumbUrl),
-                      cacheManager: imageProxyCacheManager,
-                      httpHeaders: imageRequestHeaders(recommendation.thumbUrl),
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (_, __) => const _ImageLoadingPlaceholder(),
-                      errorWidget: (_, __, ___) =>
-                          const _ImageLoadingPlaceholder(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  recommendation.thumbUrl.isEmpty
+                      ? const _ImageLoadingPlaceholder()
+                      : CachedNetworkImage(
+                          imageUrl: proxiedImageUrl(recommendation.thumbUrl),
+                          cacheManager: imageProxyCacheManager,
+                          httpHeaders:
+                              imageRequestHeaders(recommendation.thumbUrl),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          placeholder: (_, __) =>
+                              const _ImageLoadingPlaceholder(),
+                          errorWidget: (_, __, ___) =>
+                              const _ImageLoadingPlaceholder(),
+                        ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: AppBookmarkButton(
+                      image: image,
+                      iconSize: 14,
+                      showCount: true,
+                      elevated: true,
+                      onChanged: (_) {},
                     ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: EdgeInsets.fromLTRB(

@@ -36,6 +36,28 @@ class ImageRecommendationModel {
     required this.type,
   });
 
+  ImageRecommendationModel copyWith({
+    int? bookmarkCount,
+    bool? isBookmarked,
+  }) {
+    return ImageRecommendationModel(
+      pid: pid,
+      title: title,
+      author: author,
+      thumbUrl: thumbUrl,
+      smallUrl: smallUrl,
+      regularUrl: regularUrl,
+      bookmarkCount: bookmarkCount ?? this.bookmarkCount,
+      isBookmarked: isBookmarked ?? this.isBookmarked,
+      pageCount: pageCount,
+      width: width,
+      height: height,
+      publishedAt: publishedAt,
+      tags: tags,
+      type: type,
+    );
+  }
+
   factory ImageRecommendationModel.fromJson(Map<String, dynamic> json) {
     final rawTags = json['tags'] as List? ?? const [];
     return ImageRecommendationModel(
@@ -87,6 +109,7 @@ class ImageRecommendationModel {
       updatedAt: 0,
       width: width,
       height: height,
+      type: type,
       needsRefresh: false,
       urls: ImageUrlsModel(
         original: '',

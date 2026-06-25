@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
+import 'package:tagselector/components/image_card.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/author_profile_model.dart';
 import 'package:tagselector/model/followed_author_model.dart';
@@ -9,8 +11,8 @@ import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/model/image_url_model.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
-import 'package:tagselector/service/cache_proxy_manager.dart';
-import 'package:tagselector/service/remote_image_url.dart';
+import 'package:tagselector/components/app_avatar.dart';
+import 'package:tagselector/service/image_prefetcher.dart';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -29,13 +31,18 @@ class AuthorPage extends StatefulWidget {
 enum _AuthorWorksDisplayMode { list, grid }
 
 class _AuthorPageState extends State<AuthorPage> {
+  static const int _worksPageSize = 12;
+
   final ApiService _api = ApiService.instance;
+  final Map<int, FollowedAuthorWorkPreview> _workPreviewCache = {};
+  final Set<int> _workPreviewLoading = {};
 
   AuthorProfileModel? _profile;
   Object? _error;
   bool _isLoading = true;
   bool _hasLoadedOnce = false;
   Timer? _pollTimer;
+  int _worksPage = 1;
   _AuthorWorksDisplayMode _worksDisplayMode = _AuthorWorksDisplayMode.grid;
 
   @override
@@ -61,14 +68,20 @@ class _AuthorPageState extends State<AuthorPage> {
     }
 
     try {
-      final profile = await _api.fetchAuthorProfile(widget.author.uid);
+      final profile = await _api.fetchAuthorProfile(
+        widget.author.uid,
+        localOnly: silent,
+      );
       if (!mounted) return;
       setState(() {
         _profile = profile;
+        _mergeWorkPreviews(profile.recentWorks);
+        _worksPage = _worksPage.clamp(1, _worksTotalPages(profile)).toInt();
         _error = null;
         _isLoading = false;
         _hasLoadedOnce = true;
       });
+      _loadVisibleWorkPreviews(profile);
       _schedulePoll(profile);
     } catch (error) {
       if (!mounted) return;
@@ -87,7 +100,7 @@ class _AuthorPageState extends State<AuthorPage> {
     }
 
     _pollTimer = Timer(
-      const Duration(seconds: 2),
+      const Duration(seconds: 6),
       () => _fetchProfile(silent: true),
     );
   }
@@ -98,6 +111,118 @@ class _AuthorPageState extends State<AuthorPage> {
 
   bool _shouldShowSyncBanner(AuthorProfileModel profile) {
     return false;
+  }
+
+  void _mergeWorkPreviews(List<FollowedAuthorWorkPreview> previews) {
+    for (final preview in previews) {
+      if (preview.pid > 0) {
+        _workPreviewCache[preview.pid] = preview;
+      }
+    }
+  }
+
+  List<int> _workPids(AuthorProfileModel profile) {
+    final ids = profile.pixivRecentIds
+        .map((id) => int.tryParse(id))
+        .whereType<int>()
+        .where((pid) => pid > 0)
+        .toList(growable: false);
+    if (ids.isNotEmpty) {
+      return ids;
+    }
+    return profile.recentWorks.map((work) => work.pid).toList(growable: false);
+  }
+
+  int _worksTotalPages(AuthorProfileModel profile) {
+    final total =
+        math.max(_workPids(profile).length, profile.recentWorks.length);
+    if (total <= 0) {
+      return 1;
+    }
+    return ((total - 1) ~/ _worksPageSize) + 1;
+  }
+
+  List<int> _visibleWorkPids(AuthorProfileModel profile) {
+    final pids = _workPids(profile);
+    if (pids.isEmpty) {
+      return const [];
+    }
+    final start = (_worksPage - 1) * _worksPageSize;
+    if (start >= pids.length) {
+      return const [];
+    }
+    final end = math.min(start + _worksPageSize, pids.length);
+    return pids.sublist(start, end);
+  }
+
+  void _changeWorksPage(int page) {
+    final profile = _profile;
+    if (profile == null) {
+      return;
+    }
+    final nextPage = page.clamp(1, _worksTotalPages(profile)).toInt();
+    if (nextPage == _worksPage) {
+      return;
+    }
+    setState(() => _worksPage = nextPage);
+    _loadVisibleWorkPreviews(profile);
+  }
+
+  void _loadVisibleWorkPreviews(AuthorProfileModel profile) {
+    final missingPids = _visibleWorkPids(profile)
+        .where(
+          (pid) {
+            final preview = _workPreviewCache[pid];
+            return (preview == null || preview.isBookmarked == null) &&
+                !_workPreviewLoading.contains(pid);
+          },
+        )
+        .take(_worksPageSize)
+        .toList(growable: false);
+    if (missingPids.isEmpty) {
+      return;
+    }
+
+    _workPreviewLoading.addAll(missingPids);
+    unawaited(() async {
+      for (final pid in missingPids) {
+        try {
+          final image = await _api.fetchImageDetail(pid);
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            final existing = _workPreviewCache[pid];
+            _workPreviewCache[pid] = FollowedAuthorWorkPreview(
+              pid: image.pid,
+              title: image.name.isNotEmpty ? image.name : existing?.title ?? '',
+              thumbUrl: image.urls.regular.isNotEmpty
+                  ? image.urls.regular
+                  : (image.urls.thumb.isNotEmpty
+                      ? image.urls.thumb
+                      : (image.urls.small.isNotEmpty
+                          ? image.urls.small
+                          : existing?.thumbUrl ?? '')),
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+              publishedAt: image.publishedAt,
+              width: image.width,
+              height: image.height,
+            );
+          });
+        } catch (_) {
+          // Some Pixiv ids may not exist in the local library yet. Keep their
+          // lightweight PID placeholder instead of blocking the whole page.
+        } finally {
+          if (mounted) {
+            setState(() => _workPreviewLoading.remove(pid));
+          } else {
+            _workPreviewLoading.remove(pid);
+          }
+        }
+        await Future.delayed(const Duration(milliseconds: 140));
+      }
+    }());
   }
 
   Future<void> _openPreview(
@@ -112,7 +237,7 @@ class _AuthorPageState extends State<AuthorPage> {
       name: preview.title,
       pages: const [],
       bookmarkCount: preview.bookmarkCount,
-      isBookmarked: false,
+      isBookmarked: preview.isBookmarked ?? false,
       publishedAt: preview.publishedAt,
       updatedAt: 0,
       needsRefresh: false,
@@ -122,6 +247,42 @@ class _AuthorPageState extends State<AuthorPage> {
         thumb: preview.thumbUrl,
         small: preview.thumbUrl,
         regular: preview.thumbUrl,
+      ),
+    );
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => FullImagePage(image: image)),
+    );
+  }
+
+  Future<void> _openPidPreview(
+    AuthorProfileModel profile,
+    int pid,
+  ) async {
+    final cached = _workPreviewCache[pid];
+    if (cached != null) {
+      await _openPreview(profile, cached);
+      return;
+    }
+
+    final image = ImageModel(
+      id: 0,
+      pid: pid,
+      author: profile.author,
+      tags: const [],
+      name: '',
+      pages: const [],
+      bookmarkCount: 0,
+      isBookmarked: false,
+      publishedAt: 0,
+      updatedAt: 0,
+      needsRefresh: false,
+      urls: ImageUrlsModel(
+        original: '',
+        mini: '',
+        thumb: '',
+        small: '',
+        regular: '',
       ),
     );
 
@@ -159,6 +320,36 @@ class _AuthorPageState extends State<AuthorPage> {
     );
   }
 
+  ImageModel _previewToImageModel(
+    AuthorProfileModel profile,
+    FollowedAuthorWorkPreview preview,
+  ) {
+    final existing = _workPreviewCache[preview.pid];
+    final imageUrl = preview.thumbUrl.trim();
+    return ImageModel(
+      id: 0,
+      pid: preview.pid,
+      author: profile.author,
+      tags: const [],
+      name: preview.title.isNotEmpty ? preview.title : (existing?.title ?? ''),
+      pages: const [],
+      bookmarkCount: preview.bookmarkCount,
+      isBookmarked: preview.isBookmarked ?? false,
+      publishedAt: preview.publishedAt,
+      updatedAt: 0,
+      needsRefresh: false,
+      urls: ImageUrlsModel(
+        original: '',
+        mini: imageUrl,
+        thumb: imageUrl,
+        small: imageUrl,
+        regular: imageUrl,
+      ),
+      width: preview.width,
+      height: preview.height,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile ?? _buildPlaceholderProfile(widget.author);
@@ -177,64 +368,71 @@ class _AuthorPageState extends State<AuthorPage> {
           if (showBlockingError)
             _BlockingError(error: _error!, onRetry: _refresh)
           else
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 22),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1280),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_error != null) ...[
-                        _StatusBanner(
-                          icon: Icons.cloud_off_rounded,
-                          text: '这次刷新失败了，先展示上一次加载到的作者信息。',
-                          actionLabel: '重试',
-                          onAction: _refresh,
+            CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (_error != null) ...[
+                              _StatusBanner(
+                                icon: Icons.cloud_off_rounded,
+                                text: '这次刷新失败了，先展示上一次加载到的作者信息。',
+                                actionLabel: '重试',
+                                onAction: _refresh,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            if (_shouldShowSyncBanner(profile) &&
+                                (profile.syncSummary.inProgress ||
+                                    profile.syncSummary.queued > 0)) ...[
+                              _StatusBanner(
+                                icon: Icons.sync_rounded,
+                                text:
+                                    '作者同步仍在进行中，页面会自动刷新。当前待入库 ${profile.syncSummary.queued} 张。',
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                            _AuthorHero(
+                              profile: profile,
+                              isLoading: _isLoading && !_hasLoadedOnce,
+                              onRefresh: _refresh,
+                            ),
+                            const SizedBox(height: 14),
+                            AppSurface(
+                              radius: 16,
+                              child: _RecentWorksHeader(
+                                count:
+                                    '${_visibleWorkPids(profile).length} / ${_workPids(profile).length}',
+                                page: _worksPage,
+                                totalPages: _worksTotalPages(profile),
+                                onPreviousPage: _worksPage > 1
+                                    ? () => _changeWorksPage(_worksPage - 1)
+                                    : null,
+                                onNextPage:
+                                    _worksPage < _worksTotalPages(profile)
+                                        ? () => _changeWorksPage(_worksPage + 1)
+                                        : null,
+                                mode: _worksDisplayMode,
+                                onModeChanged: (mode) {
+                                  setState(() => _worksDisplayMode = mode);
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                      ],
-                      if (_shouldShowSyncBanner(profile) &&
-                          (profile.syncSummary.inProgress ||
-                              profile.syncSummary.queued > 0)) ...[
-                        _StatusBanner(
-                          icon: Icons.sync_rounded,
-                          text:
-                              '作者同步仍在进行中，页面会自动刷新。当前待入库 ${profile.syncSummary.queued} 张。',
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-                      _AuthorHero(
-                        profile: profile,
-                        isLoading: _isLoading && !_hasLoadedOnce,
-                        onRefresh: _refresh,
                       ),
-                      const SizedBox(height: 14),
-                      _Surface(
-                        child: _AboutSection(
-                          profile: profile,
-                          isLoading: _isLoading && !_hasLoadedOnce,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _Surface(
-                        child: _InfoSection(
-                          title: '最近作品',
-                          trailing: _WorksHeaderTrailing(
-                            count:
-                                '${profile.recentWorks.length} / ${profile.pixivPreviewCount}',
-                            mode: _worksDisplayMode,
-                            onModeChanged: (mode) {
-                              setState(() => _worksDisplayMode = mode);
-                            },
-                          ),
-                          child: _buildRecentWorks(profile),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                ..._buildRecentWorkSlivers(profile),
+                const SliverToBoxAdapter(child: SizedBox(height: 22)),
+              ],
             ),
           if (_isLoading)
             const Positioned(
@@ -248,79 +446,127 @@ class _AuthorPageState extends State<AuthorPage> {
     );
   }
 
-  Widget _buildRecentWorks(AuthorProfileModel profile) {
+  List<Widget> _buildRecentWorkSlivers(AuthorProfileModel profile) {
     if (_isLoading && !_hasLoadedOnce) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = _gridColumnCount(constraints.maxWidth);
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: columns * 2,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: 0.76,
-            ),
-            itemBuilder: (_, __) => const _RecentWorkPlaceholder(),
-          );
-        },
-      );
+      return [
+        SliverLayoutBuilder(
+          builder: (context, constraints) {
+            final width = _contentWidthForSliver(constraints);
+            final columns = _gridColumnCount(width);
+            return SliverPadding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  childAspectRatio: 0.76,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (_, __) => const _RecentWorkPlaceholder(),
+                  childCount: columns * 2,
+                ),
+              ),
+            );
+          },
+        ),
+      ];
     }
 
-    if (profile.recentWorks.isEmpty) {
-      if (profile.syncSummary.checked > 0) {
-        return const Text(
-          '最近作品已经识别到了，正在等待入库或缩略图生成。',
-          style: TextStyle(color: Color(0xFF64748B)),
-        );
-      }
-      return const Text(
-        '当前还没有可展示的最近作品。',
-        style: TextStyle(color: Color(0xFF64748B)),
-      );
+    final visiblePids = _visibleWorkPids(profile);
+    if (visiblePids.isEmpty) {
+      final text = profile.syncSummary.checked > 0
+          ? '最近作品已经识别到了，正在等待入库或缩略图生成。'
+          : '当前还没有可展示的最近作品。';
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: Text(
+                  text,
+                  style: const TextStyle(color: Color(0xFF64748B)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ];
     }
 
     if (_worksDisplayMode == _AuthorWorksDisplayMode.list) {
-      return ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: profile.recentWorks.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          final preview = profile.recentWorks[index];
-          return _RecentWorkListTile(
-            preview: preview,
-            onTap: () => _openPreview(profile, preview),
-          );
-        },
-      );
+      return [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+          sliver: SliverList.separated(
+            itemCount: visiblePids.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final pid = visiblePids[index];
+              final preview = _workPreviewCache[pid];
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1280),
+                  child: preview == null
+                      ? _RecentWorkLoadingTile(
+                          pid: pid,
+                          isLoading: _workPreviewLoading.contains(pid),
+                          onTap: () => _openPidPreview(profile, pid),
+                        )
+                      : _AuthorRecentWorkCard(
+                          image: _previewToImageModel(profile, preview),
+                          onTap: () => _openPreview(profile, preview),
+                        ),
+                ),
+              );
+            },
+          ),
+        ),
+      ];
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = _gridColumnCount(constraints.maxWidth);
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: profile.recentWorks.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemBuilder: (context, index) {
-            final preview = profile.recentWorks[index];
-            return _RecentWorkCard(
-              preview: preview,
-              onTap: () => _openPreview(profile, preview),
-            );
-          },
-        );
-      },
-    );
+    return [
+      SliverLayoutBuilder(
+        builder: (context, constraints) {
+          final width = _contentWidthForSliver(constraints);
+          final columns = _gridColumnCount(width);
+          return SliverPadding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final pid = visiblePids[index];
+                  final preview = _workPreviewCache[pid];
+                  return preview == null
+                      ? _RecentWorkLoadingCard(
+                          pid: pid,
+                          isLoading: _workPreviewLoading.contains(pid),
+                          onTap: () => _openPidPreview(profile, pid),
+                        )
+                      : _AuthorRecentWorkCard(
+                          image: _previewToImageModel(profile, preview),
+                          onTap: () => _openPreview(profile, preview),
+                        );
+                },
+                childCount: visiblePids.length,
+              ),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  double _contentWidthForSliver(dynamic constraints) {
+    return math.min(1280, constraints.crossAxisExtent - 20);
   }
 
   int _gridColumnCount(double width) {
@@ -333,10 +579,7 @@ class _AuthorPageState extends State<AuthorPage> {
     if (width >= 640) {
       return 3;
     }
-    if (width >= 360) {
-      return 2;
-    }
-    return 1;
+    return 2;
   }
 }
 
@@ -355,11 +598,16 @@ class _AuthorHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final authorUrl = 'https://www.pixiv.net/users/${profile.author.uid}';
 
-    return _Surface(
+    return AppSurface(
       padding: const EdgeInsets.all(12),
+      radius: 16,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
+          final aboutSummary = _AuthorAboutSummary(
+            profile: profile,
+            isLoading: isLoading,
+          );
           final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -388,11 +636,11 @@ class _AuthorHero extends StatelessWidget {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _PlainBadge(
+                            AppInfoPill(
                               icon: Icons.badge_outlined,
                               label: 'UID ${profile.author.uid}',
                             ),
-                            _PlainBadge(
+                            AppInfoPill(
                               icon: profile.profile.isFollowed
                                   ? Icons.favorite_rounded
                                   : Icons.person_outline_rounded,
@@ -443,6 +691,8 @@ class _AuthorHero extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              aboutSummary,
             ],
           );
 
@@ -491,11 +741,11 @@ class _AuthorHero extends StatelessWidget {
   }
 }
 
-class _AboutSection extends StatelessWidget {
+class _AuthorAboutSummary extends StatelessWidget {
   final AuthorProfileModel profile;
   final bool isLoading;
 
-  const _AboutSection({
+  const _AuthorAboutSummary({
     required this.profile,
     required this.isLoading,
   });
@@ -523,39 +773,90 @@ class _AboutSection extends StatelessWidget {
         ),
     ];
 
-    return _InfoSection(
-      title: '作者简介',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (isLoading && profile.profile.comment.isEmpty)
-            const _LoadingParagraph(lines: 3)
-          else
-            Text(
-              profile.profile.comment.isEmpty
-                  ? 'Pixiv 没有返回作者简介。'
-                  : profile.profile.comment,
-              style: const TextStyle(
-                height: 1.65,
-                color: Color(0xFF334155),
+    final comment = profile.profile.comment.trim();
+    final hasDetails = comment.isNotEmpty || links.isNotEmpty;
+
+    if (isLoading && comment.isEmpty) {
+      return const _LoadingParagraph(lines: 2);
+    }
+
+    return InkWell(
+      onTap: hasDetails ? () => _showDetails(context, comment, links) : null,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.notes_rounded,
+              size: 16,
+              color: Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                comment.isEmpty ? 'Pixiv 没有返回作者简介。' : comment,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  height: 1.45,
+                  fontSize: 13,
+                  color: Color(0xFF334155),
+                ),
               ),
             ),
-          const SizedBox(height: 14),
-          if (isLoading && links.isEmpty)
-            const Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _LoadingPill(width: 98),
-                _LoadingPill(width: 118),
+            if (hasDetails) ...[
+              const SizedBox(width: 8),
+              const Text(
+                '详情',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDetails(
+    BuildContext context,
+    String comment,
+    List<Widget> links,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('作者简介'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                comment.isEmpty ? 'Pixiv 没有返回作者简介。' : comment,
+                style: const TextStyle(height: 1.6),
+              ),
+              if (links.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: links,
+                ),
               ],
-            )
-          else if (links.isNotEmpty)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: links,
-            ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
         ],
       ),
     );
@@ -574,7 +875,7 @@ class SyncSummarySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InfoSection(
+    return AppSection(
       title: '同步状态',
       child: Wrap(
         spacing: 12,
@@ -611,59 +912,93 @@ class SyncSummarySection extends StatelessWidget {
   }
 }
 
-class _InfoSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Widget? trailing;
-
-  const _InfoSection({
-    required this.title,
-    required this.child,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
-                ),
-              ),
-            ),
-            if (trailing != null) trailing!,
-          ],
-        ),
-        const SizedBox(height: 10),
-        child,
-      ],
-    );
-  }
-}
-
-class _WorksHeaderTrailing extends StatelessWidget {
+class _RecentWorksHeader extends StatelessWidget {
   final String count;
+  final int page;
+  final int totalPages;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
   final _AuthorWorksDisplayMode mode;
   final ValueChanged<_AuthorWorksDisplayMode> onModeChanged;
 
-  const _WorksHeaderTrailing({
+  const _RecentWorksHeader({
     required this.count,
+    required this.page,
+    required this.totalPages,
+    required this.onPreviousPage,
+    required this.onNextPage,
     required this.mode,
     required this.onModeChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final trailing = _WorksHeaderTrailing(
+      count: count,
+      page: page,
+      totalPages: totalPages,
+      onPreviousPage: onPreviousPage,
+      onNextPage: onNextPage,
+      mode: mode,
+      onModeChanged: onModeChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '最近作品',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              trailing,
+            ],
+          );
+        }
+
+        return AppSectionHeader(
+          title: '最近作品',
+          trailing: trailing,
+        );
+      },
+    );
+  }
+}
+
+class _WorksHeaderTrailing extends StatelessWidget {
+  final String count;
+  final int page;
+  final int totalPages;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+  final _AuthorWorksDisplayMode mode;
+  final ValueChanged<_AuthorWorksDisplayMode> onModeChanged;
+
+  const _WorksHeaderTrailing({
+    required this.count,
+    required this.page,
+    required this.totalPages,
+    required this.onPreviousPage,
+    required this.onNextPage,
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         Text(
           count,
@@ -673,7 +1008,26 @@ class _WorksHeaderTrailing extends StatelessWidget {
             color: Color(0xFF64748B),
           ),
         ),
-        const SizedBox(width: 8),
+        IconButton(
+          onPressed: onPreviousPage,
+          visualDensity: VisualDensity.compact,
+          tooltip: '上一页',
+          icon: const Icon(Icons.chevron_left_rounded, size: 18),
+        ),
+        Text(
+          '$page/$totalPages',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF334155),
+          ),
+        ),
+        IconButton(
+          onPressed: onNextPage,
+          visualDensity: VisualDensity.compact,
+          tooltip: '下一页',
+          icon: const Icon(Icons.chevron_right_rounded, size: 18),
+        ),
         SegmentedButton<_AuthorWorksDisplayMode>(
           showSelectedIcon: false,
           selected: {mode},
@@ -700,30 +1054,6 @@ class _WorksHeaderTrailing extends StatelessWidget {
   }
 }
 
-class _Surface extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
-  const _Surface({
-    required this.child,
-    this.padding = const EdgeInsets.all(16),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: child,
-    );
-  }
-}
-
 class _Avatar extends StatelessWidget {
   final Author author;
   final double radius;
@@ -735,70 +1065,11 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (author.avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(author.avatarUrl),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(author.avatarUrl),
-        ),
-      );
-    }
-
-    return CircleAvatar(
+    return AppAvatar(
+      name: author.name,
+      uid: author.uid,
+      avatarUrl: author.avatarUrl,
       radius: radius,
-      backgroundColor:
-          getRandomColor(author.uid.hashCode).withValues(alpha: 0.18),
-      child: Text(
-        author.name.isEmpty ? '?' : author.name.substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontSize: radius * 0.68,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1D4ED8),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlainBadge extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color foregroundColor;
-  final Color backgroundColor;
-
-  const _PlainBadge({
-    required this.icon,
-    required this.label,
-    this.foregroundColor = const Color(0xFF475569),
-    this.backgroundColor = const Color(0xFFF8FAFC),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: foregroundColor,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -896,98 +1167,54 @@ class _SummaryBox extends StatelessWidget {
   }
 }
 
-class _RecentWorkListTile extends StatelessWidget {
-  final FollowedAuthorWorkPreview preview;
+class _AuthorRecentWorkCard extends StatelessWidget {
+  final ImageModel image;
   final VoidCallback onTap;
 
-  const _RecentWorkListTile({
-    required this.preview,
+  const _AuthorRecentWorkCard({
+    required this.image,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final publishedAt = formatUnixTimestamp(preview.publishedAt);
+    final compact = MediaQuery.sizeOf(context).width < 640;
+    final publishedAt = formatUnixTimestamp(image.publishedAt);
 
-    return Material(
-      color: const Color(0xFFF8FAFC),
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 86,
-              height: 112,
-              child: preview.thumbUrl.isEmpty
-                  ? const ColoredBox(
-                      color: Color(0xFFF1F5F9),
-                      child: Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      ),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: proxiedImageUrl(preview.thumbUrl),
-                      cacheManager: imageProxyCacheManager,
-                      httpHeaders: imageRequestHeaders(preview.thumbUrl),
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) =>
-                          const ColoredBox(color: Color(0xFFF1F5F9)),
-                      errorWidget: (_, __, ___) => const ColoredBox(
-                        color: Color(0xFFF1F5F9),
-                        child: Center(child: Icon(Icons.broken_image_outlined)),
-                      ),
-                    ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      preview.title.isEmpty ? '未命名作品' : preview.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.2,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _TinyMetaPill(
-                          icon: Icons.favorite_rounded,
-                          label: '${preview.bookmarkCount}',
-                          color: const Color(0xFFBE123C),
-                        ),
-                        _TinyMetaPill(
-                          icon: Icons.schedule_rounded,
-                          label: publishedAt.isEmpty ? '时间未知' : publishedAt,
-                          color: const Color(0xFF64748B),
-                        ),
-                        _TinyMetaPill(
-                          icon: Icons.tag_rounded,
-                          label: 'PID ${preview.pid}',
-                          color: const Color(0xFF64748B),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+    return AppImageCard(
+      image: image,
+      imageUrl: previewUrlForImage(image, highQuality: false),
+      onTap: onTap,
+      topLeft: image.pages.length > 1
+          ? AppImageBadge(label: '${image.pages.length}P')
+          : null,
+      bottom: AppImageCardCaption(
+        image: image,
+        trailing: Text(
+          publishedAt.isEmpty ? '时间未知' : publishedAt,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 9,
+            height: 1.05,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ),
+      radius: compact ? 8 : 16,
+      aspectRatio: _tileAspectRatio(image),
     );
   }
+
+  double _tileAspectRatio(ImageModel image) {
+    if (image.width > 0 && image.height > 0) {
+      return (image.width / image.height).clamp(0.58, 1.45).toDouble();
+    }
+    const fallbacks = [0.72, 0.82, 1.0, 1.18, 0.66, 0.92];
+    return fallbacks[image.pid.abs() % fallbacks.length];
+  }
+
 }
 
 class _TinyMetaPill extends StatelessWidget {
@@ -1029,19 +1256,90 @@ class _TinyMetaPill extends StatelessWidget {
   }
 }
 
-class _RecentWorkCard extends StatelessWidget {
-  final FollowedAuthorWorkPreview preview;
+class _RecentWorkLoadingTile extends StatelessWidget {
+  final int pid;
+  final bool isLoading;
   final VoidCallback onTap;
 
-  const _RecentWorkCard({
-    required this.preview,
+  const _RecentWorkLoadingTile({
+    required this.pid,
+    required this.isLoading,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final publishedAt = formatUnixTimestamp(preview.publishedAt);
+    return Material(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 112,
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 86,
+                height: 112,
+                child: ColoredBox(
+                  color: Color(0xFFF1F5F9),
+                  child: Center(child: Icon(Icons.image_outlined)),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PID $pid',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        isLoading ? '正在获取 like 状态...' : '点击打开作品详情',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      const Spacer(),
+                      const _TinyMetaPill(
+                        icon: Icons.favorite_border_rounded,
+                        label: '确认中',
+                        color: Color(0xFF64748B),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
+class _RecentWorkLoadingCard extends StatelessWidget {
+  final int pid;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _RecentWorkLoadingCard({
+    required this.pid,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
@@ -1050,71 +1348,31 @@ class _RecentWorkCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                color: const Color(0xFFF1F5F9),
-                child: preview.thumbUrl.isEmpty
-                    ? const Center(
-                        child: Icon(Icons.image_not_supported_outlined),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: proxiedImageUrl(preview.thumbUrl),
-                        cacheManager: imageProxyCacheManager,
-                        httpHeaders: imageRequestHeaders(preview.thumbUrl),
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        errorWidget: (_, __, ___) => const Center(
-                          child: Icon(Icons.broken_image_outlined),
-                        ),
-                      ),
+            const Expanded(
+              child: ColoredBox(
+                color: Color(0xFFF1F5F9),
+                child: Center(child: Icon(Icons.image_outlined)),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
               child: Row(
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.favorite_rounded,
-                          size: 13,
-                          color: Color(0xFFBE123C),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          '${preview.bookmarkCount}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ],
-                    ),
+                  const Icon(
+                    Icons.favorite_border_rounded,
+                    size: 13,
+                    color: Color(0xFF64748B),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      publishedAt.isEmpty ? '时间未知' : publishedAt,
+                      isLoading ? '确认中' : 'PID $pid',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
                       style: const TextStyle(
                         fontSize: 11,
+                        fontWeight: FontWeight.w700,
                         color: Color(0xFF64748B),
                       ),
                     ),

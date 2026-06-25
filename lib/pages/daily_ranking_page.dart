@@ -14,9 +14,6 @@ const _rankingModes = [
   ('weekly', '周榜'),
   ('monthly', '月榜'),
   ('rookie', '新人'),
-  ('original', '原创'),
-  ('male', '男性'),
-  ('female', '女性'),
 ];
 
 class DailyRankingPage extends StatefulWidget {
@@ -88,6 +85,33 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
       _page = 1;
       _future = _load();
     });
+  }
+
+  Future<void> _openModeSheet() async {
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            children: [
+              for (final option in _rankingModes)
+                ListTile(
+                  leading: Icon(_rankingModeIcon(option.$1)),
+                  title: Text(option.$2),
+                  selected: option.$1 == _mode,
+                  onTap: () => Navigator.of(context).pop(option.$1),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (mode == null) return;
+    _changeMode(mode);
   }
 
   Future<void> _pickDate() async {
@@ -179,84 +203,86 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
                 limit: 18,
               );
 
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  phone ? 0 : 24,
-                  phone ? 0 : 24,
-                  phone ? 0 : 24,
-                  phone ? 8 : 24,
-                ),
-                child: CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _RankingHeader(
-                            phone: phone,
-                            page: _page,
-                            mode: _mode,
-                            selectedDate: _selectedDate,
-                            dateLabel: ranking.dateLabel,
-                            onRefresh: _reload,
-                            onPrevPage:
-                                _page > 1 ? () => _changePage(-1) : null,
-                            onNextPage: () => _changePage(1),
-                            onModeChanged: _changeMode,
-                            onPickDate: _pickDate,
-                            onClearDate: _clearDate,
-                          ),
-                          SizedBox(height: phone ? 8 : 24),
-                          if (ranking.images.isEmpty)
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: phone ? 10 : 0,
-                                vertical: 20,
-                              ),
-                              child: const Text('当前没有获取到榜单数据。'),
-                            )
-                          else
-                            LayoutBuilder(
-                              builder: (context, gridConstraints) {
-                                final crossAxisCount = phone
-                                    ? (gridConstraints.maxWidth < 430 ? 2 : 3)
-                                    : (gridConstraints.maxWidth / 240)
-                                        .floor()
-                                        .clamp(1, 6);
-                                return GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: ranking.images.length,
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: phone ? 0 : 0,
-                                    vertical: phone ? 0 : 0,
-                                  ),
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: phone ? 2 : 12,
-                                    mainAxisSpacing: phone ? 6 : 12,
-                                    childAspectRatio: phone ? 0.76 : 0.72,
-                                  ),
-                                  itemBuilder: (context, index) {
-                                    if (index % 6 == 0) {
-                                      _prefetchAround(ranking.images, index);
-                                    }
-                                    final item = ranking.images[index];
-                                    return _RankingCard(
-                                      phone: phone,
-                                      item: item,
-                                      onTap: () => _openImage(item),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                        ],
+              final horizontalPadding = phone ? 0.0 : 24.0;
+              final topPadding = phone ? 0.0 : 24.0;
+              final bottomPadding = phone ? 8.0 : 24.0;
+              final availableGridWidth =
+                  constraints.maxWidth - horizontalPadding * 2;
+              final crossAxisCount = phone
+                  ? (availableGridWidth < 430 ? 2 : 3)
+                  : (availableGridWidth / 240).floor().clamp(1, 6).toInt();
+
+              return CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      topPadding,
+                      horizontalPadding,
+                      0,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _RankingHeader(
+                        phone: phone,
+                        page: _page,
+                        mode: _mode,
+                        selectedDate: _selectedDate,
+                        dateLabel: ranking.dateLabel,
+                        onRefresh: _reload,
+                        onPrevPage: _page > 1 ? () => _changePage(-1) : null,
+                        onNextPage: () => _changePage(1),
+                        onModeChanged: _changeMode,
+                        onOpenModeSheet: _openModeSheet,
+                        onPickDate: _pickDate,
+                        onClearDate: _clearDate,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  SliverToBoxAdapter(child: SizedBox(height: phone ? 8 : 24)),
+                  if (ranking.images.isEmpty)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 10 : 24,
+                        20,
+                        phone ? 10 : 24,
+                        bottomPadding,
+                      ),
+                      sliver: const SliverToBoxAdapter(
+                        child: Text('当前没有获取到榜单数据。'),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        phone ? 6 : horizontalPadding,
+                        0,
+                        phone ? 6 : horizontalPadding,
+                        bottomPadding,
+                      ),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: phone ? 6 : 12,
+                          mainAxisSpacing: phone ? 6 : 12,
+                          childAspectRatio: phone ? 0.76 : 0.72,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index % 6 == 0) {
+                              _prefetchAround(ranking.images, index);
+                            }
+                            final item = ranking.images[index];
+                            return _RankingCard(
+                              phone: phone,
+                              item: item,
+                              onTap: () => _openImage(item),
+                            );
+                          },
+                          childCount: ranking.images.length,
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
@@ -276,6 +302,7 @@ class _RankingHeader extends StatelessWidget {
   final VoidCallback? onPrevPage;
   final VoidCallback onNextPage;
   final ValueChanged<String> onModeChanged;
+  final VoidCallback onOpenModeSheet;
   final VoidCallback onPickDate;
   final VoidCallback onClearDate;
 
@@ -289,6 +316,7 @@ class _RankingHeader extends StatelessWidget {
     required this.onPrevPage,
     required this.onNextPage,
     required this.onModeChanged,
+    required this.onOpenModeSheet,
     required this.onPickDate,
     required this.onClearDate,
   });
@@ -317,14 +345,6 @@ class _RankingHeader extends StatelessWidget {
         return Icons.calendar_view_month_rounded;
       case 'rookie':
         return Icons.rocket_launch_rounded;
-      case 'original':
-        return Icons.brush_rounded;
-      case 'male':
-      case 'male_r18':
-        return Icons.male_rounded;
-      case 'female':
-      case 'female_r18':
-        return Icons.female_rounded;
       default:
         return Icons.today_rounded;
     }
@@ -334,8 +354,18 @@ class _RankingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     if (phone) {
       return MobileToolbar(
-        topCenter: MobileBrandMark(label: _modeLabel),
+        title: _modeLabel,
+        subtitle: '$_dateText · 第 $page 页',
+        leading: const Icon(
+          Icons.auto_graph_rounded,
+          color: mobileBlue,
+        ),
         actions: [
+          MobileIconButton(
+            icon: Icons.tune_rounded,
+            tooltip: '榜单模式',
+            onTap: onOpenModeSheet,
+          ),
           MobileIconButton(
             icon: Icons.calendar_month_rounded,
             tooltip: '选择日期',
@@ -355,32 +385,6 @@ class _RankingHeader extends StatelessWidget {
             icon: Icons.refresh_rounded,
             tooltip: '刷新',
             onTap: onRefresh,
-          ),
-        ],
-        chips: [
-          for (final option in _rankingModes)
-            MobilePill(
-              icon: _rankingModeIcon(option.$1),
-              label: option.$2,
-              selected: mode == option.$1,
-              onTap: () => onModeChanged(option.$1),
-            ),
-          MobilePill(
-            icon: Icons.event_rounded,
-            label: _dateText,
-            selected: selectedDate != null,
-            onTap: onPickDate,
-          ),
-          if (selectedDate != null)
-            MobilePill(
-              icon: Icons.close_rounded,
-              label: '最新',
-              onTap: onClearDate,
-            ),
-          MobilePill(
-            icon: Icons.layers_rounded,
-            label: '第 $page 页',
-            selected: true,
           ),
         ],
       );
@@ -488,14 +492,6 @@ IconData _rankingModeIcon(String mode) {
       return Icons.calendar_view_month_rounded;
     case 'rookie':
       return Icons.rocket_launch_rounded;
-    case 'original':
-      return Icons.brush_rounded;
-    case 'male':
-    case 'male_r18':
-      return Icons.male_rounded;
-    case 'female':
-    case 'female_r18':
-      return Icons.female_rounded;
     default:
       return Icons.today_rounded;
   }
@@ -589,13 +585,14 @@ class _RankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(phone ? 0 : 18);
+    final radius = BorderRadius.circular(phone ? 8 : 18);
     if (phone) {
       return Material(
         color: Colors.white,
-        borderRadius: BorderRadius.zero,
-        clipBehavior: Clip.none,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
+          borderRadius: radius,
           onTap: onTap,
           child: Stack(
             fit: StackFit.expand,

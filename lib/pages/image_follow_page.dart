@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:tagselector/components/image_with_info.dart';
@@ -43,12 +47,15 @@ class _FollowingPageState extends State<FollowingPage> {
   late Future<List<String>> _tagSuggestionsFuture;
   Future<List<ImageModel>>? _followingFuture;
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
+  final Set<int> _bookmarkHydrationInFlight = <int>{};
+  Timer? _scrollPrefetchTimer;
+  List<ImageModel> _visibleImagesForPrefetch = const [];
 
   int _page = 1;
   String _selectedAuthor = '';
   final List<String> _selectedTags = [];
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
-  FollowingDisplayMode _displayMode = FollowingDisplayMode.list;
+  FollowingDisplayMode _displayMode = FollowingDisplayMode.grid;
   FollowingFeedMode _feedMode = FollowingFeedMode.all;
   FollowingSourceMode _sourceMode = FollowingSourceMode.following;
   BookmarkRestMode _bookmarkRestMode = BookmarkRestMode.hide;
@@ -57,6 +64,7 @@ class _FollowingPageState extends State<FollowingPage> {
   void initState() {
     super.initState();
     _session.addListener(_handleUserChanged);
+    _scrollController.addListener(_scheduleScrollPrefetch);
     _sourceMode = widget.initialSourceMode;
     _bookmarkRestMode = widget.initialBookmarkRestMode;
     _tagSuggestionsFuture = _api.fetchTagSuggestions();
@@ -66,6 +74,7 @@ class _FollowingPageState extends State<FollowingPage> {
   @override
   void dispose() {
     _session.removeListener(_handleUserChanged);
+    _scrollPrefetchTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -82,13 +91,13 @@ class _FollowingPageState extends State<FollowingPage> {
   void _refreshFollowing() {
     setState(() {
       if (_sourceMode == FollowingSourceMode.bookmarks) {
-        _followingFuture = _api.fetchBookmarkImages(
+        _followingFuture = _fetchBookmarkImages(
           page: _page,
           rest: _bookmarkRestMode.name,
           mode: _feedMode.name,
         );
       } else {
-        _followingFuture = _api.fetchFollowingImages(
+        _followingFuture = _fetchFollowingImages(
           page: _page,
           mode: _feedMode.name,
         );
@@ -96,10 +105,88 @@ class _FollowingPageState extends State<FollowingPage> {
     });
   }
 
+  Future<List<ImageModel>> _fetchBookmarkImages({
+    required int page,
+    required String rest,
+    required String mode,
+  }) async {
+    final images = await _api.fetchBookmarkImages(
+      page: page,
+      rest: rest,
+      mode: mode,
+    );
+    _prepareImages(images);
+    return images;
+  }
+
+  Future<List<ImageModel>> _fetchFollowingImages({
+    required int page,
+    required String mode,
+  }) async {
+    final images = await _api.fetchFollowingImages(page: page, mode: mode);
+    _prepareImages(images);
+    return images;
+  }
+
+  void _prepareImages(List<ImageModel> images) {
+    _prefetcher.prefetchImageModels(
+      images.take(_displayMode == FollowingDisplayMode.grid ? 8 : 12),
+      highQuality: _displayMode == FollowingDisplayMode.list,
+      limit: _displayMode == FollowingDisplayMode.grid ? 8 : 12,
+    );
+    _hydrateBookmarkCounts(images);
+  }
+
   void _updateImage(ImageModel image) {
     setState(() {
-      _imageOverrides[image.pid] = image;
+      final currentImage = _imageOverrides[image.pid];
+      _imageOverrides[image.pid] = currentImage == null
+          ? image
+          : currentImage.copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
     });
+  }
+
+  void _hydrateBookmarkCounts(List<ImageModel> images) {
+    final targets = images
+        .where((image) =>
+            image.pid > 0 &&
+            image.bookmarkCount <= 0 &&
+            !_bookmarkHydrationInFlight.contains(image.pid))
+        .take(18)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    _bookmarkHydrationInFlight.addAll(targets.map((image) => image.pid));
+    unawaited(() async {
+      try {
+        final hydrated = await _api.hydrateImageBookmarkCounts(
+          targets,
+          maxItems: targets.length,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          for (final image in hydrated) {
+            if (image.pid <= 0) {
+              continue;
+            }
+            final current = _imageOverrides[image.pid];
+            _imageOverrides[image.pid] = (current ?? image).copyWith(
+              bookmarkCount: image.bookmarkCount,
+              isBookmarked: image.isBookmarked,
+            );
+          }
+        });
+      } finally {
+        _bookmarkHydrationInFlight.removeAll(targets.map((image) => image.pid));
+      }
+    }());
   }
 
   void _toggleTag(String tag) {
@@ -182,13 +269,37 @@ class _FollowingPageState extends State<FollowingPage> {
 
   void _prefetchAround(List<ImageModel> images, int index) {
     final start = (index + 1).clamp(0, images.length);
-    final end = (index + 13).clamp(0, images.length);
+    final end = (index + (_displayMode == FollowingDisplayMode.grid ? 7 : 13))
+        .clamp(0, images.length);
     if (start >= end) return;
     _prefetcher.prefetchImageModels(
       images.sublist(start, end),
       highQuality: _displayMode == FollowingDisplayMode.list,
-      limit: 12,
+      limit: _displayMode == FollowingDisplayMode.grid ? 6 : 8,
     );
+  }
+
+  void _scheduleScrollPrefetch() {
+    if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+      return;
+    }
+    _scrollPrefetchTimer?.cancel();
+    _scrollPrefetchTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!_scrollController.hasClients || _visibleImagesForPrefetch.isEmpty) {
+        return;
+      }
+      final position = _scrollController.position;
+      final estimatedItemExtent =
+          _displayMode == FollowingDisplayMode.list ? 420.0 : 220.0;
+      final index = (position.pixels / estimatedItemExtent)
+          .floor()
+          .clamp(
+            0,
+            math.max(0, _visibleImagesForPrefetch.length - 1),
+          )
+          .toInt();
+      _prefetchAround(_visibleImagesForPrefetch, index);
+    });
   }
 
   Future<void> _openFilterSheet() async {
@@ -198,27 +309,47 @@ class _FollowingPageState extends State<FollowingPage> {
       showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return MobileSheetFrame(
-          padding: EdgeInsets.fromLTRB(
-            12,
-            4,
-            12,
-            MediaQuery.viewInsetsOf(context).bottom + 12,
-          ),
-          child: SingleChildScrollView(
-            child: MobileSheetSection(
-              child: _FollowSidebar(
-                compact: true,
-                tagSearch: _buildTagSearch(),
-                activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
-                selectedAuthor: _selectedAuthor,
-                selectedTags: _selectedTags,
-                onClearAuthor: _clearSelectedAuthor,
-                onClearFilters: _clearMobileFilters,
-                onRemoveTag: _toggleTag,
+        final padding = EdgeInsets.fromLTRB(
+          12,
+          4,
+          12,
+          MediaQuery.viewInsetsOf(context).bottom + 12,
+        );
+
+        Widget shell({required Widget child}) {
+          return MobileSheetFrame(
+            padding: padding,
+            child: child,
+          );
+        }
+
+        return DeferredSheetContent(
+          placeholder: shell(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.42,
+              child: const MobileSheetSection(
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
               ),
             ),
           ),
+          builder: (context) {
+            return shell(
+              child: SingleChildScrollView(
+                child: MobileSheetSection(
+                  child: _FollowSidebar(
+                    compact: true,
+                    tagSearch: _buildTagSearch(),
+                    activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
+                    selectedAuthor: _selectedAuthor,
+                    selectedTags: _selectedTags,
+                    onClearAuthor: _clearSelectedAuthor,
+                    onClearFilters: _clearMobileFilters,
+                    onRemoveTag: _toggleTag,
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -251,12 +382,7 @@ class _FollowingPageState extends State<FollowingPage> {
       builder: (context, snapshot) {
         final rawImages = snapshot.data ?? const <ImageModel>[];
         final images = _filterImages(rawImages);
-        _prefetcher.prefetchImageModels(
-          images.take(18),
-          highQuality: _displayMode == FollowingDisplayMode.list,
-          limit: 18,
-        );
-
+        _visibleImagesForPrefetch = images;
         return LayoutBuilder(
           builder: (context, constraints) {
             final phone = constraints.maxWidth < 720;
@@ -416,9 +542,6 @@ class _FollowingPageState extends State<FollowingPage> {
         padding: EdgeInsets.symmetric(horizontal: phone ? 0 : 10),
         itemCount: images.length,
         itemBuilder: (context, index) {
-          if (index % 3 == 0) {
-            _prefetchAround(images, index);
-          }
           final image = images[index];
           return ImageWithInfo(
             image: image,
@@ -440,23 +563,21 @@ class _FollowingPageState extends State<FollowingPage> {
             (constraints.maxWidth / (phone ? 176 : 230)).floor().clamp(2, 6);
         return MasonryGridView.count(
           controller: _scrollController,
-          cacheExtent: phone ? 1200 : 900,
+          cacheExtent: phone ? 700 : 650,
           padding: EdgeInsets.symmetric(
-            horizontal: phone ? 0 : 10,
+            horizontal: phone ? 6 : 10,
             vertical: phone ? 2 : 10,
           ),
           crossAxisCount: count,
-          crossAxisSpacing: phone ? 2 : 10,
-          mainAxisSpacing: phone ? 2 : 10,
+          crossAxisSpacing: phone ? 6 : 10,
+          mainAxisSpacing: phone ? 6 : 10,
           itemCount: images.length,
           itemBuilder: (context, index) {
-            if (index % 6 == 0) {
-              _prefetchAround(images, index);
-            }
             final image = images[index];
             return MasonryImageTile(
               image: image,
-              highQualityPreview: !phone,
+              highQualityPreview:
+                  !phone && defaultTargetPlatform != TargetPlatform.windows,
               onImageChanged: _updateImage,
               onTap: () => _openImagePage(image),
               onAuthorTap: () => _openAuthorPage(image.author),
@@ -510,9 +631,20 @@ class _TopPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (phone) {
+      final subtitle = [
+        '$resultCount 个作品',
+        if (selectedAuthor.isNotEmpty) selectedAuthor,
+        if (selectedTags.isNotEmpty) '${selectedTags.length} 个标签',
+      ].join(' · ');
+
       return MobileToolbar(
-        topCenter: MobileBrandMark(
-          label: sourceMode == FollowingSourceMode.bookmarks ? '收藏' : '关注',
+        title: sourceMode == FollowingSourceMode.bookmarks ? '收藏' : '关注',
+        subtitle: subtitle,
+        leading: Icon(
+          sourceMode == FollowingSourceMode.bookmarks
+              ? Icons.bookmarks_rounded
+              : Icons.favorite_rounded,
+          color: mobileBlue,
         ),
         actions: [
           MobilePill(
@@ -526,21 +658,6 @@ class _TopPanel extends StatelessWidget {
             tooltip: '刷新',
             onTap: onRefresh,
           ),
-        ],
-        chips: [
-          MobilePill(label: '$resultCount 个作品'),
-          if (selectedAuthor.isNotEmpty)
-            MobilePill(
-              label: selectedAuthor,
-              selected: true,
-              onTap: onClearAuthor,
-            ),
-          for (final tag in selectedTags)
-            MobilePill(
-              label: '#$tag',
-              selected: true,
-              onTap: () => onRemoveTag(tag),
-            ),
         ],
         bottom: MobileToolbarRow(
           children: [
@@ -600,193 +717,106 @@ class _TopPanel extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (phone)
-          Row(
-            children: [
-              _SoftChip(label: '$resultCount'),
-              const SizedBox(width: 6),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<FollowingFeedMode>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: FollowingFeedMode.all,
-                        label: Text('全部'),
-                      ),
-                      ButtonSegment(
-                        value: FollowingFeedMode.safe,
-                        label: Text('Safe'),
-                      ),
-                      ButtonSegment(
-                        value: FollowingFeedMode.r18,
-                        label: Text('R18'),
-                      ),
-                    ],
-                    selected: {feedMode},
-                    onSelectionChanged: (values) =>
-                        onFeedModeChanged(values.first),
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          )
-        else
-          Row(
-            children: [
-              _SoftChip(label: '$resultCount'),
-              const SizedBox(width: 8),
-              SegmentedButton<FollowingSourceMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingSourceMode.following,
-                    label: Text('关注'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingSourceMode.bookmarks,
-                    label: Text('收藏'),
-                  ),
-                ],
-                selected: {sourceMode},
-                onSelectionChanged: (values) =>
-                    onSourceModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              if (sourceMode == FollowingSourceMode.bookmarks) ...[
-                const SizedBox(width: 8),
-                SegmentedButton<BookmarkRestMode>(
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: BookmarkRestMode.hide,
-                      label: Text('私有'),
-                    ),
-                    ButtonSegment(
-                      value: BookmarkRestMode.show,
-                      label: Text('公开'),
-                    ),
-                  ],
-                  selected: {bookmarkRestMode},
-                  onSelectionChanged: (values) =>
-                      onBookmarkRestModeChanged(values.first),
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
-              const SizedBox(width: 8),
-              SegmentedButton<FollowingFeedMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingFeedMode.all,
-                    label: Text('全部'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingFeedMode.safe,
-                    label: Text('Safe'),
-                  ),
-                  ButtonSegment(
-                    value: FollowingFeedMode.r18,
-                    label: Text('R18'),
-                  ),
-                ],
-                selected: {feedMode},
-                onSelectionChanged: (values) => onFeedModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-              const Spacer(),
-              SegmentedButton<FollowingDisplayMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: FollowingDisplayMode.list,
-                    label: Text('列表'),
-                    icon: Icon(Icons.view_agenda_rounded),
-                  ),
-                  ButtonSegment(
-                    value: FollowingDisplayMode.grid,
-                    label: Text('网格'),
-                    icon: Icon(Icons.grid_view_rounded),
-                  ),
-                ],
-                selected: {displayMode},
-                onSelectionChanged: (values) {
-                  onDisplayModeChanged(values.first);
-                },
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
-                tooltip: '刷新',
-              ),
-            ],
-          ),
-        SizedBox(height: phone ? 6 : 8),
         Row(
           children: [
-            if (phone)
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<FollowingDisplayMode>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: FollowingDisplayMode.list,
-                        label: Text('列表'),
-                        icon: Icon(Icons.view_agenda_rounded),
-                      ),
-                      ButtonSegment(
-                        value: FollowingDisplayMode.grid,
-                        label: Text('网格'),
-                        icon: Icon(Icons.grid_view_rounded),
-                      ),
-                    ],
-                    selected: {displayMode},
-                    onSelectionChanged: (values) {
-                      onDisplayModeChanged(values.first);
-                    },
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
+            _SoftChip(label: '$resultCount'),
+            const SizedBox(width: 8),
+            SegmentedButton<FollowingSourceMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingSourceMode.following,
+                  label: Text('关注'),
                 ),
-              )
-            else
-              const Spacer(),
-            if (phone) const SizedBox(width: 6),
-            _FilterButton(
-              activeFilterCount: activeFilterCount,
-              onTap: onOpenFilters,
+                ButtonSegment(
+                  value: FollowingSourceMode.bookmarks,
+                  label: Text('收藏'),
+                ),
+              ],
+              selected: {sourceMode},
+              onSelectionChanged: (values) => onSourceModeChanged(values.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
-            SizedBox(width: phone ? 4 : 8),
+            if (sourceMode == FollowingSourceMode.bookmarks) ...[
+              const SizedBox(width: 8),
+              SegmentedButton<BookmarkRestMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: BookmarkRestMode.hide,
+                    label: Text('私有'),
+                  ),
+                  ButtonSegment(
+                    value: BookmarkRestMode.show,
+                    label: Text('公开'),
+                  ),
+                ],
+                selected: {bookmarkRestMode},
+                onSelectionChanged: (values) =>
+                    onBookmarkRestModeChanged(values.first),
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            SegmentedButton<FollowingFeedMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingFeedMode.all,
+                  label: Text('全部'),
+                ),
+                ButtonSegment(
+                  value: FollowingFeedMode.safe,
+                  label: Text('Safe'),
+                ),
+                ButtonSegment(
+                  value: FollowingFeedMode.r18,
+                  label: Text('R18'),
+                ),
+              ],
+              selected: {feedMode},
+              onSelectionChanged: (values) => onFeedModeChanged(values.first),
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const Spacer(),
+            SegmentedButton<FollowingDisplayMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                  value: FollowingDisplayMode.list,
+                  label: Text('列表'),
+                  icon: Icon(Icons.view_agenda_rounded),
+                ),
+                ButtonSegment(
+                  value: FollowingDisplayMode.grid,
+                  label: Text('网格'),
+                  icon: Icon(Icons.grid_view_rounded),
+                ),
+              ],
+              selected: {displayMode},
+              onSelectionChanged: (values) {
+                onDisplayModeChanged(values.first);
+              },
+            ),
+            const SizedBox(width: 8),
             IconButton(
               onPressed: onRefresh,
-              visualDensity:
-                  phone ? VisualDensity.compact : VisualDensity.standard,
               icon: const Icon(Icons.refresh_rounded),
               tooltip: '刷新',
             ),
           ],
         ),
         if (selectedAuthor.isNotEmpty || selectedTags.isNotEmpty) ...[
-          SizedBox(height: phone ? 6 : 8),
+          const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -967,30 +997,6 @@ class _SoftChip extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _FilterButton extends StatelessWidget {
-  final int activeFilterCount;
-  final VoidCallback onTap;
-
-  const _FilterButton({
-    required this.activeFilterCount,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: const Icon(Icons.tune_rounded, size: 18),
-      label: Text(activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选'),
-      style: FilledButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       ),
     );
   }

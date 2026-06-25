@@ -1,5 +1,6 @@
 // ignore_for_file: implementation_imports
 
+import 'dart:async';
 import 'dart:io' as io;
 
 import 'package:file/file.dart' as fs;
@@ -15,6 +16,39 @@ const String _imageCacheFolderName = 'image_cache';
 const String _windowsImageCacheRoot = r'D:\PixivHelperCache';
 
 const LocalFileSystem _localFileSystem = LocalFileSystem();
+
+class TimeoutHttpClient extends http.BaseClient {
+  final http.Client _inner;
+  final Duration responseTimeout;
+  final Duration idleTimeout;
+
+  TimeoutHttpClient({
+    http.Client? inner,
+    this.responseTimeout = const Duration(seconds: 18),
+    this.idleTimeout = const Duration(seconds: 18),
+  }) : _inner = inner ?? http.Client();
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await _inner.send(request).timeout(responseTimeout);
+    return http.StreamedResponse(
+      response.stream.timeout(idleTimeout),
+      response.statusCode,
+      contentLength: response.contentLength,
+      request: response.request,
+      headers: response.headers,
+      isRedirect: response.isRedirect,
+      persistentConnection: response.persistentConnection,
+      reasonPhrase: response.reasonPhrase,
+    );
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
+  }
+}
 
 class PersistentIOFileSystem implements FileSystem {
   PersistentIOFileSystem(this.cacheKey)
@@ -41,7 +75,7 @@ class PersistentIOFileSystem implements FileSystem {
 }
 
 final HttpFileService _proxyHttpFileService = HttpFileService(
-  httpClient: http.Client(),
+  httpClient: TimeoutHttpClient(),
 );
 
 final Config _proxyImageCacheConfig = Config(

@@ -11,6 +11,7 @@ import 'package:tagselector/pages/author_page.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/app_user_session.dart';
+import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
@@ -421,8 +422,20 @@ class _HeaderPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (phone) {
+      final query = queryController.text.trim();
+      final subtitle = [
+        '$totalCount 关注',
+        '本页 $resultCount',
+        if (query.isNotEmpty) query,
+      ].join(' · ');
+
       return MobileToolbar(
-        topCenter: const MobileBrandMark(label: 'Creators'),
+        title: '关注作者',
+        subtitle: subtitle,
+        leading: const Icon(
+          Icons.groups_2_rounded,
+          color: mobileBlue,
+        ),
         actions: [
           MobilePill(
             icon: Icons.tune_rounded,
@@ -437,15 +450,6 @@ class _HeaderPanel extends StatelessWidget {
               onRefresh();
             },
           ),
-        ],
-        chips: [
-          MobilePill(label: '$totalCount 关注'),
-          MobilePill(label: '本页 $resultCount'),
-          if (queryController.text.trim().isNotEmpty)
-            MobilePill(
-              label: queryController.text.trim(),
-              selected: true,
-            ),
         ],
         bottom: MobileSegmentedControl<FollowedAuthorSortMode>(
           selected: sortMode,
@@ -768,25 +772,11 @@ class _CardTop extends StatelessWidget {
                 alignment: Alignment.center,
                 child: const Icon(Icons.person_outline_rounded),
               )
-            : CachedNetworkImage(
-                imageUrl: proxiedImageUrl(author.author.avatarUrl),
-                cacheManager: imageProxyCacheManager,
-                httpHeaders: imageRequestHeaders(author.author.avatarUrl),
-                width: avatarSize,
-                height: avatarSize,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  color: const Color(0xFFE2E8F0),
-                ),
-                errorWidget: (_, __, ___) => Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  color: const Color(0xFFE2E8F0),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.broken_image_outlined),
-                ),
+            : AppAvatar(
+                name: author.author.name,
+                uid: author.author.uid,
+                avatarUrl: author.author.avatarUrl,
+                radius: avatarSize / 2,
               ),
         SizedBox(width: phone ? 8 : 14),
         Expanded(

@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:tagselector/components/pixiv_mark.dart';
 
 const Color mobileInk = Color(0xFF111827);
 const Color mobileSubtleInk = Color(0xFF64748B);
@@ -254,7 +256,7 @@ class MobileBrandMark extends StatelessWidget {
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: const Color(0xFFDCEEFF)),
           ),
-          child: SvgPicture.asset('assets/pixiv.svg'),
+          child: const PixivMark(size: 22, radius: 7),
         ),
         const SizedBox(width: 6),
         Text(
@@ -513,6 +515,56 @@ class MobileSheetSection extends StatelessWidget {
       ),
       child: child,
     );
+  }
+}
+
+class DeferredSheetContent extends StatefulWidget {
+  final WidgetBuilder builder;
+  final Widget placeholder;
+  final Duration delay;
+
+  const DeferredSheetContent({
+    super.key,
+    required this.builder,
+    required this.placeholder,
+    this.delay = const Duration(milliseconds: 260),
+  });
+
+  @override
+  State<DeferredSheetContent> createState() => _DeferredSheetContentState();
+}
+
+class _DeferredSheetContentState extends State<DeferredSheetContent> {
+  Timer? _timer;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _timer = Timer(widget.delay, () {
+        if (mounted) {
+          setState(() => _ready = true);
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return widget.placeholder;
+    }
+    return widget.builder(context);
   }
 }
 

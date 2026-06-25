@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/model/image_recommendation_model.dart';
 import 'package:tagselector/pages/full_image_page.dart';
@@ -62,20 +63,19 @@ class _BookmarkRecommendationTray extends StatefulWidget {
 class _BookmarkRecommendationTrayState
     extends State<_BookmarkRecommendationTray>
     with SingleTickerProviderStateMixin {
-  late final Future<List<ImageRecommendationModel>> _future;
   late final AnimationController _controller;
   late final Animation<Offset> _offsetAnimation;
   final ScrollController _scrollController = ScrollController();
+  List<ImageRecommendationModel> _recommendations = const [];
+  Object? _error;
+  bool _loading = true;
   Timer? _dismissTimer;
   bool _closing = false;
 
   @override
   void initState() {
     super.initState();
-    _future = ApiService.instance.fetchImageRecommendations(
-      widget.seedImage.pid,
-      limit: widget.limit,
-    );
+    _loadRecommendations();
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 220),
@@ -89,6 +89,65 @@ class _BookmarkRecommendationTrayState
     );
     _controller.forward();
     _dismissTimer = Timer(const Duration(seconds: 8), _close);
+  }
+
+  Future<void> _loadRecommendations() async {
+    try {
+      final recommendations =
+          await ApiService.instance.fetchImageRecommendations(
+        widget.seedImage.pid,
+        limit: widget.limit,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _recommendations = recommendations;
+        _loading = false;
+        _error = null;
+      });
+      _hydrateRecommendationBookmarkCounts(recommendations);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = error;
+      });
+    }
+  }
+
+  void _hydrateRecommendationBookmarkCounts(
+    List<ImageRecommendationModel> recommendations,
+  ) {
+    final targets = recommendations
+        .where((recommendation) =>
+            recommendation.pid > 0 && recommendation.bookmarkCount <= 0)
+        .toList();
+    if (targets.isEmpty) {
+      return;
+    }
+
+    unawaited(() async {
+      final hydrated =
+          await ApiService.instance.hydrateRecommendationBookmarkCounts(
+        targets,
+        maxItems: targets.length,
+      );
+      if (!mounted) {
+        return;
+      }
+      final hydratedByPid = {
+        for (final recommendation in hydrated)
+          if (recommendation.pid > 0) recommendation.pid: recommendation,
+      };
+      setState(() {
+        _recommendations = _recommendations.map((recommendation) {
+          return hydratedByPid[recommendation.pid] ?? recommendation;
+        }).toList();
+      });
+    }());
   }
 
   @override
@@ -137,10 +196,10 @@ class _BookmarkRecommendationTrayState
             color: Colors.transparent,
             child: Container(
               width: trayWidth,
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.98),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: const [
                   BoxShadow(
@@ -152,85 +211,70 @@ class _BookmarkRecommendationTrayState
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        onPressed: _close,
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        tooltip: '关闭',
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
+                  IconButton(
+                    onPressed: _close,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    tooltip: 'Close',
+                    visualDensity: VisualDensity.compact,
                   ),
-                  const SizedBox(height: 6),
-                  FutureBuilder<List<ImageRecommendationModel>>(
-                    future: _future,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
-                          height: 118,
-                          child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      }
-
-                      if (snapshot.hasError) {
-                        return const SizedBox(
-                          height: 118,
-                          child: Center(
-                            child: Icon(
-                              Icons.cloud_off_rounded,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ),
-                        );
-                      }
-
-                      final recommendations = snapshot.data ?? const [];
-                      if (recommendations.isEmpty) {
-                        return const SizedBox(
-                          height: 118,
-                          child: Center(
-                            child: Icon(
-                              Icons.image_not_supported_outlined,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ),
-                        );
-                      }
-
-                      return SizedBox(
-                        height: 122,
-                        child: Scrollbar(
-                          controller: _scrollController,
-                          thumbVisibility: recommendations.length > 3,
-                          child: ListView.separated(
-                            controller: _scrollController,
-                            scrollDirection: Axis.horizontal,
-                            itemCount: recommendations.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 10),
-                            itemBuilder: (context, index) {
-                              final image =
-                                  recommendations[index].toPlaceholderImage();
-                              return _RecommendationMiniCard(
-                                image: image,
-                                onTap: () => _openRecommendation(image),
-                              );
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  _buildRecommendations(),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecommendations() {
+    if (_loading) {
+      return const SizedBox(
+        height: 122,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    if (_error != null) {
+      return const SizedBox(
+        height: 122,
+        child: Center(
+          child: Icon(Icons.cloud_off_rounded, color: Color(0xFF94A3B8)),
+        ),
+      );
+    }
+
+    if (_recommendations.isEmpty) {
+      return const SizedBox(
+        height: 122,
+        child: Center(
+          child: Icon(
+            Icons.image_not_supported_outlined,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 122,
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: _recommendations.length > 5,
+        child: ListView.separated(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          itemCount: _recommendations.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            final image = _recommendations[index].toPlaceholderImage();
+            return _RecommendationMiniCard(
+              image: image,
+              onTap: () => _openRecommendation(image),
+            );
+          },
         ),
       ),
     );
@@ -255,20 +299,18 @@ class _RecommendationMiniCard extends StatelessWidget {
             : image.urls.thumb);
 
     return SizedBox(
-      width: 156,
+      width: 96,
       child: Material(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.none,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(8),
           onTap: onTap,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              SizedBox(
-                width: 68,
-                height: 122,
+              Positioned.fill(
                 child: previewUrl.isEmpty
                     ? const ColoredBox(
                         color: Color(0xFFF1F5F9),
@@ -295,44 +337,15 @@ class _RecommendationMiniCard extends StatelessWidget {
                         ),
                       ),
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        image.name.isEmpty ? '未命名作品' : image.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF243B53),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        image.author.name.isEmpty ? '未知作者' : image.author.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        'PID ${image.pid}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
-                  ),
+              Positioned(
+                top: 7,
+                right: 7,
+                child: AppBookmarkButton(
+                  image: image,
+                  iconOnly: true,
+                  showCount: false,
+                  elevated: true,
+                  iconSize: 15,
                 ),
               ),
             ],

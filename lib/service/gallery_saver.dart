@@ -13,6 +13,7 @@ class GallerySaver {
     required String displayName,
     required int pid,
     required String mimeType,
+    DateTime? dateTaken,
   }) async {
     if (!Platform.isAndroid) {
       return null;
@@ -23,6 +24,8 @@ class GallerySaver {
       'displayName': displayName,
       'relativePath': 'PixivHelper/$pid',
       'mimeType': mimeType,
+      if (dateTaken != null)
+        'dateTakenMillis': dateTaken.millisecondsSinceEpoch,
     });
   }
 }

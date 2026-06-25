@@ -2,11 +2,12 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:tagselector/components/like_recommendation_sheet.dart';
+import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/image_prefetcher.dart';
+import 'package:tagselector/service/image_state_merger.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
 
@@ -20,6 +21,7 @@ class ImageWithInfo extends StatefulWidget {
   final VoidCallback? onImageTap;
   final bool highQualityPreview;
   final bool showBookmarkCount;
+  final ValueChanged<ImageModel>? onImageBookmarked;
 
   const ImageWithInfo({
     super.key,
@@ -32,6 +34,7 @@ class ImageWithInfo extends StatefulWidget {
     this.onImageTap,
     this.highQualityPreview = true,
     this.showBookmarkCount = true,
+    this.onImageBookmarked,
   });
 
   @override
@@ -69,15 +72,16 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
           ? await _api.unbookmarkImage(_image.pid)
           : await _api.bookmarkImage(_image.pid);
       if (!mounted) return;
-      setState(() => _image = updatedImage);
-      widget.onImageChanged?.call(updatedImage);
+      final mergedImage = mergeImageState(_image, updatedImage);
+      setState(() => _image = mergedImage);
+      widget.onImageChanged?.call(mergedImage);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
         ),
       );
       if (!wasBookmarked && updatedImage.isBookmarked) {
-        _openRecommendationTray(updatedImage);
+        widget.onImageBookmarked?.call(mergedImage);
       }
     } catch (error) {
       if (!mounted) return;
@@ -89,13 +93,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
         setState(() => _isBookmarkSubmitting = false);
       }
     }
-  }
-
-  void _openRecommendationTray(ImageModel image) {
-    showBookmarkRecommendationTray(
-      context,
-      seedImage: image,
-    );
   }
 
   void _openTagSheet() {
@@ -468,53 +465,11 @@ class _AuthorAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (avatarUrl.isNotEmpty) {
-      if (compact) {
-        return CircleAvatar(
-          radius: radius,
-          backgroundImage: CachedNetworkImageProvider(
-            proxiedImageUrl(avatarUrl),
-            cacheManager: imageProxyCacheManager,
-            headers: imageRequestHeaders(avatarUrl),
-          ),
-        );
-      }
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(avatarUrl),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(avatarUrl),
-        ),
-      );
-    }
-
-    final color = getRandomColor(uid.hashCode);
-    if (compact) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: color.withValues(alpha: 0.18),
-        child: Text(
-          name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-          style: TextStyle(
-            fontSize: radius * 0.72,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1D4ED8),
-          ),
-        ),
-      );
-    }
-    return CircleAvatar(
+    return AppAvatar(
+      name: name,
+      uid: uid,
+      avatarUrl: avatarUrl,
       radius: radius,
-      backgroundColor: color.withValues(alpha: 0.18),
-      child: Text(
-        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-        style: TextStyle(
-          fontSize: radius * 0.72,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1D4ED8),
-        ),
-      ),
     );
   }
 }
@@ -575,7 +530,7 @@ class _BookmarkButton extends StatelessWidget {
               if (showCount) ...[
                 const SizedBox(width: 4),
                 Text(
-                  '$bookmarkCount',
+                  bookmarkCount <= 0 ? '获取中' : '$bookmarkCount',
                   style: TextStyle(
                     fontSize: compact ? 11 : 12,
                     fontWeight: FontWeight.w700,
