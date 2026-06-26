@@ -106,14 +106,16 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
   static final ArtworkDownloadManager instance = ArtworkDownloadManager._();
 
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(
+    BaseOptions(connectTimeout: const Duration(seconds: 15)),
+  );
   final List<ArtworkDownloadTask> _tasks = [];
   final List<ArtworkDownloadTask> _queue = [];
   final Map<String, Completer<ArtworkDownloadBatch>> _batchCompleters = {};
   final Map<String, Completer<void>> _batchProgressWaiters = {};
   final Map<String, CancelToken> _cancelTokens = {};
+  final Set<String> _activeTaskIds = <String>{};
 
-  int _activeCount = 0;
   int _sequence = 0;
   DateTime _lastProgressNotifyAt = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _progressNotifyTimer;
@@ -219,10 +221,22 @@ class ArtworkDownloadManager extends ChangeNotifier {
       return;
     }
 
+    task.status = ArtworkDownloadStatus.canceled;
+    task.error = null;
+    task.receivedBytes = 0;
+    task.totalBytes = 0;
+    task.publishedUri = null;
+    task.visiblePath = null;
+
     final token = _cancelTokens[task.id];
     if (token != null && !token.isCancelled) {
       token.cancel('user canceled');
     }
+    _releaseActiveSlot(task);
+    notifyListeners();
+    _notifyBatchProgress(task.batchId);
+    _completeFinishedBatches();
+    _pumpQueue();
   }
 
   void cancelAllPending() {
@@ -278,14 +292,23 @@ class ArtworkDownloadManager extends ChangeNotifier {
   }
 
   void _pumpQueue() {
-    while (_activeCount < _maxConcurrentDownloads && _queue.isNotEmpty) {
+    while (_activeTaskIds.length < _maxConcurrentDownloads &&
+        _queue.isNotEmpty) {
       final task = _queue.removeAt(0);
-      _activeCount++;
+      if (task.status == ArtworkDownloadStatus.canceled) {
+        continue;
+      }
+      _activeTaskIds.add(task.id);
       unawaited(_downloadTask(task));
     }
   }
 
   Future<void> _downloadTask(ArtworkDownloadTask task) async {
+    if (task.status == ArtworkDownloadStatus.canceled) {
+      _releaseActiveSlot(task);
+      return;
+    }
+
     task.status = ArtworkDownloadStatus.downloading;
     notifyListeners();
 
@@ -305,8 +328,8 @@ class ArtworkDownloadManager extends ChangeNotifier {
         options: Options(
           responseType: ResponseType.bytes,
           followRedirects: true,
-          receiveTimeout: const Duration(minutes: 5),
-          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 25),
+          sendTimeout: const Duration(seconds: 15),
           headers: imageRequestHeaders(
             task.sourceUrl,
             resolvedUrl: downloadUrl,
@@ -314,12 +337,25 @@ class ArtworkDownloadManager extends ChangeNotifier {
         ),
         cancelToken: cancelToken,
         onReceiveProgress: (received, total) {
+          if (task.status == ArtworkDownloadStatus.canceled) {
+            return;
+          }
           task.receivedBytes = received;
           task.totalBytes = total;
           _notifyProgressChanged();
         },
       );
+      if (task.status == ArtworkDownloadStatus.canceled ||
+          cancelToken.isCancelled) {
+        await _deletePartialFile(saveFile);
+        return;
+      }
       await _waitForEarlierBatchTasks(task);
+      if (task.status == ArtworkDownloadStatus.canceled ||
+          cancelToken.isCancelled) {
+        await _deletePartialFile(saveFile);
+        return;
+      }
       final publishedUri = await GallerySaver.publishImage(
         sourcePath: task.savePath,
         displayName: path.basename(task.savePath),
@@ -327,6 +363,11 @@ class ArtworkDownloadManager extends ChangeNotifier {
         mimeType: _mimeTypeForPath(task.savePath),
         dateTaken: _gallerySortTimeForTask(task),
       );
+      if (task.status == ArtworkDownloadStatus.canceled ||
+          cancelToken.isCancelled) {
+        await _deletePartialFile(saveFile);
+        return;
+      }
       if (publishedUri != null) {
         task.publishedUri = publishedUri;
         task.visiblePath =
@@ -350,24 +391,35 @@ class ArtworkDownloadManager extends ChangeNotifier {
         task.totalBytes = 0;
         task.publishedUri = null;
         task.visiblePath = null;
-        if (saveFile != null) {
-          try {
-            if (await saveFile.exists()) {
-              await saveFile.delete();
-            }
-          } catch (_) {}
-        }
+        await _deletePartialFile(saveFile);
       } else {
         task.status = ArtworkDownloadStatus.failed;
         task.error = error;
       }
     } finally {
       _cancelTokens.remove(task.id);
-      _activeCount--;
+      _releaseActiveSlot(task);
       notifyListeners();
       _notifyBatchProgress(task.batchId);
       _completeFinishedBatches();
       _pumpQueue();
+    }
+  }
+
+  void _releaseActiveSlot(ArtworkDownloadTask task) {
+    _activeTaskIds.remove(task.id);
+  }
+
+  Future<void> _deletePartialFile(File? saveFile) async {
+    if (saveFile == null) {
+      return;
+    }
+    try {
+      if (await saveFile.exists()) {
+        await saveFile.delete();
+      }
+    } catch (_) {
+      // Best effort cleanup only.
     }
   }
 
