@@ -717,101 +717,72 @@ class _TopPanel extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _SoftChip(label: '$resultCount'),
-            const SizedBox(width: 8),
-            SegmentedButton<FollowingSourceMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
+            _SoftChip(label: '$resultCount 项'),
+            _PillToggle<FollowingSourceMode>(
+              value: sourceMode,
+              options: const [
+                _PillOption(
                   value: FollowingSourceMode.following,
-                  label: Text('关注'),
+                  label: '关注',
+                  icon: Icons.favorite_rounded,
                 ),
-                ButtonSegment(
+                _PillOption(
                   value: FollowingSourceMode.bookmarks,
-                  label: Text('收藏'),
+                  label: '收藏',
+                  icon: Icons.bookmarks_rounded,
                 ),
               ],
-              selected: {sourceMode},
-              onSelectionChanged: (values) => onSourceModeChanged(values.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+              onChanged: onSourceModeChanged,
             ),
-            if (sourceMode == FollowingSourceMode.bookmarks) ...[
-              const SizedBox(width: 8),
-              SegmentedButton<BookmarkRestMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: BookmarkRestMode.hide,
-                    label: Text('私有'),
-                  ),
-                  ButtonSegment(
-                    value: BookmarkRestMode.show,
-                    label: Text('公开'),
-                  ),
+            if (sourceMode == FollowingSourceMode.bookmarks)
+              _PillToggle<BookmarkRestMode>(
+                value: bookmarkRestMode,
+                options: const [
+                  _PillOption(value: BookmarkRestMode.hide, label: '私有'),
+                  _PillOption(value: BookmarkRestMode.show, label: '公开'),
                 ],
-                selected: {bookmarkRestMode},
-                onSelectionChanged: (values) =>
-                    onBookmarkRestModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+                onChanged: onBookmarkRestModeChanged,
               ),
-            ],
-            const SizedBox(width: 8),
-            SegmentedButton<FollowingFeedMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: FollowingFeedMode.all,
-                  label: Text('全部'),
-                ),
-                ButtonSegment(
-                  value: FollowingFeedMode.safe,
-                  label: Text('Safe'),
-                ),
-                ButtonSegment(
-                  value: FollowingFeedMode.r18,
-                  label: Text('R18'),
-                ),
+            _PillToggle<FollowingFeedMode>(
+              value: feedMode,
+              options: const [
+                _PillOption(value: FollowingFeedMode.all, label: '全部'),
+                _PillOption(value: FollowingFeedMode.safe, label: 'Safe'),
+                _PillOption(value: FollowingFeedMode.r18, label: 'R18'),
               ],
-              selected: {feedMode},
-              onSelectionChanged: (values) => onFeedModeChanged(values.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+              onChanged: onFeedModeChanged,
             ),
-            const Spacer(),
-            SegmentedButton<FollowingDisplayMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
+            _PillToggle<FollowingDisplayMode>(
+              value: displayMode,
+              options: const [
+                _PillOption(
                   value: FollowingDisplayMode.list,
-                  label: Text('列表'),
-                  icon: Icon(Icons.view_agenda_rounded),
+                  label: '列表',
+                  icon: Icons.view_agenda_rounded,
                 ),
-                ButtonSegment(
+                _PillOption(
                   value: FollowingDisplayMode.grid,
-                  label: Text('网格'),
-                  icon: Icon(Icons.grid_view_rounded),
+                  label: '网格',
+                  icon: Icons.grid_view_rounded,
                 ),
               ],
-              selected: {displayMode},
-              onSelectionChanged: (values) {
-                onDisplayModeChanged(values.first);
-              },
+              onChanged: onDisplayModeChanged,
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
+            _PillAction(
+              icon: Icons.tune_rounded,
+              label: activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选',
+              selected: activeFilterCount > 0,
+              onTap: onOpenFilters,
+            ),
+            _IconPillAction(
+              icon: Icons.refresh_rounded,
               tooltip: '刷新',
+              onTap: onRefresh,
             ),
           ],
         ),
@@ -997,6 +968,187 @@ class _SoftChip extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _PillOption<T> {
+  final T value;
+  final String label;
+  final IconData? icon;
+
+  const _PillOption({
+    required this.value,
+    required this.label,
+    this.icon,
+  });
+}
+
+class _PillToggle<T> extends StatelessWidget {
+  final T value;
+  final List<_PillOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  const _PillToggle({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final option in options)
+            _PillToggleItem<T>(
+              option: option,
+              selected: option.value == value,
+              onTap: () => onChanged(option.value),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PillToggleItem<T> extends StatelessWidget {
+  final _PillOption<T> option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PillToggleItem({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        selected ? const Color(0xFF2563EB) : const Color(0xFF64748B);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: selected ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFEFF6FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFFBFDBFE) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (option.icon != null) ...[
+              Icon(option.icon, size: 14, color: foreground),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              option.label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PillAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PillAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        selected ? const Color(0xFF2563EB) : const Color(0xFF475569);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFFBFDBFE) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: foreground),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconPillAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _IconPillAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Icon(icon, size: 17, color: const Color(0xFF475569)),
+        ),
       ),
     );
   }
