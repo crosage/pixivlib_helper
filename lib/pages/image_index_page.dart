@@ -56,6 +56,7 @@ class _ImageListPageState extends State<ImageListPage> {
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
   final Set<int> _bookmarkHydrationInFlight = <int>{};
   List<ImageModel> _visibleImagesForPrefetch = const [];
+  List<_AuthorSuggestion> _authorSuggestions = const [];
   final List<ImageModel> _discoveryImages = <ImageModel>[];
   final Set<int> _inlineRecommendationPids = <int>{};
   final Set<int> _discoverySeenPids = <int>{};
@@ -162,6 +163,7 @@ class _ImageListPageState extends State<ImageListPage> {
     _discoveryImages.clear();
     _inlineRecommendationPids.clear();
     _discoverySeenPids.clear();
+    _authorSuggestions = const [];
     _hasMoreDiscovery = true;
     _isDiscoveryLoadingMore = false;
     _discoveryLoadMoreError = null;
@@ -178,12 +180,33 @@ class _ImageListPageState extends State<ImageListPage> {
   }
 
   void _prepareImages(List<ImageModel> images) {
+    _mergeAuthorSuggestions(images);
     _prefetcher.prefetchImageModels(
       images.take(_displayMode == DisplayMode.grid ? 8 : 12),
       highQuality: _displayMode == DisplayMode.list,
       limit: _displayMode == DisplayMode.grid ? 8 : 12,
     );
     _hydrateBookmarkCounts(images);
+  }
+
+  void _mergeAuthorSuggestions(List<ImageModel> images) {
+    if (images.isEmpty) {
+      return;
+    }
+    final suggestions = <String, _AuthorSuggestion>{
+      for (final suggestion in _authorSuggestions) suggestion.key: suggestion,
+    };
+    for (final image in images) {
+      final author = image.author;
+      final name = author.name.trim();
+      final uid = author.uid.trim();
+      if (name.isEmpty && uid.isEmpty) {
+        continue;
+      }
+      final suggestion = _AuthorSuggestion(name: name, uid: uid);
+      suggestions.putIfAbsent(suggestion.key, () => suggestion);
+    }
+    _authorSuggestions = suggestions.values.take(160).toList(growable: false);
   }
 
   Future<void> _insertBookmarkedRecommendations(ImageModel seedImage) async {
@@ -465,6 +488,201 @@ class _ImageListPageState extends State<ImageListPage> {
       _authorNameController.text = _criteria.authorName;
     });
     _scheduleRefresh();
+  }
+
+  void _selectAuthorSuggestion(_AuthorSuggestion suggestion) {
+    setState(() {
+      _criteria.authorName = suggestion.name;
+      _authorNameController.text = suggestion.name;
+      if (suggestion.uid.isNotEmpty) {
+        _criteria.authorUid = suggestion.uid;
+        _authorUidController.text = suggestion.uid;
+      }
+    });
+    _scheduleRefresh();
+  }
+
+  Future<void> _openAuthorBrowser() async {
+    final suggestions = _authorSuggestions
+        .where(
+          (author) => author.name.isNotEmpty || author.uid.isNotEmpty,
+        )
+        .toList(growable: false);
+    if (suggestions.isEmpty) {
+      return;
+    }
+
+    final searchController = TextEditingController();
+    String keyword = '';
+
+    List<_AuthorSuggestion> visibleAuthorsFor(String value) {
+      final normalized = value.trim().toLowerCase();
+      return suggestions
+          .where((author) {
+            if (normalized.isEmpty) {
+              return true;
+            }
+            return author.name.toLowerCase().contains(normalized) ||
+                author.uid.toLowerCase().contains(normalized);
+          })
+          .take(160)
+          .toList(growable: false);
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final visibleAuthors = visibleAuthorsFor(keyword);
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 8,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+                ),
+                child: SizedBox(
+                  height: MediaQuery.sizeOf(context).height * 0.72,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '当前结果作者',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '从当前已加载的图片中提取作者，可直接填入作者名或 UID 筛选。',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF64748B),
+                            ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: searchController,
+                        autofocus: true,
+                        onChanged: (value) {
+                          setSheetState(() => keyword = value);
+                        },
+                        decoration: const InputDecoration(
+                          hintText: '搜索作者名或 UID',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const _AuthorBrowserHint(
+                            icon: Icons.person_rounded,
+                            label: '作者名',
+                            color: Color(0xFF2563EB),
+                          ),
+                          const SizedBox(width: 8),
+                          const _AuthorBrowserHint(
+                            icon: Icons.badge_rounded,
+                            label: 'UID',
+                            color: Color(0xFF0F766E),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${visibleAuthors.length} 项',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: visibleAuthors.isEmpty
+                            ? const Center(child: Text('没有匹配的作者'))
+                            : ListView.separated(
+                                itemCount: visibleAuthors.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final author = visibleAuthors[index];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const CircleAvatar(
+                                      radius: 15,
+                                      backgroundColor: Color(0xFFEFF6FF),
+                                      child: Icon(
+                                        Icons.person_rounded,
+                                        size: 17,
+                                        color: Color(0xFF2563EB),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      author.name.isEmpty
+                                          ? 'UID ${author.uid}'
+                                          : author.name,
+                                    ),
+                                    subtitle: author.uid.isEmpty
+                                        ? null
+                                        : Text('UID ${author.uid}'),
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      _selectAuthorSuggestion(author);
+                                    },
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          onPressed: author.name.isEmpty
+                                              ? null
+                                              : () {
+                                                  Navigator.of(context).pop();
+                                                  setState(() {
+                                                    _criteria.authorName =
+                                                        author.name;
+                                                    _authorNameController.text =
+                                                        author.name;
+                                                  });
+                                                  _scheduleRefresh();
+                                                },
+                                          icon:
+                                              const Icon(Icons.person_rounded),
+                                          color: const Color(0xFF2563EB),
+                                          tooltip: '按作者名筛选',
+                                        ),
+                                        IconButton(
+                                          onPressed: author.uid.isEmpty
+                                              ? null
+                                              : () {
+                                                  Navigator.of(context).pop();
+                                                  setState(() {
+                                                    _criteria.authorUid =
+                                                        author.uid;
+                                                    _authorUidController.text =
+                                                        author.uid;
+                                                  });
+                                                  _scheduleRefresh();
+                                                },
+                                          icon: const Icon(Icons.badge_rounded),
+                                          color: const Color(0xFF0F766E),
+                                          tooltip: '按 UID 筛选',
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    searchController.dispose();
   }
 
   Future<void> _pickDate(bool isStart) async {
@@ -954,20 +1172,31 @@ class _ImageListPageState extends State<ImageListPage> {
         ],
         const SizedBox(height: 16),
         _field(
-          '作者名',
-          TextField(
-            controller: _authorNameController,
-            decoration: const InputDecoration(hintText: '支持精确过滤'),
-            onSubmitted: (_) => _refreshResults(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        _field(
-          '作者 UID',
-          TextField(
-            controller: _authorUidController,
-            decoration: const InputDecoration(hintText: '例如 810305'),
-            onSubmitted: (_) => _refreshResults(),
+          '作者',
+          Column(
+            children: [
+              TextField(
+                controller: _authorNameController,
+                decoration: const InputDecoration(hintText: '作者名，支持精确过滤'),
+                onSubmitted: (_) => _refreshResults(),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _authorUidController,
+                decoration: const InputDecoration(hintText: '作者 UID，例如 810305'),
+                onSubmitted: (_) => _refreshResults(),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed:
+                      _authorSuggestions.isEmpty ? null : _openAuthorBrowser,
+                  icon: const Icon(Icons.people_alt_outlined),
+                  label: Text('查看当前结果作者 (${_authorSuggestions.length})'),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -1439,6 +1668,57 @@ class _ImageListPageState extends State<ImageListPage> {
           border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
         child: Icon(icon, size: 18),
+      ),
+    );
+  }
+}
+
+class _AuthorSuggestion {
+  final String name;
+  final String uid;
+
+  const _AuthorSuggestion({
+    required this.name,
+    required this.uid,
+  });
+
+  String get key => uid.isNotEmpty ? 'uid:$uid' : 'name:$name';
+}
+
+class _AuthorBrowserHint extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _AuthorBrowserHint({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
