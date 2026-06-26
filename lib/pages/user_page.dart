@@ -260,6 +260,8 @@ class _UserPageState extends State<UserPage> {
               ),
             ),
             const SizedBox(height: 12),
+            const _HelpCard(),
+            const SizedBox(height: 12),
             _SectionCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +337,7 @@ class _UserPageState extends State<UserPage> {
                           label: '24h',
                           value: _summary == null
                               ? '...'
-                            : '${_summary!.recent24hAdded}',
+                              : '${_summary!.recent24hAdded}',
                         ),
                       ],
                     ),
@@ -669,10 +671,11 @@ class _VisitStatsPanel extends StatelessWidget {
     );
   }
 
-  List<DetailVisitRecord> _withinHours(List<DetailVisitRecord> records, int hours) {
+  List<DetailVisitRecord> _withinHours(
+      List<DetailVisitRecord> records, int hours) {
     final cutoff = DateTime.now()
-        .subtract(Duration(hours: hours))
-        .millisecondsSinceEpoch ~/
+            .subtract(Duration(hours: hours))
+            .millisecondsSinceEpoch ~/
         1000;
     return records.where((record) => record.visitedAt >= cutoff).toList();
   }
@@ -739,7 +742,8 @@ class _VisitStatsPanel extends StatelessWidget {
   List<int> _hourBuckets(List<DetailVisitRecord> records) {
     final buckets = List<int>.filled(24, 0);
     for (final record in records) {
-      final hour = DateTime.fromMillisecondsSinceEpoch(record.visitedAt * 1000).hour;
+      final hour =
+          DateTime.fromMillisecondsSinceEpoch(record.visitedAt * 1000).hour;
       buckets[hour]++;
     }
     return buckets;
@@ -749,7 +753,8 @@ class _VisitStatsPanel extends StatelessWidget {
     final buckets = List<int>.filled(7, 0);
     final now = DateTime.now();
     for (final record in records) {
-      final visited = DateTime.fromMillisecondsSinceEpoch(record.visitedAt * 1000);
+      final visited =
+          DateTime.fromMillisecondsSinceEpoch(record.visitedAt * 1000);
       final delta = now.difference(visited).inDays;
       if (delta >= 0 && delta < 7) {
         buckets[6 - delta]++;
@@ -778,6 +783,155 @@ class _MetricSkeleton extends StatelessWidget {
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+    );
+  }
+}
+
+class _HelpCard extends StatelessWidget {
+  static const _helpItems = [
+    _HelpItem(
+      icon: Icons.touch_app_rounded,
+      title: '打开详情',
+      text: '点击任意图片进入详情页，可查看作者、标签、多图分页和相关推荐。',
+    ),
+    _HelpItem(
+      icon: Icons.download_rounded,
+      title: '保存原图',
+      text: '在首页、关注页或网格卡片长按图片，会开始保存该作品的 origin 原图。',
+    ),
+    _HelpItem(
+      icon: Icons.downloading_rounded,
+      title: '查看下载',
+      text: '右下角悬浮按钮可查看下载进度、失败任务，并可取消卡住的任务。',
+    ),
+    _HelpItem(
+      icon: Icons.favorite_rounded,
+      title: '收藏作品',
+      text: '点击图片卡片右上角爱心即可收藏或取消收藏，收藏后会尝试加载相似推荐。',
+    ),
+    _HelpItem(
+      icon: Icons.filter_alt_rounded,
+      title: '筛选图库',
+      text: '图库页可按 tag、作者、收藏状态、本地/远程和时间区间筛选，也能保存预设。',
+    ),
+  ];
+
+  const _HelpCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: const Icon(
+                  Icons.help_outline_rounded,
+                  color: Color(0xFF2563EB),
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('快速帮助',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    const Text(
+                      '一些不太显眼但很常用的操作。',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _helpItems
+                .map(
+                  (item) => _HelpTip(item: item),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HelpItem {
+  final IconData icon;
+  final String title;
+  final String text;
+
+  const _HelpItem({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+}
+
+class _HelpTip extends StatelessWidget {
+  final _HelpItem item;
+
+  const _HelpTip({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 720;
+    return Container(
+      width: narrow ? double.infinity : 280,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(item.icon, size: 18, color: const Color(0xFF3B82F6)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF243B53),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  item.text,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -846,52 +1000,61 @@ class _BarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxValue = buckets.isEmpty ? 0 : buckets.reduce((a, b) => a > b ? a : b);
+    final maxValue =
+        buckets.isEmpty ? 0 : buckets.reduce((a, b) => a > b ? a : b);
     return SizedBox(
       height: 156,
       child: Column(
         children: [
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(buckets.length, (index) {
-                final value = buckets[index];
-                final height = maxValue <= 0 ? 2.0 : (value / maxValue) * 108;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Tooltip(
-                          message: '$index 点：$value',
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 140),
-                            height: height.clamp(2, 108),
-                            decoration: BoxDecoration(
-                              color: value == 0
-                                  ? const Color(0xFFE2E8F0)
-                                  : const Color(0xFF2563EB),
-                              borderRadius: BorderRadius.circular(4),
+            child: _ChartWithYAxis(
+              maxValue: maxValue,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: List.generate(buckets.length, (index) {
+                  final value = buckets[index];
+                  final height = maxValue <= 0 ? 2.0 : (value / maxValue) * 108;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Tooltip(
+                            message: '$index 点：$value 次',
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 140),
+                              height: height.clamp(2, 108),
+                              decoration: BoxDecoration(
+                                color: value == 0
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(0xFF2563EB),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('0', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
-              Text('6', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
-              Text('12', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
-              Text('18', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
-              Text('23', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+              Text('0',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+              Text('6',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+              Text('12',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+              Text('18',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+              Text('23',
+                  style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
             ],
           ),
         ],
@@ -907,43 +1070,139 @@ class _TrendBars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxValue = buckets.isEmpty ? 0 : buckets.reduce((a, b) => a > b ? a : b);
+    final maxValue =
+        buckets.isEmpty ? 0 : buckets.reduce((a, b) => a > b ? a : b);
     const labels = ['-6', '-5', '-4', '-3', '-2', '-1', '0'];
     return SizedBox(
       height: 156,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(buckets.length, (index) {
-          final value = buckets[index];
-          final height = maxValue <= 0 ? 2.0 : (value / maxValue) * 108;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Tooltip(
-                    message: '${labels[index]} 天：$value',
-                    child: Container(
-                      height: height.clamp(2, 108),
-                      decoration: BoxDecoration(
-                        color: value == 0
-                            ? const Color(0xFFD6E4F7)
-                            : const Color(0xFF0F766E),
-                        borderRadius: BorderRadius.circular(4),
+      child: _ChartWithYAxis(
+        maxValue: maxValue,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(buckets.length, (index) {
+            final value = buckets[index];
+            final height = maxValue <= 0 ? 2.0 : (value / maxValue) * 108;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Tooltip(
+                      message: '${labels[index]} 天：$value 次',
+                      child: Container(
+                        height: height.clamp(2, 108),
+                        decoration: BoxDecoration(
+                          color: value == 0
+                              ? const Color(0xFFD6E4F7)
+                              : const Color(0xFF0F766E),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    labels[index],
-                    style: const TextStyle(fontSize: 9, color: Color(0xFF64748B)),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      labels[index],
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChartWithYAxis extends StatelessWidget {
+  final int maxValue;
+  final Widget child;
+
+  const _ChartWithYAxis({
+    required this.maxValue,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final top = maxValue <= 0 ? 1 : maxValue;
+    final middle = (top / 2).round();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 34,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                '次数',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              _AxisLabel('$top'),
+              const Spacer(),
+              _AxisLabel('$middle'),
+              const Spacer(),
+              const _AxisLabel('0'),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Stack(
+            children: [
+              const Positioned.fill(child: _ChartGridLines()),
+              Positioned.fill(child: child),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AxisLabel extends StatelessWidget {
+  final String label;
+
+  const _AxisLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 9,
+        height: 1,
+        color: Color(0xFF94A3B8),
+      ),
+    );
+  }
+}
+
+class _ChartGridLines extends StatelessWidget {
+  const _ChartGridLines();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(
+        3,
+        (_) => const Divider(
+          height: 1,
+          thickness: 1,
+          color: Color(0xFFE5EAF2),
+        ),
       ),
     );
   }
@@ -1023,7 +1282,8 @@ class _DonutChart extends StatelessWidget {
                   label: 'other',
                   value: math.max(
                     0,
-                    safeTotal - segments.fold<int>(0, (sum, s) => sum + s.value),
+                    safeTotal -
+                        segments.fold<int>(0, (sum, s) => sum + s.value),
                   ),
                   total: safeTotal,
                 ),
@@ -1159,7 +1419,8 @@ class _RankingBars extends StatelessWidget {
                     item.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1184,7 +1445,8 @@ class _RankingBars extends StatelessWidget {
                   child: Text(
                     '${item.count}',
                     textAlign: TextAlign.right,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
+                    style:
+                        const TextStyle(fontSize: 12, color: Color(0xFF334155)),
                   ),
                 ),
               ],
