@@ -1646,9 +1646,9 @@ class _MobileActionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background =
-        selected ? const Color(0xFFFFE8EF) : const Color(0xFFF2F2F7);
+        selected ? const Color(0xFFFFE8EF) : const Color(0xFFF2F6FC);
     final foreground =
-        selected ? const Color(0xFFFF2D55) : const Color(0xFF111827);
+        selected ? const Color(0xFFFF2D55) : const Color(0xFF475569);
 
     return Material(
       color: background,

@@ -62,11 +62,6 @@ class _GridImageTileState extends State<GridImageTile> {
       final mergedImage = mergeImageState(_image, updatedImage);
       setState(() => _image = mergedImage);
       widget.onImageChanged?.call(mergedImage);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
-        ),
-      );
       if (!wasBookmarked && updatedImage.isBookmarked) {
         widget.onImageBookmarked?.call(mergedImage);
       }
@@ -95,24 +90,21 @@ class _GridImageTileState extends State<GridImageTile> {
         widget.onImageChanged?.call(image);
       }
 
-      final pageCount = image.pages.isEmpty ? 1 : image.pages.length;
       final batchFuture =
           ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已开始保存 origin，共 $pageCount 张')),
-      );
+      // Download progress is shown by the shared floating download control.
       final batch = await batchFuture;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            batch.hasFailed
-                ? '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功'
-                : '已保存 ${batch.tasks.length} 张 origin 图片',
+      if (batch.hasFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功',
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

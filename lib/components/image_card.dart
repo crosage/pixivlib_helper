@@ -61,7 +61,8 @@ class AppImageCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (topLeft != null) Positioned(top: 7, left: 7, child: topLeft!),
+                if (topLeft != null)
+                  Positioned(top: 7, left: 7, child: topLeft!),
                 if (topRight != null)
                   Positioned(top: 7, right: 7, child: topRight!),
                 if (bottom != null)
@@ -171,7 +172,7 @@ class AppImageLikePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        isBookmarked ? const Color(0xFFE11D48) : const Color(0xFF1F2937);
+        isBookmarked ? const Color(0xFFE11D48) : const Color(0xFF64748B);
 
     return Material(
       color: Colors.white.withValues(alpha: 0.92),
@@ -271,9 +272,7 @@ class AppImageCardCaption extends StatelessWidget {
                   ),
                 const SizedBox(height: 3),
                 Text(
-                  image.author.name.trim().isEmpty
-                      ? '未知作者'
-                      : image.author.name,
+                  image.author.name.trim().isEmpty ? '未知作者' : image.author.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
