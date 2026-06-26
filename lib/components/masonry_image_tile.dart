@@ -34,6 +34,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
   final ApiService _api = ApiService.instance;
 
   late ImageModel _image;
+  late double _lockedAspectRatio;
   bool _isBookmarkSubmitting = false;
   bool _isOriginDownloadStarting = false;
 
@@ -41,6 +42,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
   void initState() {
     super.initState();
     _image = widget.image;
+    _lockedAspectRatio = _tileAspectRatio(widget.image);
   }
 
   @override
@@ -48,6 +50,9 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.image != widget.image) {
       _image = widget.image;
+      if (oldWidget.image.pid != widget.image.pid) {
+        _lockedAspectRatio = _tileAspectRatio(widget.image);
+      }
     }
   }
 
@@ -162,7 +167,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
         onAuthorTap: widget.onAuthorTap,
       ),
       radius: compact ? 8 : 16,
-      aspectRatio: _tileAspectRatio(_image),
+      aspectRatio: _lockedAspectRatio,
     );
   }
 
