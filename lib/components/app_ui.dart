@@ -348,7 +348,7 @@ class _AppSegmentButton<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFF111827) : const Color(0xFF64748B);
+    final color = selected ? const Color(0xFF2563EB) : const Color(0xFF64748B);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(999),
@@ -361,12 +361,15 @@ class _AppSegmentButton<T> extends StatelessWidget {
           height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? const Color(0xFFEFF6FF) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? const Color(0xFFBFDBFE) : Colors.transparent,
+            ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.07),
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -475,7 +478,7 @@ class _AppBookmarkButtonState extends State<AppBookmarkButton> {
   @override
   Widget build(BuildContext context) {
     final color =
-        _image.isBookmarked ? const Color(0xFFE11D48) : const Color(0xFF1F2937);
+        _image.isBookmarked ? const Color(0xFFE11D48) : const Color(0xFF64748B);
     final background = Colors.white.withValues(alpha: 0.94);
 
     return Material(

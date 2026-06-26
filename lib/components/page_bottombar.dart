@@ -255,7 +255,7 @@ class _PageIndicatorButton extends StatelessWidget {
             style: TextStyle(
               fontSize: compact ? 12 : 13,
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF111827),
+              color: const Color(0xFF334155),
             ),
           ),
         ),
@@ -330,7 +330,7 @@ class _PagerIconButton extends StatelessWidget {
           child: Icon(
             icon,
             size: compact ? 18 : 19,
-            color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+            color: enabled ? const Color(0xFF475569) : const Color(0xFF9CA3AF),
           ),
         ),
       ),

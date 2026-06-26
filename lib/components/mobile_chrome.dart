@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/pixiv_mark.dart';
 
-const Color mobileInk = Color(0xFF111827);
+const Color mobileInk = Color(0xFF243B53);
 const Color mobileSubtleInk = Color(0xFF64748B);
 const Color mobileLine = Color(0xFFE5E7EB);
 const Color mobileBlue = Color(0xFF0A84FF);
@@ -709,7 +709,9 @@ class MobileIconButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 19,
-            color: onTap == null ? const Color(0xFFCBD5E1) : mobileInk,
+            color: onTap == null
+                ? const Color(0xFFCBD5E1)
+                : const Color(0xFF475569),
           ),
         ),
       ),
@@ -796,12 +798,15 @@ class _MobileSegmentButton<T> extends StatelessWidget {
           height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? const Color(0xFFEAF4FF) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? const Color(0xFFBBD7FF) : Colors.transparent,
+            ),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.07),
+                      color: mobileBlue.withValues(alpha: 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -824,7 +829,7 @@ class _MobileSegmentButton<T> extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: selected ? mobileInk : mobileSubtleInk,
+                  color: selected ? mobileBlue : mobileSubtleInk,
                 ),
               ),
             ],
