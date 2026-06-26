@@ -184,6 +184,16 @@ class ApiService {
         .toList();
   }
 
+  Future<List<Author>> fetchAuthorSuggestions() async {
+    final payload = await _get('/api/author?page=1&size=100000');
+    final rawAuthors =
+        payload['authors'] ?? payload['items'] ?? payload['data'] ?? const [];
+    return (rawAuthors as List? ?? const [])
+        .map((json) => Author.fromJson(Map<String, dynamic>.from(json)))
+        .where((author) => author.name.isNotEmpty || author.uid.isNotEmpty)
+        .toList();
+  }
+
   Future<PixivConnectionInfo> fetchPixivConnectionInfo() async {
     final cookiePayload = await _get('/api/pixiv/cookie');
     return PixivConnectionInfo(

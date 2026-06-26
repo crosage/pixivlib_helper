@@ -49,6 +49,7 @@ class _ImageListPageState extends State<ImageListPage> {
   final _pageSizeController = TextEditingController(text: '24');
 
   late Future<List<String>> _tagSuggestionsFuture;
+  late Future<List<Author>> _authorSuggestionsFuture;
   Future<PagedImagesResponse>? _resultsFuture;
   Timer? _debounceTimer;
   Timer? _scrollPrefetchTimer;
@@ -56,7 +57,6 @@ class _ImageListPageState extends State<ImageListPage> {
   final Map<int, ImageModel> _imageOverrides = <int, ImageModel>{};
   final Set<int> _bookmarkHydrationInFlight = <int>{};
   List<ImageModel> _visibleImagesForPrefetch = const [];
-  List<_AuthorSuggestion> _authorSuggestions = const [];
   final List<ImageModel> _discoveryImages = <ImageModel>[];
   final Set<int> _inlineRecommendationPids = <int>{};
   final Set<int> _discoverySeenPids = <int>{};
@@ -74,6 +74,7 @@ class _ImageListPageState extends State<ImageListPage> {
     _session.addListener(_handleUserChanged);
     _scrollController.addListener(_handleScroll);
     _tagSuggestionsFuture = _api.fetchTagSuggestions();
+    _authorSuggestionsFuture = _api.fetchAuthorSuggestions();
     _loadPresets();
     _loadDiscoveryRecommendations();
   }
@@ -163,7 +164,6 @@ class _ImageListPageState extends State<ImageListPage> {
     _discoveryImages.clear();
     _inlineRecommendationPids.clear();
     _discoverySeenPids.clear();
-    _authorSuggestions = const [];
     _hasMoreDiscovery = true;
     _isDiscoveryLoadingMore = false;
     _discoveryLoadMoreError = null;
@@ -180,33 +180,12 @@ class _ImageListPageState extends State<ImageListPage> {
   }
 
   void _prepareImages(List<ImageModel> images) {
-    _mergeAuthorSuggestions(images);
     _prefetcher.prefetchImageModels(
       images.take(_displayMode == DisplayMode.grid ? 8 : 12),
       highQuality: _displayMode == DisplayMode.list,
       limit: _displayMode == DisplayMode.grid ? 8 : 12,
     );
     _hydrateBookmarkCounts(images);
-  }
-
-  void _mergeAuthorSuggestions(List<ImageModel> images) {
-    if (images.isEmpty) {
-      return;
-    }
-    final suggestions = <String, _AuthorSuggestion>{
-      for (final suggestion in _authorSuggestions) suggestion.key: suggestion,
-    };
-    for (final image in images) {
-      final author = image.author;
-      final name = author.name.trim();
-      final uid = author.uid.trim();
-      if (name.isEmpty && uid.isEmpty) {
-        continue;
-      }
-      final suggestion = _AuthorSuggestion(name: name, uid: uid);
-      suggestions.putIfAbsent(suggestion.key, () => suggestion);
-    }
-    _authorSuggestions = suggestions.values.take(160).toList(growable: false);
   }
 
   Future<void> _insertBookmarkedRecommendations(ImageModel seedImage) async {
@@ -490,7 +469,7 @@ class _ImageListPageState extends State<ImageListPage> {
     _scheduleRefresh();
   }
 
-  void _selectAuthorSuggestion(_AuthorSuggestion suggestion) {
+  void _selectAuthorSuggestion(Author suggestion) {
     setState(() {
       _criteria.authorName = suggestion.name;
       _authorNameController.text = suggestion.name;
@@ -502,8 +481,8 @@ class _ImageListPageState extends State<ImageListPage> {
     _scheduleRefresh();
   }
 
-  Future<void> _openAuthorBrowser() async {
-    final suggestions = _authorSuggestions
+  Future<void> _openAuthorBrowser(List<Author> authors) async {
+    final suggestions = authors
         .where(
           (author) => author.name.isNotEmpty || author.uid.isNotEmpty,
         )
@@ -515,7 +494,7 @@ class _ImageListPageState extends State<ImageListPage> {
     final searchController = TextEditingController();
     String keyword = '';
 
-    List<_AuthorSuggestion> visibleAuthorsFor(String value) {
+    List<Author> visibleAuthorsFor(String value) {
       final normalized = value.trim().toLowerCase();
       return suggestions
           .where((author) {
@@ -551,12 +530,12 @@ class _ImageListPageState extends State<ImageListPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '当前结果作者',
+                        '全部作者',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '从当前已加载的图片中提取作者，可直接填入作者名或 UID 筛选。',
+                        '可以像全部标签一样搜索作者，并直接填入作者名或 UID 筛选。',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: const Color(0xFF64748B),
                             ),
@@ -1189,11 +1168,31 @@ class _ImageListPageState extends State<ImageListPage> {
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed:
-                      _authorSuggestions.isEmpty ? null : _openAuthorBrowser,
-                  icon: const Icon(Icons.people_alt_outlined),
-                  label: Text('查看当前结果作者 (${_authorSuggestions.length})'),
+                child: FutureBuilder<List<Author>>(
+                  future: _authorSuggestionsFuture,
+                  builder: (context, snapshot) {
+                    final authors = snapshot.data ?? const <Author>[];
+                    final loading =
+                        snapshot.connectionState == ConnectionState.waiting;
+                    final failed = snapshot.hasError && authors.isEmpty;
+                    return TextButton.icon(
+                      onPressed: authors.isEmpty
+                          ? null
+                          : () => _openAuthorBrowser(authors),
+                      icon: Icon(
+                        failed
+                            ? Icons.error_outline_rounded
+                            : Icons.people_alt_outlined,
+                      ),
+                      label: Text(
+                        failed
+                            ? '作者列表加载失败'
+                            : loading
+                                ? '正在加载作者...'
+                                : '查看全部作者 (${authors.length})',
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -1671,18 +1670,6 @@ class _ImageListPageState extends State<ImageListPage> {
       ),
     );
   }
-}
-
-class _AuthorSuggestion {
-  final String name;
-  final String uid;
-
-  const _AuthorSuggestion({
-    required this.name,
-    required this.uid,
-  });
-
-  String get key => uid.isNotEmpty ? 'uid:$uid' : 'name:$name';
 }
 
 class _AuthorBrowserHint extends StatelessWidget {
