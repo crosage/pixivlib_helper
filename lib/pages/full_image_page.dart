@@ -205,15 +205,8 @@ class _FullImagePageState extends State<FullImagePage> {
     setState(() => _isImageCopying = true);
     try {
       await NativeImageClipboard.copyNetworkImage(imageUrl);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前图片已复制到剪贴板')),
-      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('复制图片失败: $error')),
-      );
+      // Keep detail browsing quiet; copy errors should not interrupt reading.
     } finally {
       if (mounted) {
         setState(() => _isImageCopying = false);
@@ -239,45 +232,21 @@ class _FullImagePageState extends State<FullImagePage> {
         });
       }
 
-      final pageCount = image.pages.isEmpty ? 1 : image.pages.length;
-      final batchFuture =
-          ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('已开始保存 origin，共 $pageCount 张'),
-          action: SnackBarAction(
-            label: '进度',
-            onPressed: () => showDownloadProgressSheet(context),
-          ),
-        ),
-      );
-
-      final batch = await batchFuture;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            batch.hasFailed
-                ? '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功'
-                : '已保存 ${batch.tasks.length} 张 origin 图片到 Pictures/PixivHelper',
-          ),
-          action: SnackBarAction(
-            label: '进度',
-            onPressed: () => showDownloadProgressSheet(context),
-          ),
-        ),
-      );
+      unawaited(_startDownloadQuietly(image));
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存 origin 失败: $error')),
-      );
+      // The floating download button is the single place for download feedback.
     } finally {
       if (mounted) {
         setState(() => _isOriginDownloadStarting = false);
       }
+    }
+  }
+
+  Future<void> _startDownloadQuietly(ImageModel image) async {
+    try {
+      await ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
+    } catch (_) {
+      // The floating download button is the single place for download feedback.
     }
   }
 
@@ -335,16 +304,8 @@ class _FullImagePageState extends State<FullImagePage> {
       setState(() {
         _image = mergeImageState(_image, updatedImage);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
-        ),
-      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('收藏操作失败：$error')),
-      );
+      // Avoid transient snackbars on the detail page; button state is restored.
     } finally {
       if (mounted) {
         setState(() => _isBookmarkSubmitting = false);
@@ -512,11 +473,6 @@ class _FullImagePageState extends State<FullImagePage> {
               ),
         actions: [
           IconButton(
-            onPressed: () => showDownloadProgressSheet(context),
-            icon: const Icon(Icons.downloading_rounded),
-            tooltip: '下载进度',
-          ),
-          IconButton(
             onPressed: _goHome,
             icon: const Icon(Icons.home_rounded),
             tooltip: '回到首页',
@@ -527,6 +483,10 @@ class _FullImagePageState extends State<FullImagePage> {
             tooltip: '刷新详情',
           ),
         ],
+      ),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: narrow ? 14 : 0),
+        child: const _DetailDownloadProgressFab(),
       ),
       body: Stack(
         children: [
@@ -1500,6 +1460,86 @@ class _MobileGroupedCard extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+class _DetailDownloadProgressFab extends StatelessWidget {
+  const _DetailDownloadProgressFab();
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = ArtworkDownloadManager.instance;
+    return AnimatedBuilder(
+      animation: manager,
+      builder: (context, _) {
+        final activeCount = manager.activeTaskCount;
+        final totalCount = manager.tasks.length;
+        final foreground =
+            activeCount > 0 ? const Color(0xFF0A84FF) : const Color(0xFF526176);
+
+        return Material(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          elevation: 5,
+          shadowColor: Colors.black.withValues(alpha: 0.16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => showDownloadProgressSheet(context),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    activeCount > 0
+                        ? Icons.downloading_rounded
+                        : Icons.file_download_done_rounded,
+                    color: foreground,
+                    size: 24,
+                  ),
+                  if (activeCount > 0)
+                    Positioned.fill(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                        backgroundColor: const Color(0xFFEAF4FF),
+                      ),
+                    ),
+                  if (totalCount > 0)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        height: 17,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: activeCount > 0
+                              ? const Color(0xFF0A84FF)
+                              : const Color(0xFF64748B),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Text(
+                          activeCount > 0 ? '$activeCount' : '$totalCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
