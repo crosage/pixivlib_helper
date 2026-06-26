@@ -1,22 +1,9 @@
 # Pixiv Helper
 
-Pixiv Helper 是一个面向 Pixiv 重度用户的图片浏览和筛选工具。它把图库检索、关注作品、日榜、收藏状态和多用户 session 管理放在同一个 Flutter 客户端里，适合用来快速翻看新作品、按 tag/作者筛图，以及整理已收藏作品。
+Pixiv Helper 
 
 > 目前应用需要 Pixiv session 才能进入主界面。未登录时会停留在登录页。
 
-## 截图
-
-### 图库与网格浏览
-
-![图库网格](https://github.com/user-attachments/assets/92090af7-fe07-4987-8bee-460256ab5628)
-
-### 作品列表与详情
-
-![作品详情](https://github.com/user-attachments/assets/15f40e18-63c1-488a-a6a8-c3c11d1c8)
-
-### 筛选示例
-
-![筛选示例](https://github.com/user-attachments/assets/898fe7d0-7a0d-47e5-9089-95d49f47b96a)
 
 ## 主要功能
 
