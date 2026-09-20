@@ -213,15 +213,24 @@ class _UserPageState extends State<UserPage> {
       builder: (context, _) {
         final activeUser = _session.activeUser;
         final activeAuthor = _activeAuthor;
+        final width = MediaQuery.sizeOf(context).width;
+        final compact = width < 600;
+        final horizontalPadding = width > 1080 ? (width - 1040) / 2 : 16.0;
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding:
+              EdgeInsets.fromLTRB(horizontalPadding, 20, horizontalPadding, 24),
           children: [
+            Text('账户与数据', style: theme.textTheme.headlineMedium),
+            const SizedBox(height: 4),
+            Text('管理用户、同步状态和本地使用概览', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 18),
             if (_dashboardLoading) ...[
               const LinearProgressIndicator(minHeight: 2),
               const SizedBox(height: 12),
             ],
             _SectionCard(
+              color: const Color(0xFFF8FCFF),
               child: Row(
                 children: [
                   AppAvatar(
@@ -249,13 +258,22 @@ class _UserPageState extends State<UserPage> {
                       ],
                     ),
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: _submitting
-                        ? null
-                        : () => _runAction(_session.logout, '已退出当前用户'),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('退出'),
-                  ),
+                  if (compact)
+                    IconButton(
+                      tooltip: '退出当前用户',
+                      onPressed: _submitting
+                          ? null
+                          : () => _runAction(_session.logout, '已退出当前用户'),
+                      icon: const Icon(Icons.logout_rounded),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      onPressed: _submitting
+                          ? null
+                          : () => _runAction(_session.logout, '已退出当前用户'),
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('退出'),
+                    ),
                 ],
               ),
             ),
@@ -315,27 +333,33 @@ class _UserPageState extends State<UserPage> {
                       ),
                     )
                   else
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                    Row(
                       children: [
-                        _StatBox(
-                          label: '作者',
-                          value: _summary == null
-                              ? '...'
-                              : '${_summary!.authorTotal}',
+                        Expanded(
+                          child: _StatBox(
+                            label: '作者',
+                            value: _summary == null
+                                ? '...'
+                                : '${_summary!.authorTotal}',
+                          ),
                         ),
-                        _StatBox(
-                          label: '图片',
-                          value: _summary == null
-                              ? '...'
-                              : '${_summary!.imageTotal}',
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _StatBox(
+                            label: '图片',
+                            value: _summary == null
+                                ? '...'
+                                : '${_summary!.imageTotal}',
+                          ),
                         ),
-                        _StatBox(
-                          label: '24h',
-                          value: _summary == null
-                              ? '...'
-                              : '${_summary!.recent24hAdded}',
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _StatBox(
+                            label: '24 小时新增',
+                            value: _summary == null
+                                ? '...'
+                                : '${_summary!.recent24hAdded}',
+                          ),
                         ),
                       ],
                     ),
@@ -419,15 +443,16 @@ class _UserPageState extends State<UserPage> {
 
 class _SectionCard extends StatelessWidget {
   final Widget child;
+  final Color color;
 
-  const _SectionCard({required this.child});
+  const _SectionCard({required this.child, this.color = Colors.white});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: color,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
@@ -448,8 +473,8 @@ class _StatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 92,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(8),
@@ -457,6 +482,7 @@ class _StatBox extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -467,10 +493,12 @@ class _StatBox extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
-            textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.titleLarge?.copyWith(fontSize: 20),
+            ).textTheme.titleLarge?.copyWith(
+                  fontSize: 22,
+                  color: const Color(0xFF0077C8),
+                ),
           ),
         ],
       ),

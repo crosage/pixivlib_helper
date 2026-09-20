@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/pixiv_mark.dart';
 
-const Color mobileInk = Color(0xFF243B53);
-const Color mobileSubtleInk = Color(0xFF64748B);
-const Color mobileLine = Color(0xFFE5E7EB);
-const Color mobileBlue = Color(0xFF0A84FF);
+const Color mobileInk = Color(0xFF171A1F);
+const Color mobileSubtleInk = Color(0xFF636B76);
+const Color mobileLine = Color(0xFFE1E5EA);
+const Color mobileBlue = Color(0xFF0096FA);
 
 class MobileToolbar extends StatelessWidget {
   final String title;
@@ -45,6 +45,13 @@ class MobileToolbar extends StatelessWidget {
           )
         : null;
     final hasTopLine = topCenter != null || headerContent != null;
+    final secondaryControls = hasTopLine
+        ? chips
+        : <Widget>[
+            if (leading != null) leading!,
+            ...chips,
+            ...actions,
+          ];
     final controlRows = <Widget>[
       if (bottom != null)
         _MobileToolbarRail(
@@ -55,31 +62,24 @@ class MobileToolbar extends StatelessWidget {
             ...chips,
           ],
         )
-      else if (chips.isNotEmpty || actions.isNotEmpty || leading != null)
+      else if (secondaryControls.isNotEmpty)
         _MobileToolbarRail(
           height: 40,
-          children: [if (leading != null) leading!, ...chips, ...actions],
+          children: secondaryControls,
         ),
     ];
 
     return SizedBox(
       width: double.infinity,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          border: const Border(
-            bottom: BorderSide(color: Color(0xFFE8EDF4)),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            bottom: BorderSide(color: mobileLine),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -121,68 +121,71 @@ class _MobileTitleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasEyebrow = eyebrow != null && eyebrow!.trim().isNotEmpty;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (leading != null) ...[
-          leading!,
-          const SizedBox(width: 8),
-        ],
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (hasEyebrow)
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasEyebrow)
+                  Text(
+                    eyebrow!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: mobileBlue,
+                      letterSpacing: 0,
+                    ),
+                  ),
                 Text(
-                  eyebrow!,
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 19,
+                    height: 1.05,
                     fontWeight: FontWeight.w800,
-                    color: mobileBlue,
-                    letterSpacing: 0.2,
+                    letterSpacing: 0,
+                    color: mobileInk,
                   ),
                 ),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 21,
-                  height: 1.05,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.55,
-                  color: mobileInk,
-                ),
-              ),
-              if (subtitle != null && subtitle!.trim().isNotEmpty)
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: mobileSubtleInk,
+                if (subtitle != null && subtitle!.trim().isNotEmpty)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: mobileSubtleInk,
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        if (actions.isNotEmpty) ...[
-          const SizedBox(width: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var index = 0; index < actions.length; index++) ...[
-                if (index > 0) const SizedBox(width: 6),
-                actions[index],
               ],
-            ],
+            ),
           ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var index = 0; index < actions.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 6),
+                  actions[index],
+                ],
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -253,7 +256,7 @@ class MobileBrandMark extends StatelessWidget {
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: const Color(0xFFF1F8FF),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFFDCEEFF)),
           ),
           child: const PixivMark(size: 22, radius: 7),
@@ -264,8 +267,8 @@ class MobileBrandMark extends StatelessWidget {
           style: const TextStyle(
             fontSize: 17,
             height: 1,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.6,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
             color: mobileInk,
           ),
         ),
@@ -294,12 +297,12 @@ class _MobileToolbarRail extends StatelessWidget {
       width: double.infinity,
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F7FA),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE9EEF5)),
+        color: const Color(0xFFF4F5F7),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: mobileLine),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -605,7 +608,7 @@ class MobileGlassGroup extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: const Color(0xFFF3F6FA),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: const Color(0xFFE9EEF5)),
       ),
       child: Row(
@@ -647,15 +650,15 @@ class MobilePill extends StatelessWidget {
 
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         child: Container(
           height: 32,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: borderColor),
           ),
           child: Row(
@@ -699,9 +702,9 @@ class MobileIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final button = Material(
       color: const Color(0xFFF7F9FC),
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: SizedBox(
           width: 34,
@@ -755,7 +758,7 @@ class MobileSegmentedControl<T> extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: const Color(0xFFF3F6FA),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: const Color(0xFFE9EEF5)),
       ),
       child: Row(
@@ -788,30 +791,21 @@ class _MobileSegmentButton<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(5),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutCubic,
           height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFFEAF4FF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            color: selected ? const Color(0xFFE8F5FF) : Colors.transparent,
+            borderRadius: BorderRadius.circular(5),
             border: Border.all(
-              color: selected ? const Color(0xFFBBD7FF) : Colors.transparent,
+              color: selected ? const Color(0xFFB8E1FF) : Colors.transparent,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: mobileBlue.withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

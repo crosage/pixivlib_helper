@@ -8,6 +8,7 @@ class SearchTool extends StatefulWidget {
   final ValueChanged<String> onInclude;
   final ValueChanged<String> onExclude;
   final String hintText;
+  final VoidCallback? onActivated;
 
   const SearchTool({
     super.key,
@@ -15,6 +16,7 @@ class SearchTool extends StatefulWidget {
     required this.onInclude,
     required this.onExclude,
     this.hintText = '输入 tag 后回车，或点下方建议',
+    this.onActivated,
   });
 
   @override
@@ -245,6 +247,7 @@ class _SearchToolState extends State<SearchTool> {
         const SizedBox(height: 10),
         TextField(
           controller: _controller,
+          onTap: widget.onActivated,
           onChanged: (_) => setState(() {}),
           onSubmitted: (value) => _submit(value),
           decoration: InputDecoration(
@@ -265,9 +268,15 @@ class _SearchToolState extends State<SearchTool> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: widget.suggestions.isEmpty ? null : _openTagBrowser,
+            onPressed: widget.suggestions.isEmpty
+                ? widget.onActivated
+                : _openTagBrowser,
             icon: const Icon(Icons.local_offer_outlined),
-            label: Text('查看全部标签 (${widget.suggestions.length})'),
+            label: Text(
+              widget.suggestions.isEmpty
+                  ? '加载标签建议'
+                  : '查看全部标签 (${widget.suggestions.length})',
+            ),
           ),
         ),
         if (suggestions.isNotEmpty) ...[

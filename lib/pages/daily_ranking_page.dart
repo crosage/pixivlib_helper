@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/mobile_chrome.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/model/daily_ranking_model.dart';
 import 'package:tagselector/pages/full_image_page.dart';
 import 'package:tagselector/service/api_service.dart';
@@ -87,31 +88,118 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
     });
   }
 
-  Future<void> _openModeSheet() async {
-    final mode = await showModalBottomSheet<String>(
+  Future<void> _openRankingOptionsSheet() async {
+    await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (context) {
-        return SafeArea(
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return MobileSheetFrame(
           child: ListView(
             shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            padding: EdgeInsets.zero,
             children: [
-              for (final option in _rankingModes)
-                ListTile(
-                  leading: Icon(_rankingModeIcon(option.$1)),
-                  title: Text(option.$2),
-                  selected: option.$1 == _mode,
-                  onTap: () => Navigator.of(context).pop(option.$1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+                child: Text(
+                  '榜单设置',
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
                 ),
+              ),
+              MobileSheetSection(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    for (final option in _rankingModes)
+                      ListTile(
+                        leading: Icon(_rankingModeIcon(option.$1)),
+                        title: Text(option.$2),
+                        trailing: option.$1 == _mode
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: mobileBlue,
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          _changeMode(option.$1);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              MobileSheetSection(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.calendar_month_rounded),
+                      title: const Text('选择历史日期'),
+                      subtitle: Text(
+                        _selectedDate == null
+                            ? '当前显示最新榜单'
+                            : '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _pickDate();
+                      },
+                    ),
+                    if (_selectedDate != null)
+                      ListTile(
+                        leading: const Icon(Icons.today_rounded),
+                        title: const Text('回到最新榜单'),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          _clearDate();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              MobileSheetSection(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _page > 1
+                            ? () {
+                                Navigator.of(sheetContext).pop();
+                                _changePage(-1);
+                              }
+                            : null,
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        label: const Text('上一页'),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Text(
+                        '第 $_page 页',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          _changePage(1);
+                        },
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        label: const Text('下一页'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         );
       },
     );
-    if (mode == null) return;
-    _changeMode(mode);
   }
 
   Future<void> _pickDate() async {
@@ -175,7 +263,7 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
         return Container(
           decoration: BoxDecoration(
             color: phone ? const Color(0xFFF2F2F7) : Colors.white,
-            borderRadius: phone ? BorderRadius.zero : BorderRadius.circular(28),
+            borderRadius: phone ? BorderRadius.zero : BorderRadius.circular(8),
             border: phone ? null : Border.all(color: const Color(0xFFE5E7EB)),
           ),
           child: FutureBuilder<DailyRankingResponse>(
@@ -183,7 +271,10 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   snapshot.data == null) {
-                return const Center(child: CircularProgressIndicator());
+                return AppLoadingGrid(
+                  padding: EdgeInsets.all(phone ? 6 : 24),
+                  minTileWidth: phone ? 176 : 240,
+                );
               }
               if (snapshot.hasError) {
                 return Center(
@@ -232,7 +323,7 @@ class _DailyRankingPageState extends State<DailyRankingPage> {
                         onPrevPage: _page > 1 ? () => _changePage(-1) : null,
                         onNextPage: () => _changePage(1),
                         onModeChanged: _changeMode,
-                        onOpenModeSheet: _openModeSheet,
+                        onOpenModeSheet: _openRankingOptionsSheet,
                         onPickDate: _pickDate,
                         onClearDate: _clearDate,
                       ),
@@ -355,7 +446,7 @@ class _RankingHeader extends StatelessWidget {
     if (phone) {
       return MobileToolbar(
         title: _modeLabel,
-        subtitle: '$_dateText · 第 $page 页',
+        subtitle: 'Pixiv 官方榜单 · $_dateText · 第 $page 页',
         leading: const Icon(
           Icons.auto_graph_rounded,
           color: mobileBlue,
@@ -363,23 +454,8 @@ class _RankingHeader extends StatelessWidget {
         actions: [
           MobileIconButton(
             icon: Icons.tune_rounded,
-            tooltip: '榜单模式',
+            tooltip: '榜单设置',
             onTap: onOpenModeSheet,
-          ),
-          MobileIconButton(
-            icon: Icons.calendar_month_rounded,
-            tooltip: '选择日期',
-            onTap: onPickDate,
-          ),
-          MobileIconButton(
-            icon: Icons.chevron_left_rounded,
-            tooltip: '上一页',
-            onTap: onPrevPage,
-          ),
-          MobileIconButton(
-            icon: Icons.chevron_right_rounded,
-            tooltip: '下一页',
-            onTap: onNextPage,
           ),
           MobileIconButton(
             icon: Icons.refresh_rounded,
@@ -392,9 +468,9 @@ class _RankingHeader extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE1E5EA)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -411,9 +487,9 @@ class _RankingHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Pixiv 榜单',
+                        'Pixiv 官方榜单',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                             ),
                       ),
                       const SizedBox(height: 3),
@@ -508,12 +584,7 @@ class _HeaderIcon extends StatelessWidget {
       width: 44,
       height: 44,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF4FF),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD6E8FF)),
-      ),
-      child: Icon(icon, color: const Color(0xFF0A84FF), size: 24),
+      child: Icon(icon, color: const Color(0xFF0096FA), size: 24),
     );
   }
 }
@@ -534,21 +605,21 @@ class _ModeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground =
-        selected ? const Color(0xFF0A84FF) : const Color(0xFF334155);
+        selected ? const Color(0xFF0077C8) : const Color(0xFF454B54);
     return Material(
-      color: selected ? const Color(0xFFEAF4FF) : Colors.white,
-      borderRadius: BorderRadius.circular(999),
+      color: selected ? const Color(0xFFE8F5FF) : Colors.white,
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: Container(
           height: 34,
           padding: const EdgeInsets.symmetric(horizontal: 11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color:
-                  selected ? const Color(0xFFD6E8FF) : const Color(0xFFE5E7EB),
+                  selected ? const Color(0xFFB8E1FF) : const Color(0xFFE1E5EA),
             ),
           ),
           child: Row(
@@ -585,7 +656,7 @@ class _RankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(phone ? 8 : 18);
+    final radius = BorderRadius.circular(8);
     if (phone) {
       return Material(
         color: Colors.white,
@@ -711,9 +782,9 @@ class _RankingCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: phone ? Colors.white : const Color(0xFFF8FAFC),
+            color: Colors.white,
             borderRadius: radius,
-            border: phone ? null : Border.all(color: const Color(0xFFE5E7EB)),
+            border: phone ? null : Border.all(color: const Color(0xFFE1E5EA)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

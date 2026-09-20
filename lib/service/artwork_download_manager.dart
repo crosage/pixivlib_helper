@@ -91,9 +91,38 @@ class ArtworkDownloadBatch {
   bool get hasFailed =>
       tasks.any((task) => task.status == ArtworkDownloadStatus.failed);
 
+  bool get isActive => tasks.any((task) => task.isActive);
+
+  bool get hasCanceled =>
+      tasks.any((task) => task.status == ArtworkDownloadStatus.canceled);
+
   int get completedCount => tasks
       .where((task) => task.status == ArtworkDownloadStatus.completed)
       .length;
+
+  int get canceledCount => tasks
+      .where((task) => task.status == ArtworkDownloadStatus.canceled)
+      .length;
+
+  int get failedCount =>
+      tasks.where((task) => task.status == ArtworkDownloadStatus.failed).length;
+
+  double? get progress {
+    if (tasks.isEmpty) return null;
+    var knownProgress = 0.0;
+    var hasKnownProgress = false;
+    for (final task in tasks) {
+      if (task.status == ArtworkDownloadStatus.completed) {
+        knownProgress += 1;
+        hasKnownProgress = true;
+      } else if (task.totalBytes > 0) {
+        knownProgress +=
+            (task.receivedBytes / task.totalBytes).clamp(0, 1).toDouble();
+        hasKnownProgress = true;
+      }
+    }
+    return hasKnownProgress ? knownProgress / tasks.length : null;
+  }
 
   String get firstSaveDirectory {
     if (tasks.isEmpty) return '';
@@ -125,6 +154,28 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
   List<ArtworkDownloadTask> get tasks => List.unmodifiable(_tasks);
 
+  List<ArtworkDownloadBatch> get batches {
+    final grouped = <String, List<ArtworkDownloadTask>>{};
+    final order = <String>[];
+    for (final task in _tasks) {
+      if (!grouped.containsKey(task.batchId)) {
+        order.add(task.batchId);
+        grouped[task.batchId] = <ArtworkDownloadTask>[];
+      }
+      grouped[task.batchId]!.add(task);
+    }
+    return order.map((id) {
+      final batchTasks = grouped[id]!;
+      return ArtworkDownloadBatch(
+        id: id,
+        pid: batchTasks.first.pid,
+        title: batchTasks.first.title,
+        tasks: List.unmodifiable(batchTasks),
+        createdAt: batchTasks.first.createdAt,
+      );
+    }).toList(growable: false);
+  }
+
   int get activeTaskCount => _tasks.where((task) => task.isActive).length;
 
   int get completedTaskCount => _tasks
@@ -134,6 +185,8 @@ class ArtworkDownloadManager extends ChangeNotifier {
   int get failedTaskCount => _tasks
       .where((task) => task.status == ArtworkDownloadStatus.failed)
       .length;
+
+  int get activeBatchCount => batches.where((batch) => batch.isActive).length;
 
   @override
   void dispose() {
@@ -145,7 +198,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     final pageIds = image.pages.isEmpty
         ? const [0]
         : image.pages.map((page) => page.pageId).toList(growable: false);
-    final downloadDirectory = await _resolveDownloadDirectory(image.pid);
+    final downloadDirectory = await _resolveDownloadDirectory();
     final createdAt = DateTime.now();
     final batchId = '${image.pid}-${createdAt.microsecondsSinceEpoch}';
     final batchTasks = <ArtworkDownloadTask>[];
@@ -193,10 +246,11 @@ class ArtworkDownloadManager extends ChangeNotifier {
   }
 
   void clearFinished() {
-    _tasks.removeWhere((task) =>
-        task.status == ArtworkDownloadStatus.completed ||
-        task.status == ArtworkDownloadStatus.failed ||
-        task.status == ArtworkDownloadStatus.canceled);
+    final completedBatchIds = batches
+        .where((batch) => batch.isCompleted)
+        .map((batch) => batch.id)
+        .toSet();
+    _tasks.removeWhere((task) => completedBatchIds.contains(task.batchId));
     notifyListeners();
   }
 
@@ -223,8 +277,8 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
     task.status = ArtworkDownloadStatus.canceled;
     task.error = null;
-    task.receivedBytes = 0;
-    task.totalBytes = 0;
+    // Leave the partial byte count intact. The retained file is resumed with
+    // an HTTP Range request when the user chooses to continue this task.
     task.publishedUri = null;
     task.visiblePath = null;
 
@@ -232,16 +286,17 @@ class ArtworkDownloadManager extends ChangeNotifier {
     if (token != null && !token.isCancelled) {
       token.cancel('user canceled');
     }
-    _releaseActiveSlot(task);
     notifyListeners();
     _notifyBatchProgress(task.batchId);
     _completeFinishedBatches();
-    _pumpQueue();
+    // The active slot is released in _downloadTask's finally block after Dio
+    // has actually stopped writing, keeping the concurrency limit accurate.
   }
 
   void cancelAllPending() {
     final pending = _tasks
-        .where((task) => task.status == ArtworkDownloadStatus.queued ||
+        .where((task) =>
+            task.status == ArtworkDownloadStatus.queued ||
             task.status == ArtworkDownloadStatus.downloading)
         .toList(growable: false);
     if (pending.isEmpty) {
@@ -292,8 +347,8 @@ class ArtworkDownloadManager extends ChangeNotifier {
   }
 
   void _pumpQueue() {
-    while (_activeTaskIds.length < _maxConcurrentDownloads &&
-        _queue.isNotEmpty) {
+    while (
+        _activeTaskIds.length < _maxConcurrentDownloads && _queue.isNotEmpty) {
       final task = _queue.removeAt(0);
       if (task.status == ArtworkDownloadStatus.canceled) {
         continue;
@@ -301,6 +356,48 @@ class ArtworkDownloadManager extends ChangeNotifier {
       _activeTaskIds.add(task.id);
       unawaited(_downloadTask(task));
     }
+  }
+
+  void cancelBatch(ArtworkDownloadBatch batch) {
+    for (final task in batch.tasks.where((task) => task.isActive)) {
+      cancelTask(task);
+    }
+  }
+
+  void resumeBatch(ArtworkDownloadBatch batch) {
+    final resumable = batch.tasks.where(
+      (task) => task.status == ArtworkDownloadStatus.canceled,
+    );
+    var changed = false;
+    for (final task in resumable) {
+      task.status = ArtworkDownloadStatus.queued;
+      task.error = null;
+      task.publishedUri = null;
+      task.visiblePath = null;
+      _queue.remove(task);
+      _queue.add(task);
+      changed = true;
+    }
+    if (changed) {
+      notifyListeners();
+      _pumpQueue();
+    }
+  }
+
+  void retryBatchFailures(ArtworkDownloadBatch batch) {
+    for (final task in batch.tasks) {
+      if (task.status == ArtworkDownloadStatus.failed) {
+        retryTask(task);
+      }
+    }
+  }
+
+  void removeBatch(ArtworkDownloadBatch batch) {
+    cancelBatch(batch);
+    _tasks.removeWhere((task) => task.batchId == batch.id);
+    _queue.removeWhere((task) => task.batchId == batch.id);
+    _batchProgressWaiters.remove(batch.id);
+    notifyListeners();
   }
 
   Future<void> _downloadTask(ArtworkDownloadTask task) async {
@@ -318,11 +415,10 @@ class ArtworkDownloadManager extends ChangeNotifier {
     try {
       saveFile = File(task.savePath);
       await saveFile.parent.create(recursive: true);
-      if (await saveFile.exists()) {
-        await saveFile.delete();
-      }
+      final existingBytes =
+          await saveFile.exists() ? await saveFile.length() : 0;
       final downloadUrl = proxiedImageUrl(task.sourceUrl);
-      await _dio.download(
+      final response = await _dio.download(
         downloadUrl,
         task.savePath,
         options: Options(
@@ -330,48 +426,80 @@ class ArtworkDownloadManager extends ChangeNotifier {
           followRedirects: true,
           receiveTimeout: const Duration(seconds: 25),
           sendTimeout: const Duration(seconds: 15),
-          headers: imageRequestHeaders(
-            task.sourceUrl,
-            resolvedUrl: downloadUrl,
-          ),
+          headers: {
+            ...?imageRequestHeaders(task.sourceUrl, resolvedUrl: downloadUrl),
+            if (existingBytes > 0) 'Range': 'bytes=$existingBytes-',
+          },
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
         ),
         cancelToken: cancelToken,
+        deleteOnError: false,
+        fileAccessMode:
+            existingBytes > 0 ? FileAccessMode.append : FileAccessMode.write,
         onReceiveProgress: (received, total) {
           if (task.status == ArtworkDownloadStatus.canceled) {
             return;
           }
-          task.receivedBytes = received;
-          task.totalBytes = total;
+          task.receivedBytes = existingBytes + received;
+          task.totalBytes = total > 0 ? existingBytes + total : 0;
           _notifyProgressChanged();
         },
       );
+      if (existingBytes > 0 &&
+          response.statusCode != HttpStatus.partialContent) {
+        // A proxy may ignore Range and return 200. Appending that response
+        // would corrupt the image, so transparently retry this page cleanly.
+        await saveFile.delete();
+        task.receivedBytes = 0;
+        task.totalBytes = 0;
+        await _dio.download(
+          downloadUrl,
+          task.savePath,
+          options: Options(
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+            receiveTimeout: const Duration(seconds: 25),
+            sendTimeout: const Duration(seconds: 15),
+            headers: imageRequestHeaders(
+              task.sourceUrl,
+              resolvedUrl: downloadUrl,
+            ),
+          ),
+          cancelToken: cancelToken,
+          deleteOnError: false,
+          fileAccessMode: FileAccessMode.write,
+          onReceiveProgress: (received, total) {
+            if (task.status == ArtworkDownloadStatus.canceled) return;
+            task.receivedBytes = received;
+            task.totalBytes = total;
+            _notifyProgressChanged();
+          },
+        );
+      }
       if (task.status == ArtworkDownloadStatus.canceled ||
           cancelToken.isCancelled) {
-        await _deletePartialFile(saveFile);
         return;
       }
       await _waitForEarlierBatchTasks(task);
       if (task.status == ArtworkDownloadStatus.canceled ||
           cancelToken.isCancelled) {
-        await _deletePartialFile(saveFile);
         return;
       }
       final publishedUri = await GallerySaver.publishImage(
         sourcePath: task.savePath,
         displayName: path.basename(task.savePath),
-        pid: task.pid,
         mimeType: _mimeTypeForPath(task.savePath),
         dateTaken: _gallerySortTimeForTask(task),
       );
       if (task.status == ArtworkDownloadStatus.canceled ||
           cancelToken.isCancelled) {
-        await _deletePartialFile(saveFile);
         return;
       }
       if (publishedUri != null) {
         task.publishedUri = publishedUri;
         task.visiblePath =
-            'Pictures/PixivHelper/${task.pid}/${path.basename(task.savePath)}';
+            'Pictures/PixivHelper/${path.basename(task.savePath)}';
         try {
           await saveFile.delete();
         } catch (_) {
@@ -382,16 +510,17 @@ class ArtworkDownloadManager extends ChangeNotifier {
       }
       task.status = ArtworkDownloadStatus.completed;
     } catch (error) {
-      final canceled = error is DioException &&
-          error.type == DioExceptionType.cancel;
+      final canceled =
+          error is DioException && error.type == DioExceptionType.cancel;
       if (canceled || cancelToken.isCancelled) {
-        task.status = ArtworkDownloadStatus.canceled;
-        task.error = null;
-        task.receivedBytes = 0;
-        task.totalBytes = 0;
-        task.publishedUri = null;
-        task.visiblePath = null;
-        await _deletePartialFile(saveFile);
+        // A quick tap on "continue" may queue the task before Dio has
+        // finished unwinding the canceled request. Preserve that queued state.
+        if (task.status != ArtworkDownloadStatus.queued) {
+          task.status = ArtworkDownloadStatus.canceled;
+          task.error = null;
+          task.publishedUri = null;
+          task.visiblePath = null;
+        }
       } else {
         task.status = ArtworkDownloadStatus.failed;
         task.error = error;
@@ -408,19 +537,6 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
   void _releaseActiveSlot(ArtworkDownloadTask task) {
     _activeTaskIds.remove(task.id);
-  }
-
-  Future<void> _deletePartialFile(File? saveFile) async {
-    if (saveFile == null) {
-      return;
-    }
-    try {
-      if (await saveFile.exists()) {
-        await saveFile.delete();
-      }
-    } catch (_) {
-      // Best effort cleanup only.
-    }
   }
 
   void removeTask(ArtworkDownloadTask task) {
@@ -505,11 +621,11 @@ class ArtworkDownloadManager extends ChangeNotifier {
     }
   }
 
-  Future<Directory> _resolveDownloadDirectory(int pid) async {
+  Future<Directory> _resolveDownloadDirectory() async {
     if (Platform.isAndroid) {
       final tempDirectory = await getTemporaryDirectory();
       final directory = Directory(
-        path.join(tempDirectory.path, 'PixivHelper', 'downloads', '$pid'),
+        path.join(tempDirectory.path, 'PixivHelper', 'downloads'),
       );
       await directory.create(recursive: true);
       return directory;
@@ -524,8 +640,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
     for (final candidate in candidates) {
       if (candidate == null) continue;
-      final directory =
-          Directory(path.join(candidate.path, 'PixivHelper', '$pid'));
+      final directory = Directory(path.join(candidate.path, 'PixivHelper'));
       try {
         await directory.create(recursive: true);
         return directory;

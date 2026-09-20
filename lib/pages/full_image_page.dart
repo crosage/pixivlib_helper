@@ -197,6 +197,39 @@ class _FullImagePageState extends State<FullImagePage> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  Future<void> _openMobilePageMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('刷新作品详情'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _loadPage(showLoading: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.home_rounded),
+                title: const Text('回到首页'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _goHome();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _copyCurrentImage(String imageUrl) async {
     if (imageUrl.isEmpty || _isImageCopying) {
       return;
@@ -464,25 +497,31 @@ class _FullImagePageState extends State<FullImagePage> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: narrow ? 44 : null,
-        title: narrow
-            ? null
-            : Text(
-                _image.name.isEmpty ? '作品详情' : _image.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-        actions: [
-          IconButton(
-            onPressed: _goHome,
-            icon: const Icon(Icons.home_rounded),
-            tooltip: '回到首页',
-          ),
-          IconButton(
-            onPressed: () => _loadPage(showLoading: true),
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: '刷新详情',
-          ),
-        ],
+        title: Text(
+          narrow ? '作品详情' : (_image.name.isEmpty ? '作品详情' : _image.name),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: narrow
+            ? [
+                IconButton(
+                  onPressed: _openMobilePageMenu,
+                  icon: const Icon(Icons.more_horiz_rounded),
+                  tooltip: '更多',
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: _goHome,
+                  icon: const Icon(Icons.home_rounded),
+                  tooltip: '回到首页',
+                ),
+                IconButton(
+                  onPressed: () => _loadPage(showLoading: true),
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: '刷新详情',
+                ),
+              ],
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: narrow ? 14 : 0),
@@ -875,7 +914,7 @@ class _FullImagePageState extends State<FullImagePage> {
                       SizedBox(height: narrow ? 6 : 14),
                       _Surface(
                         child: _Section(
-                          title: '相关推荐',
+                          title: '基于当前作品的 Pixiv 推荐',
                           trailing: Text(
                             _isRecommendationLoading
                                 ? '加载中'
@@ -1097,7 +1136,7 @@ class _FullImagePageState extends State<FullImagePage> {
             margin: const EdgeInsets.fromLTRB(10, 10, 10, 14),
             padding: const EdgeInsets.fromLTRB(10, 11, 10, 10),
             child: _MobileSectionBlock(
-              title: '相关推荐',
+              title: '基于当前作品的 Pixiv 推荐',
               trailing: _isRecommendationLoading
                   ? '加载中'
                   : '${_recommendations.length}',
@@ -1829,8 +1868,8 @@ class _Surface extends StatelessWidget {
       padding: narrow ? compactPadding : padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(narrow ? 0 : 20),
-        border: narrow ? null : Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(narrow ? 0 : 8),
+        border: narrow ? null : Border.all(color: const Color(0xFFE1E5EA)),
       ),
       child: child,
     );

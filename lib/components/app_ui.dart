@@ -120,7 +120,7 @@ class AppInfoPill extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Padding(
@@ -167,8 +167,17 @@ class AppEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: const Color(0xFF64748B)),
-            const SizedBox(height: 10),
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F5FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 28, color: const Color(0xFF0096FA)),
+            ),
+            const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
@@ -213,12 +222,21 @@ class AppErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              size: 40,
-              color: Color(0xFF64748B),
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEEF1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.cloud_off_rounded,
+                size: 28,
+                color: Color(0xFFE5484D),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Text(
               title,
               textAlign: TextAlign.center,
@@ -247,6 +265,85 @@ class AppErrorState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class AppLoadingGrid extends StatefulWidget {
+  final EdgeInsetsGeometry padding;
+  final int itemCount;
+  final double minTileWidth;
+
+  const AppLoadingGrid({
+    super.key,
+    this.padding = const EdgeInsets.all(12),
+    this.itemCount = 12,
+    this.minTileWidth = 190,
+  });
+
+  @override
+  State<AppLoadingGrid> createState() => _AppLoadingGridState();
+}
+
+class _AppLoadingGridState extends State<AppLoadingGrid>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns =
+            (constraints.maxWidth / widget.minTileWidth).floor().clamp(2, 6);
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final color = Color.lerp(
+              const Color(0xFFE9EDF2),
+              const Color(0xFFF5F7F9),
+              _controller.value,
+            )!;
+            return GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              padding: widget.padding,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: .74,
+              ),
+              itemCount: widget.itemCount,
+              itemBuilder: (_, index) => DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .72),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -351,10 +448,10 @@ class _AppSegmentButton<T> extends StatelessWidget {
     final color = selected ? const Color(0xFF2563EB) : const Color(0xFF64748B);
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(5),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutCubic,
@@ -362,19 +459,10 @@ class _AppSegmentButton<T> extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFEFF6FF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(5),
             border: Border.all(
               color: selected ? const Color(0xFFBFDBFE) : Colors.transparent,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

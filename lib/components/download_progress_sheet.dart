@@ -2,8 +2,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as path;
-import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
 Future<void> showDownloadProgressSheet(BuildContext context) {
@@ -12,88 +10,78 @@ Future<void> showDownloadProgressSheet(BuildContext context) {
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: Colors.white,
-    builder: (context) {
-      return DeferredSheetContent(
-        placeholder: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.42,
-          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-        builder: (_) => const DownloadProgressSheet(),
-      );
-    },
+    builder: (context) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .58,
+      minChildSize: .28,
+      maxChildSize: .92,
+      snap: true,
+      snapSizes: const [.42, .72],
+      builder: (_, scrollController) => DownloadProgressSheet(
+        scrollController: scrollController,
+      ),
+    ),
   );
 }
 
 class DownloadProgressSheet extends StatelessWidget {
-  const DownloadProgressSheet({super.key});
+  final ScrollController? scrollController;
+
+  const DownloadProgressSheet({super.key, this.scrollController});
 
   @override
   Widget build(BuildContext context) {
     final manager = ArtworkDownloadManager.instance;
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.78;
-
     return SafeArea(
       child: AnimatedBuilder(
         animation: manager,
         builder: (context, _) {
-          final tasks = manager.tasks;
-          return ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '下载任务',
+          final batches = manager.batches;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Expanded(
+                      child: Text('下载任务',
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ),
-                      if (manager.failedTaskCount > 0)
-                        TextButton.icon(
-                          onPressed: manager.retryFailedTasks,
-                          icon: const Icon(Icons.refresh_rounded, size: 18),
-                          label: const Text('重试失败'),
-                        ),
-                      if (tasks.any((task) => !task.isActive))
-                        TextButton(
-                          onPressed: manager.clearFinished,
-                          child: const Text('清理完成项'),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '进行中 ${manager.activeTaskCount} · 已完成 ${manager.completedTaskCount} · 失败 ${manager.failedTaskCount}',
-                    style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF111827)))),
+                  if (manager.activeTaskCount > 0)
+                    IconButton(
+                        tooltip: '取消全部下载',
+                        onPressed: manager.cancelAllPending,
+                        icon: const Icon(Icons.stop_circle_outlined)),
+                  if (batches.any((batch) => batch.isCompleted))
+                    IconButton(
+                        tooltip: '清理已结束任务',
+                        onPressed: manager.clearFinished,
+                        icon: const Icon(Icons.delete_sweep_outlined)),
+                ]),
+                const SizedBox(height: 3),
+                Text(
+                  '作品 ${batches.length} · 下载中 ${manager.activeBatchCount} · 已完成 ${manager.completedTaskCount} 张',
+                  style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (tasks.isEmpty)
-                    const _EmptyDownloads()
-                  else
-                    Flexible(
-              child: ListView.separated(
-                        itemCount: tasks.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          return _DownloadTaskTile(task: tasks[index]);
-                        },
-                      ),
-                    ),
-                ],
-              ),
+                      color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 12),
+                if (batches.isEmpty)
+                  const _EmptyDownloads()
+                else
+                  Flexible(
+                      child: ListView.separated(
+                    controller: scrollController,
+                    itemCount: batches.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, index) =>
+                        _DownloadBatchTile(batch: batches[index]),
+                  )),
+              ],
             ),
           );
         },
@@ -104,314 +92,237 @@ class DownloadProgressSheet extends StatelessWidget {
 
 class _EmptyDownloads extends StatelessWidget {
   const _EmptyDownloads();
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: const Column(
-        children: [
-          Icon(Icons.download_done_rounded, size: 34, color: Color(0xFF94A3B8)),
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5E7EB))),
+        child: const Column(children: [
+          Icon(Icons.download_done_rounded, size: 32, color: Color(0xFF94A3B8)),
           SizedBox(height: 8),
-          Text(
-            '还没有下载任务',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF334155),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          Text('还没有下载任务',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700, color: Color(0xFF334155)))
+        ]),
+      );
 }
 
-class _DownloadTaskTile extends StatelessWidget {
-  final ArtworkDownloadTask task;
+class _DownloadBatchTile extends StatefulWidget {
+  final ArtworkDownloadBatch batch;
+  const _DownloadBatchTile({required this.batch});
+  @override
+  State<_DownloadBatchTile> createState() => _DownloadBatchTileState();
+}
 
-  const _DownloadTaskTile({required this.task});
-
+class _DownloadBatchTileState extends State<_DownloadBatchTile> {
+  bool _expanded = false;
   @override
   Widget build(BuildContext context) {
-    final progress = task.progress;
-    final statusText = switch (task.status) {
-      ArtworkDownloadStatus.queued => '等待中',
-      ArtworkDownloadStatus.downloading => progress == null
-          ? '下载中'
-          : '下载中 ${(progress * 100).toStringAsFixed(0)}%',
-      ArtworkDownloadStatus.completed => '已保存',
-      ArtworkDownloadStatus.failed => '失败',
-      ArtworkDownloadStatus.canceled => '已取消',
-    };
-    final statusColor = switch (task.status) {
-      ArtworkDownloadStatus.completed => const Color(0xFF16A34A),
-      ArtworkDownloadStatus.failed => const Color(0xFFE11D48),
-      ArtworkDownloadStatus.canceled => const Color(0xFF94A3B8),
-      ArtworkDownloadStatus.queued => const Color(0xFF64748B),
-      ArtworkDownloadStatus.downloading => const Color(0xFF0A84FF),
-    };
-    final pageText =
-        task.pageCount > 1 ? 'P${task.pageIndex + 1}/${task.pageCount}' : '单图';
-
+    final batch = widget.batch;
+    final status = _statusFor(batch);
+    final progress = batch.progress;
     return Container(
-      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFBFCFE),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE9EEF5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Icon(
-                  _iconForStatus(task.status),
-                  size: 17,
-                  color: statusColor,
-                ),
-              ),
-              const SizedBox(width: 8),
+          color: const Color(0xFFFBFCFE),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE6EBF2))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 8, 10),
+            child: Row(children: [
+              _StatusIcon(status: status),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.15,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(batch.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1E293B))),
                     const SizedBox(height: 3),
                     Text(
-                      '${task.pid} · $pageText · ${_formatBytes(task.receivedBytes, task.totalBytes)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _TaskActionStrip(
-                task: task,
-                statusText: statusText,
-                statusColor: statusColor,
-              ),
-            ],
+                        '${batch.pid} · ${batch.completedCount}/${batch.tasks.length} 张${batch.hasCanceled ? ' · 可继续' : ''}',
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF64748B))),
+                  ])),
+              _BatchMenu(batch: batch),
+              Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  color: const Color(0xFF64748B)),
+            ]),
           ),
-          if (task.status == ArtworkDownloadStatus.downloading ||
-              task.status == ArtworkDownloadStatus.queued) ...[
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                minHeight: 4,
-                value: progress,
-                backgroundColor: const Color(0xFFEFF2F7),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  statusColor.withValues(alpha: 0.9),
-                ),
-              ),
-            ),
-            const SizedBox(height: 7),
-          ] else
-            const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _displayPath(task.visiblePath ?? task.savePath),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF94A3B8),
-                  ),
-                ),
-              ),
-              if (task.status == ArtworkDownloadStatus.completed &&
-                  !Platform.isAndroid)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: '打开所在目录',
-                  onPressed: () => _openParentDirectory(task.savePath),
-                  icon: const Icon(Icons.folder_open_rounded, size: 18),
-                ),
-            ],
+        ),
+        if (batch.isActive)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                    minHeight: 4,
+                    value: progress,
+                    backgroundColor: const Color(0xFFE8EEF6))),
           ),
-          if (task.status == ArtworkDownloadStatus.failed &&
-              task.error != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              task.error.toString(),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFFE11D48),
-              ),
-            ),
-          ],
+        if (_expanded) ...[
+          const Divider(height: 1, color: Color(0xFFE6EBF2)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text('保存到 ${_displayPath(batch.firstSaveDirectory)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+          ),
+          for (final task in batch.tasks) _PageRow(task: task),
+          if (!Platform.isAndroid && batch.completedCount > 0)
+            Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                    onPressed: () => _openDirectory(batch.firstSaveDirectory),
+                    icon: const Icon(Icons.folder_open_rounded, size: 17),
+                    label: const Text('打开文件夹'))),
         ],
-      ),
+      ]),
     );
   }
 
-  IconData _iconForStatus(ArtworkDownloadStatus status) {
-    return switch (status) {
-      ArtworkDownloadStatus.queued => Icons.schedule_rounded,
-      ArtworkDownloadStatus.downloading => Icons.downloading_rounded,
-      ArtworkDownloadStatus.completed => Icons.check_rounded,
-      ArtworkDownloadStatus.failed => Icons.error_outline_rounded,
-      ArtworkDownloadStatus.canceled => Icons.close_rounded,
-    };
-  }
-
-  static String _formatBytes(int received, int total) {
-    if (total <= 0) {
-      return received <= 0 ? '未知大小' : _bytes(received);
-    }
-    return '${_bytes(received)} / ${_bytes(total)}';
-  }
-
-  static String _bytes(int bytes) {
-    if (bytes <= 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    final exp = math.min(
-      (math.log(bytes) / math.log(1024)).floor(),
-      units.length - 1,
-    );
-    final value = bytes / math.pow(1024, exp);
-    return '${value.toStringAsFixed(exp == 0 ? 0 : 1)} ${units[exp]}';
-  }
-
-  static String _displayPath(String savePath) {
-    final directory = path.dirname(savePath);
-    final fileName = path.basename(savePath);
-    return '$directory${Platform.pathSeparator}$fileName';
-  }
-
-  static Future<void> _openParentDirectory(String savePath) async {
-    final directory = path.dirname(savePath);
-    if (Platform.isWindows) {
-      await Process.run('explorer.exe', [directory]);
-      return;
-    }
-    if (Platform.isMacOS) {
-      await Process.run('open', [directory]);
-      return;
-    }
-    if (Platform.isLinux) {
-      await Process.run('xdg-open', [directory]);
-    }
+  _BatchStatus _statusFor(ArtworkDownloadBatch batch) {
+    if (batch.isActive) return _BatchStatus.active;
+    if (batch.hasFailed) return _BatchStatus.failed;
+    if (batch.hasCanceled) return _BatchStatus.canceled;
+    return _BatchStatus.completed;
   }
 }
 
-class _TaskActionStrip extends StatelessWidget {
-  final ArtworkDownloadTask task;
-  final String statusText;
-  final Color statusColor;
-
-  const _TaskActionStrip({
-    required this.task,
-    required this.statusText,
-    required this.statusColor,
-  });
-
+class _BatchMenu extends StatelessWidget {
+  final ArtworkDownloadBatch batch;
+  const _BatchMenu({required this.batch});
   @override
   Widget build(BuildContext context) {
     final manager = ArtworkDownloadManager.instance;
-    final canCancel = task.status == ArtworkDownloadStatus.queued ||
-        task.status == ArtworkDownloadStatus.downloading;
-    final canDelete = task.status == ArtworkDownloadStatus.canceled ||
-        task.status == ArtworkDownloadStatus.failed ||
-        task.status == ArtworkDownloadStatus.completed;
-    final canRetry = task.status == ArtworkDownloadStatus.failed;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          statusText,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            color: statusColor,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Wrap(
-          spacing: 4,
-          children: [
-            if (canCancel)
-              TextButton(
-                onPressed: () => manager.cancelTask(task),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('取消'),
-              ),
-            if (canDelete)
-              TextButton(
-                onPressed: () => manager.removeTask(task),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('删除'),
-              ),
-            if (canRetry)
-              TextButton(
-                onPressed: () => manager.retryTask(task),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('重试'),
-              ),
-          ],
-        ),
+    return PopupMenuButton<_BatchAction>(
+      tooltip: '任务操作',
+      icon: const Icon(Icons.more_horiz_rounded),
+      onSelected: (action) {
+        switch (action) {
+          case _BatchAction.cancel:
+            manager.cancelBatch(batch);
+          case _BatchAction.resume:
+            manager.resumeBatch(batch);
+          case _BatchAction.retry:
+            manager.retryBatchFailures(batch);
+          case _BatchAction.remove:
+            manager.removeBatch(batch);
+        }
+      },
+      itemBuilder: (_) => [
+        if (batch.isActive)
+          const PopupMenuItem(value: _BatchAction.cancel, child: Text('取消下载')),
+        if (batch.hasCanceled)
+          const PopupMenuItem(value: _BatchAction.resume, child: Text('继续下载')),
+        if (batch.hasFailed)
+          const PopupMenuItem(value: _BatchAction.retry, child: Text('重试失败项')),
+        if (!batch.isActive)
+          const PopupMenuItem(value: _BatchAction.remove, child: Text('移除任务')),
       ],
     );
+  }
+}
+
+enum _BatchAction { cancel, resume, retry, remove }
+
+enum _BatchStatus { active, completed, failed, canceled }
+
+class _StatusIcon extends StatelessWidget {
+  final _BatchStatus status;
+  const _StatusIcon({required this.status});
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color) = switch (status) {
+      _BatchStatus.active => (
+          Icons.downloading_rounded,
+          const Color(0xFF2563EB)
+        ),
+      _BatchStatus.completed => (
+          Icons.check_circle_rounded,
+          const Color(0xFF16A34A)
+        ),
+      _BatchStatus.failed => (
+          Icons.error_outline_rounded,
+          const Color(0xFFE11D48)
+        ),
+      _BatchStatus.canceled => (
+          Icons.pause_circle_outline_rounded,
+          const Color(0xFF64748B)
+        ),
+    };
+    return Icon(icon, size: 22, color: color);
+  }
+}
+
+class _PageRow extends StatelessWidget {
+  final ArtworkDownloadTask task;
+  const _PageRow({required this.task});
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (task.status) {
+      ArtworkDownloadStatus.queued => '等待中',
+      ArtworkDownloadStatus.downloading => '下载中',
+      ArtworkDownloadStatus.completed => '已保存',
+      ArtworkDownloadStatus.failed => '失败',
+      ArtworkDownloadStatus.canceled => '已暂停',
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: Row(children: [
+        SizedBox(
+            width: 46,
+            child: Text(task.pageCount > 1 ? 'P${task.pageIndex + 1}' : '单图',
+                style:
+                    const TextStyle(fontSize: 12, color: Color(0xFF64748B)))),
+        Expanded(
+            child: Text(_formatBytes(task.receivedBytes, task.totalBytes),
+                style:
+                    const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)))),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF526176))),
+      ]),
+    );
+  }
+}
+
+String _formatBytes(int received, int total) => total <= 0
+    ? (received == 0 ? '大小未知' : _bytes(received))
+    : '${_bytes(received)} / ${_bytes(total)}';
+String _bytes(int value) {
+  if (value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  final exponent =
+      math.min((math.log(value) / math.log(1024)).floor(), units.length - 1);
+  return '${(value / math.pow(1024, exponent)).toStringAsFixed(exponent == 0 ? 0 : 1)} ${units[exponent]}';
+}
+
+String _displayPath(String value) => value.isEmpty ? 'PixivHelper' : value;
+Future<void> _openDirectory(String directory) async {
+  if (Platform.isWindows) {
+    await Process.run('explorer.exe', [directory]);
+  } else if (Platform.isMacOS) {
+    await Process.run('open', [directory]);
+  } else if (Platform.isLinux) {
+    await Process.run('xdg-open', [directory]);
   }
 }

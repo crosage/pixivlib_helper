@@ -154,7 +154,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
         image: _image,
         onAuthorTap: widget.onAuthorTap,
       ),
-      radius: compact ? 8 : 16,
+      radius: compact ? 6 : 8,
       aspectRatio: _lockedAspectRatio,
     );
   }

@@ -156,7 +156,7 @@ class _GridImageTileState extends State<GridImageTile> {
           ),
         ),
       ),
-      radius: compact ? 8 : 16,
+      radius: compact ? 6 : 8,
       aspectRatio: aspectRatio,
     );
   }

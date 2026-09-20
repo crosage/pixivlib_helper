@@ -23,7 +23,7 @@ class AppImageCard extends StatelessWidget {
     this.topLeft,
     this.topRight,
     this.bottom,
-    this.radius = 16,
+    this.radius = 8,
     this.aspectRatio = 1.0,
     this.onLongPress,
   });

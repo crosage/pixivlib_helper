@@ -30,6 +30,10 @@ class ApiService {
   final Set<String> _avatarRefreshInFlight = <String>{};
   final Map<String, DateTime> _avatarRefreshAttemptedAt = <String, DateTime>{};
   final Map<int, ImageModel> _imageDetailCache = <int, ImageModel>{};
+  final Map<String, _TimedImageList> _followingCache =
+      <String, _TimedImageList>{};
+  final Map<String, Future<List<ImageModel>>> _followingRequests =
+      <String, Future<List<ImageModel>>>{};
 
   static const Set<int> _transientStatusCodes = {408, 429, 500, 502, 503, 504};
   static const Duration _avatarRefreshCooldown = Duration(minutes: 30);
@@ -83,6 +87,39 @@ class ApiService {
   Future<List<ImageModel>> fetchFollowingImages({
     required int page,
     String mode = 'all',
+    bool forceRefresh = false,
+  }) async {
+    final userId = AppUserSession.instance.activeUserId ?? 0;
+    final cacheKey = '$userId:$page:$mode';
+    final cached = _followingCache[cacheKey];
+    if (!forceRefresh &&
+        cached != null &&
+        DateTime.now().difference(cached.createdAt) <
+            const Duration(minutes: 3)) {
+      return List<ImageModel>.of(cached.images);
+    }
+    final inFlight = _followingRequests[cacheKey];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final request = _loadFollowingImages(page: page, mode: mode);
+    _followingRequests[cacheKey] = request;
+    try {
+      final images = await request;
+      _followingCache[cacheKey] = _TimedImageList(
+        images: List<ImageModel>.of(images),
+        createdAt: DateTime.now(),
+      );
+      return images;
+    } finally {
+      _followingRequests.remove(cacheKey);
+    }
+  }
+
+  Future<List<ImageModel>> _loadFollowingImages({
+    required int page,
+    required String mode,
   }) async {
     final payload = await _post('/api/pixiv/image/following', {
       'page': page,
@@ -166,10 +203,10 @@ class ApiService {
     );
   }
 
-  Future<List<String>> fetchTagSuggestions() async {
+  Future<List<String>> fetchTagSuggestions({int limit = 100000}) async {
     final payload = await _post('/api/tag', {
       'page': 1,
-      'size': 100000,
+      'size': limit.clamp(100, 100000),
     });
     return (payload['tags'] as List? ?? [])
         .map((tag) => Map<String, dynamic>.from(tag)['name'] as String? ?? '')
@@ -184,8 +221,9 @@ class ApiService {
         .toList();
   }
 
-  Future<List<Author>> fetchAuthorSuggestions() async {
-    final payload = await _get('/api/author?page=1&size=100000');
+  Future<List<Author>> fetchAuthorSuggestions({int limit = 100000}) async {
+    final payload =
+        await _get('/api/author?page=1&size=${limit.clamp(100, 100000)}');
     final rawAuthors =
         payload['authors'] ?? payload['items'] ?? payload['data'] ?? const [];
     return (rawAuthors as List? ?? const [])
@@ -263,6 +301,7 @@ class ApiService {
     int limit = 30,
     String mode = 'all',
     Iterable<int> seenPids = const [],
+    Iterable<DiscoveryHistorySignal> history = const [],
     SearchCriteria? criteria,
   }) async {
     final queryParameters = <String, String>{
@@ -272,6 +311,14 @@ class ApiService {
     final seen = seenPids.where((pid) => pid > 0).toSet();
     if (seen.isNotEmpty) {
       queryParameters['seen'] = seen.join(',');
+    }
+    final historySignals = history
+        .where((item) => item.pid > 0 && item.visitedAt > 0)
+        .take(48)
+        .map((item) => '${item.pid}:${item.visitedAt}')
+        .join(',');
+    if (historySignals.isNotEmpty) {
+      queryParameters['history'] = historySignals;
     }
     if (criteria != null) {
       void putIfNotEmpty(String key, String value) {
@@ -376,7 +423,21 @@ class ApiService {
     final image =
         ImageModel.fromJson(Map<String, dynamic>.from(payload['image'] ?? {}));
     _scheduleAuthorAvatarRefresh([image]);
+    // Warm the recommendation graph after a like. The backend imports the
+    // returned works (including their tags) asynchronously; this must never
+    // delay or alter the bookmark UI.
+    if (image.pid > 0) {
+      unawaited(_warmRecommendationsAfterBookmark(image.pid));
+    }
     return image;
+  }
+
+  Future<void> _warmRecommendationsAfterBookmark(int pid) async {
+    try {
+      await fetchImageRecommendations(pid, limit: 12);
+    } catch (_) {
+      // Recommendation warming is best-effort and must not affect liking.
+    }
   }
 
   Future<ImageModel> unbookmarkImage(int pid) async {
@@ -723,6 +784,13 @@ class ApiService {
   }
 }
 
+class DiscoveryHistorySignal {
+  final int pid;
+  final int visitedAt;
+
+  const DiscoveryHistorySignal({required this.pid, required this.visitedAt});
+}
+
 class PagedImagesResponse {
   final List<ImageModel> images;
   final int total;
@@ -731,6 +799,13 @@ class PagedImagesResponse {
     required this.images,
     required this.total,
   });
+}
+
+class _TimedImageList {
+  final List<ImageModel> images;
+  final DateTime createdAt;
+
+  const _TimedImageList({required this.images, required this.createdAt});
 }
 
 class PixivConnectionInfo {
