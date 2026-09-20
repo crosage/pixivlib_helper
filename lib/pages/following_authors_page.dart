@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/components/page_bottombar.dart';
 import 'package:tagselector/model/followed_author_model.dart';
@@ -283,7 +284,8 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
                     SizedBox(height: phone ? 4 : 12),
                     Expanded(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: phone ? 0 : 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: phone ? 0 : 12),
                         child: phone
                             ? _buildBody(snapshot, authors, phone: true)
                             : _Surface(
@@ -310,16 +312,13 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
                               totalPages: totalPages,
                               onPageChange: _changePage,
                             )
-                          : _Surface(
-                              padding: EdgeInsets.zero,
-                              child: PageBottomBar(
-                                currentPage: _page,
-                                totalPages: totalPages,
-                                summary: response == null
-                                    ? 'Loading followed authors'
-                                    : 'Page ${authors.length} authors, total ${response.total}',
-                                onPageChange: _changePage,
-                              ),
+                          : PageBottomBar(
+                              currentPage: _page,
+                              totalPages: totalPages,
+                              summary: response == null
+                                  ? '正在加载关注作者'
+                                  : '本页 ${authors.length} 位，共 ${response.total} 位',
+                              onPageChange: _changePage,
                             ),
                     ),
                   ],
@@ -346,7 +345,7 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
   }) {
     if (snapshot.connectionState == ConnectionState.waiting &&
         snapshot.data == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoadingGrid(minTileWidth: 220, itemCount: 10);
     }
 
     if (snapshot.hasError && snapshot.data == null) {
@@ -437,10 +436,10 @@ class _HeaderPanel extends StatelessWidget {
           color: mobileBlue,
         ),
         actions: [
-          MobilePill(
+          MobileIconButton(
             icon: Icons.tune_rounded,
-            label: activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选',
-            selected: activeFilterCount > 0,
+            tooltip:
+                activeFilterCount > 0 ? '筛选 ($activeFilterCount)' : '筛选与排序',
             onTap: onOpenFilters,
           ),
           MobileIconButton(
@@ -449,68 +448,6 @@ class _HeaderPanel extends StatelessWidget {
             onTap: () {
               onRefresh();
             },
-          ),
-        ],
-        bottom: MobileSegmentedControl<FollowedAuthorSortMode>(
-          selected: sortMode,
-          segments: const [
-            MobileSegment(
-              value: FollowedAuthorSortMode.recentWork,
-              label: '最近更新',
-              icon: Icons.bolt_rounded,
-            ),
-            MobileSegment(
-              value: FollowedAuthorSortMode.name,
-              label: '名称',
-              icon: Icons.sort_by_alpha_rounded,
-            ),
-          ],
-          onChanged: onSortChanged,
-        ),
-      );
-    }
-
-    if (phone) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '关注作者',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ),
-              _FlatMetaChip(label: '$totalCount 关注'),
-              const SizedBox(width: 6),
-              _FlatActionButton(
-                icon: Icons.tune_rounded,
-                label: activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选',
-                onTap: onOpenFilters,
-              ),
-              const SizedBox(width: 4),
-              _IconActionButton(
-                icon: Icons.refresh_rounded,
-                onTap: () {
-                  onRefresh();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _FlatMetaChip(label: '当前 $resultCount'),
-              if (sortMode != FollowedAuthorSortMode.recentWork)
-                const _FlatMetaChip(label: '按名称排序'),
-              if (queryController.text.trim().isNotEmpty)
-                _FlatMetaChip(label: queryController.text.trim()),
-            ],
           ),
         ],
       );
@@ -664,17 +601,8 @@ class _AuthorCard extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: Colors.white,
-          border: phone ? null : Border.all(color: const Color(0xFFE5E7EB)),
-          borderRadius: BorderRadius.circular(phone ? 18 : 18),
-          boxShadow: phone
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.035),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
+          border: phone ? null : Border.all(color: const Color(0xFFE1E5EA)),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -1221,34 +1149,6 @@ class _MobileFilterPanel extends StatelessWidget {
   }
 }
 
-class _FlatMetaChip extends StatelessWidget {
-  final String label;
-
-  const _FlatMetaChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
-      ),
-    );
-  }
-}
-
 class _FlatActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1285,34 +1185,6 @@ class _FlatActionButton extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _IconActionButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _IconActionButton({
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Icon(icon, size: 18),
       ),
     );
   }
@@ -1371,13 +1243,13 @@ class _Surface extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         width: double.infinity,
         padding: padding,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE1E5EA)),
         ),
         child: child,
       ),

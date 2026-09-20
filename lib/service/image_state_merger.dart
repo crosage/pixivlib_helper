@@ -8,4 +8,3 @@ ImageModel mergeImageState(ImageModel base, ImageModel updated) {
     needsRefresh: updated.needsRefresh,
   );
 }
-

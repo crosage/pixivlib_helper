@@ -405,7 +405,7 @@ class _AuthorPageState extends State<AuthorPage> {
                             ),
                             const SizedBox(height: 14),
                             AppSurface(
-                              radius: 16,
+                              radius: 8,
                               child: _RecentWorksHeader(
                                 count:
                                     '${_visibleWorkPids(profile).length} / ${_workPids(profile).length}',
@@ -600,7 +600,8 @@ class _AuthorHero extends StatelessWidget {
 
     return AppSurface(
       padding: const EdgeInsets.all(12),
-      radius: 16,
+      color: const Color(0xFFF8FCFF),
+      radius: 8,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
@@ -614,7 +615,7 @@ class _AuthorHero extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Avatar(author: profile.author, radius: compact ? 24 : 34),
+                  _Avatar(author: profile.author, radius: compact ? 27 : 38),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1202,7 +1203,7 @@ class _AuthorRecentWorkCard extends StatelessWidget {
           ),
         ),
       ),
-      radius: compact ? 8 : 16,
+      radius: compact ? 6 : 8,
       aspectRatio: _tileAspectRatio(image),
     );
   }
@@ -1214,7 +1215,6 @@ class _AuthorRecentWorkCard extends StatelessWidget {
     const fallbacks = [0.72, 0.82, 1.0, 1.18, 0.66, 0.92];
     return fallbacks[image.pid.abs() % fallbacks.length];
   }
-
 }
 
 class _TinyMetaPill extends StatelessWidget {

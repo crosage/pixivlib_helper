@@ -34,6 +34,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
   final ApiService _api = ApiService.instance;
 
   late ImageModel _image;
+  late double _lockedAspectRatio;
   bool _isBookmarkSubmitting = false;
   bool _isOriginDownloadStarting = false;
 
@@ -41,6 +42,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
   void initState() {
     super.initState();
     _image = widget.image;
+    _lockedAspectRatio = _tileAspectRatio(widget.image);
   }
 
   @override
@@ -48,6 +50,9 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.image != widget.image) {
       _image = widget.image;
+      if (oldWidget.image.pid != widget.image.pid) {
+        _lockedAspectRatio = _tileAspectRatio(widget.image);
+      }
     }
   }
 
@@ -64,15 +69,6 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
       final mergedImage = mergeImageState(_image, updatedImage);
       setState(() => _image = mergedImage);
       widget.onImageChanged?.call(mergedImage);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            updatedImage.isBookmarked
-                ? '已收藏作品'
-                : '已取消收藏',
-          ),
-        ),
-      );
       if (!wasBookmarked && updatedImage.isBookmarked) {
         widget.onImageBookmarked?.call(mergedImage);
       }
@@ -101,24 +97,21 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
         widget.onImageChanged?.call(image);
       }
 
-      final pageCount = image.pages.isEmpty ? 1 : image.pages.length;
       final batchFuture =
           ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已开始保存 origin，共 $pageCount 张')),
-      );
+      // Download progress is shown by the shared floating download control.
       final batch = await batchFuture;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            batch.hasFailed
-                ? '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功'
-                : '已保存 ${batch.tasks.length} 张 origin 图片',
+      if (batch.hasFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功',
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,8 +154,8 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
         image: _image,
         onAuthorTap: widget.onAuthorTap,
       ),
-      radius: compact ? 8 : 16,
-      aspectRatio: _tileAspectRatio(_image),
+      radius: compact ? 6 : 8,
+      aspectRatio: _lockedAspectRatio,
     );
   }
 

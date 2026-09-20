@@ -11,7 +11,6 @@ class GallerySaver {
   static Future<String?> publishImage({
     required String sourcePath,
     required String displayName,
-    required int pid,
     required String mimeType,
     DateTime? dateTaken,
   }) async {
@@ -22,7 +21,10 @@ class GallerySaver {
     return _channel.invokeMethod<String>('publishImage', {
       'sourcePath': sourcePath,
       'displayName': displayName,
-      'relativePath': 'PixivHelper/$pid',
+      // Keep every artwork in one predictable gallery folder. The pid and
+      // page number are already part of the file name, so subfolders add
+      // clutter without preventing name collisions.
+      'relativePath': 'PixivHelper',
       'mimeType': mimeType,
       if (dateTaken != null)
         'dateTakenMillis': dateTaken.millisecondsSinceEpoch,

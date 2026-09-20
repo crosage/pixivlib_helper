@@ -197,6 +197,39 @@ class _FullImagePageState extends State<FullImagePage> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  Future<void> _openMobilePageMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('刷新作品详情'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _loadPage(showLoading: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.home_rounded),
+                title: const Text('回到首页'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _goHome();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _copyCurrentImage(String imageUrl) async {
     if (imageUrl.isEmpty || _isImageCopying) {
       return;
@@ -205,15 +238,8 @@ class _FullImagePageState extends State<FullImagePage> {
     setState(() => _isImageCopying = true);
     try {
       await NativeImageClipboard.copyNetworkImage(imageUrl);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前图片已复制到剪贴板')),
-      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('复制图片失败: $error')),
-      );
+      // Keep detail browsing quiet; copy errors should not interrupt reading.
     } finally {
       if (mounted) {
         setState(() => _isImageCopying = false);
@@ -239,45 +265,21 @@ class _FullImagePageState extends State<FullImagePage> {
         });
       }
 
-      final pageCount = image.pages.isEmpty ? 1 : image.pages.length;
-      final batchFuture =
-          ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('已开始保存 origin，共 $pageCount 张'),
-          action: SnackBarAction(
-            label: '进度',
-            onPressed: () => showDownloadProgressSheet(context),
-          ),
-        ),
-      );
-
-      final batch = await batchFuture;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            batch.hasFailed
-                ? '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功'
-                : '已保存 ${batch.tasks.length} 张 origin 图片到 Pictures/PixivHelper',
-          ),
-          action: SnackBarAction(
-            label: '进度',
-            onPressed: () => showDownloadProgressSheet(context),
-          ),
-        ),
-      );
+      unawaited(_startDownloadQuietly(image));
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存 origin 失败: $error')),
-      );
+      // The floating download button is the single place for download feedback.
     } finally {
       if (mounted) {
         setState(() => _isOriginDownloadStarting = false);
       }
+    }
+  }
+
+  Future<void> _startDownloadQuietly(ImageModel image) async {
+    try {
+      await ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
+    } catch (_) {
+      // The floating download button is the single place for download feedback.
     }
   }
 
@@ -335,16 +337,8 @@ class _FullImagePageState extends State<FullImagePage> {
       setState(() {
         _image = mergeImageState(_image, updatedImage);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
-        ),
-      );
     } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('收藏操作失败：$error')),
-      );
+      // Avoid transient snackbars on the detail page; button state is restored.
     } finally {
       if (mounted) {
         setState(() => _isBookmarkSubmitting = false);
@@ -503,30 +497,35 @@ class _FullImagePageState extends State<FullImagePage> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         toolbarHeight: narrow ? 44 : null,
-        title: narrow
-            ? null
-            : Text(
-                _image.name.isEmpty ? '作品详情' : _image.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-        actions: [
-          IconButton(
-            onPressed: () => showDownloadProgressSheet(context),
-            icon: const Icon(Icons.downloading_rounded),
-            tooltip: '下载进度',
-          ),
-          IconButton(
-            onPressed: _goHome,
-            icon: const Icon(Icons.home_rounded),
-            tooltip: '回到首页',
-          ),
-          IconButton(
-            onPressed: () => _loadPage(showLoading: true),
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: '刷新详情',
-          ),
-        ],
+        title: Text(
+          narrow ? '作品详情' : (_image.name.isEmpty ? '作品详情' : _image.name),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: narrow
+            ? [
+                IconButton(
+                  onPressed: _openMobilePageMenu,
+                  icon: const Icon(Icons.more_horiz_rounded),
+                  tooltip: '更多',
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: _goHome,
+                  icon: const Icon(Icons.home_rounded),
+                  tooltip: '回到首页',
+                ),
+                IconButton(
+                  onPressed: () => _loadPage(showLoading: true),
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: '刷新详情',
+                ),
+              ],
+      ),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: narrow ? 14 : 0),
+        child: const _DetailDownloadProgressFab(),
       ),
       body: Stack(
         children: [
@@ -915,7 +914,7 @@ class _FullImagePageState extends State<FullImagePage> {
                       SizedBox(height: narrow ? 6 : 14),
                       _Surface(
                         child: _Section(
-                          title: '相关推荐',
+                          title: '基于当前作品的 Pixiv 推荐',
                           trailing: Text(
                             _isRecommendationLoading
                                 ? '加载中'
@@ -1137,7 +1136,7 @@ class _FullImagePageState extends State<FullImagePage> {
             margin: const EdgeInsets.fromLTRB(10, 10, 10, 14),
             padding: const EdgeInsets.fromLTRB(10, 11, 10, 10),
             child: _MobileSectionBlock(
-              title: '相关推荐',
+              title: '基于当前作品的 Pixiv 推荐',
               trailing: _isRecommendationLoading
                   ? '加载中'
                   : '${_recommendations.length}',
@@ -1504,6 +1503,86 @@ class _MobileGroupedCard extends StatelessWidget {
   }
 }
 
+class _DetailDownloadProgressFab extends StatelessWidget {
+  const _DetailDownloadProgressFab();
+
+  @override
+  Widget build(BuildContext context) {
+    final manager = ArtworkDownloadManager.instance;
+    return AnimatedBuilder(
+      animation: manager,
+      builder: (context, _) {
+        final activeCount = manager.activeTaskCount;
+        final totalCount = manager.tasks.length;
+        final foreground =
+            activeCount > 0 ? const Color(0xFF0A84FF) : const Color(0xFF526176);
+
+        return Material(
+          color: Colors.white.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          elevation: 5,
+          shadowColor: Colors.black.withValues(alpha: 0.16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => showDownloadProgressSheet(context),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    activeCount > 0
+                        ? Icons.downloading_rounded
+                        : Icons.file_download_done_rounded,
+                    color: foreground,
+                    size: 24,
+                  ),
+                  if (activeCount > 0)
+                    Positioned.fill(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                        backgroundColor: const Color(0xFFEAF4FF),
+                      ),
+                    ),
+                  if (totalCount > 0)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        height: 17,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: activeCount > 0
+                              ? const Color(0xFF0A84FF)
+                              : const Color(0xFF64748B),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: Text(
+                          activeCount > 0 ? '$activeCount' : '$totalCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _MobileSectionBlock extends StatelessWidget {
   final String title;
   final String? trailing;
@@ -1606,9 +1685,9 @@ class _MobileActionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background =
-        selected ? const Color(0xFFFFE8EF) : const Color(0xFFF2F2F7);
+        selected ? const Color(0xFFFFE8EF) : const Color(0xFFF2F6FC);
     final foreground =
-        selected ? const Color(0xFFFF2D55) : const Color(0xFF111827);
+        selected ? const Color(0xFFFF2D55) : const Color(0xFF475569);
 
     return Material(
       color: background,
@@ -1789,8 +1868,8 @@ class _Surface extends StatelessWidget {
       padding: narrow ? compactPadding : padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(narrow ? 0 : 20),
-        border: narrow ? null : Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(narrow ? 0 : 8),
+        border: narrow ? null : Border.all(color: const Color(0xFFE1E5EA)),
       ),
       child: child,
     );

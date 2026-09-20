@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
 import 'package:tagselector/components/pixiv_mark.dart';
@@ -6,6 +9,7 @@ import 'package:tagselector/pages/image_follow_page.dart';
 import 'package:tagselector/pages/image_index_page.dart';
 import 'package:tagselector/pages/user_page.dart';
 import 'package:tagselector/service/app_user_session.dart';
+import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 
 Future<void> main() async {
@@ -21,81 +25,100 @@ class PixivHelperApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const borderColor = Color(0xFFE5E7EB);
-    const selectedBg = Color(0xFFF3F8FF);
-    const selectedBorder = Color(0xFFD6E8FF);
-    const selectedFg = Color(0xFF3B82F6);
-    const normalFg = Color(0xFF334155);
-    const inkFg = Color(0xFF243B53);
+    const borderColor = Color(0xFFE1E5EA);
+    const selectedBg = Color(0xFFE8F5FF);
+    const selectedBorder = Color(0xFFB8E1FF);
+    const selectedFg = Color(0xFF0077C8);
+    const normalFg = Color(0xFF454B54);
+    const inkFg = Color(0xFF171A1F);
 
     return MaterialApp(
       title: 'Pixiv Helper',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        scaffoldBackgroundColor: const Color(0xFFF4F5F7),
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF2563EB),
-          secondary: inkFg,
+          primary: Color(0xFF0096FA),
+          onPrimary: Colors.white,
+          primaryContainer: Color(0xFFE8F5FF),
+          onPrimaryContainer: Color(0xFF004E80),
+          secondary: Color(0xFFE5484D),
+          onSecondary: Colors.white,
           surface: Colors.white,
+          onSurface: inkFg,
           outline: borderColor,
           outlineVariant: borderColor,
+          error: Color(0xFFC9383E),
         ),
-        iconTheme: const IconThemeData(color: Color(0xFF526176)),
+        dividerColor: borderColor,
+        iconTheme: const IconThemeData(color: Color(0xFF59616C), size: 21),
         appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
           foregroundColor: inkFg,
-          iconTheme: IconThemeData(color: Color(0xFF526176)),
-          actionsIconTheme: IconThemeData(color: Color(0xFF526176)),
+          iconTheme: IconThemeData(color: Color(0xFF59616C)),
+          actionsIconTheme: IconThemeData(color: Color(0xFF59616C)),
+          titleTextStyle: TextStyle(
+            color: inkFg,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         textTheme: const TextTheme(
           headlineMedium: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
             color: inkFg,
           ),
           titleLarge: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
             color: inkFg,
           ),
           titleMedium: TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: inkFg,
           ),
-          bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF334155)),
-          bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF526176)),
+          bodyLarge: TextStyle(fontSize: 14, color: Color(0xFF343A42)),
+          bodyMedium: TextStyle(fontSize: 13, color: Color(0xFF636B76)),
           labelLarge: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: inkFg,
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: const Color(0xFFF8FAFC),
+          fillColor: const Color(0xFFF8F9FA),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 12,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: borderColor),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: borderColor),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF2563EB)),
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF0096FA), width: 1.5),
           ),
         ),
         chipTheme: const ChipThemeData(
           backgroundColor: Color(0xFFF8FAFC),
           selectedColor: selectedBg,
           side: BorderSide(color: borderColor),
-          shape: StadiumBorder(),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(6)),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 6),
           labelStyle: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -136,29 +159,40 @@ class PixivHelperApp extends StatelessWidget {
             textStyle: const WidgetStatePropertyAll(
               TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
+            shape: const WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(6)),
+              ),
+            ),
           ),
         ),
         iconButtonTheme: IconButtonThemeData(
           style: ButtonStyle(
             foregroundColor: const WidgetStatePropertyAll(Color(0xFF526176)),
             overlayColor: WidgetStatePropertyAll(
-              const Color(0xFF3B82F6).withValues(alpha: 0.08),
+              const Color(0xFF0096FA).withValues(alpha: 0.08),
+            ),
+            minimumSize: const WidgetStatePropertyAll(Size(38, 38)),
+            shape: const WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(6)),
+              ),
             ),
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: const WidgetStatePropertyAll(Color(0xFF2563EB)),
+            foregroundColor: const WidgetStatePropertyAll(Colors.white),
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.disabled)) {
                 return const Color(0xFFE2E8F0);
               }
-              return const Color(0xFFEFF6FF);
+              return const Color(0xFF0096FA);
             }),
             side: const WidgetStatePropertyAll(
-              BorderSide(color: Color(0xFFBFDBFE)),
+              BorderSide(color: Color(0xFF0096FA)),
             ),
-            iconColor: const WidgetStatePropertyAll(Color(0xFF3B82F6)),
+            iconColor: const WidgetStatePropertyAll(Colors.white),
             textStyle: const WidgetStatePropertyAll(
               TextStyle(fontWeight: FontWeight.w600),
             ),
@@ -166,7 +200,7 @@ class PixivHelperApp extends StatelessWidget {
         ),
         outlinedButtonTheme: const OutlinedButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: WidgetStatePropertyAll(Color(0xFF3B82F6)),
+            foregroundColor: WidgetStatePropertyAll(Color(0xFF0077C8)),
             side: WidgetStatePropertyAll(
               BorderSide(color: Color(0xFFD6E8FF)),
             ),
@@ -174,7 +208,54 @@ class PixivHelperApp extends StatelessWidget {
         ),
         textButtonTheme: const TextButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: WidgetStatePropertyAll(Color(0xFF3B82F6)),
+            foregroundColor: WidgetStatePropertyAll(Color(0xFF0077C8)),
+          ),
+        ),
+        cardTheme: const CardThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+            side: BorderSide(color: borderColor),
+          ),
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+        popupMenuTheme: const PopupMenuThemeData(
+          color: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Color(0xFF252A31),
+          contentTextStyle: TextStyle(color: Colors.white, fontSize: 13),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+        scrollbarTheme: ScrollbarThemeData(
+          thickness: const WidgetStatePropertyAll(5),
+          radius: const Radius.circular(4),
+          thumbColor: WidgetStatePropertyAll(
+            const Color(0xFF9CA3AF).withValues(alpha: .55),
           ),
         ),
         navigationBarTheme: NavigationBarThemeData(
@@ -249,9 +330,14 @@ class _AppLoadingPage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('正在连接后端...'),
+            PixivMark(size: 48, radius: 8),
+            SizedBox(height: 20),
+            SizedBox(
+              width: 120,
+              child: LinearProgressIndicator(minHeight: 3),
+            ),
+            SizedBox(height: 12),
+            Text('正在连接服务'),
           ],
         ),
       ),
@@ -276,8 +362,8 @@ class _AppStartupErrorPage extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE1E5EA)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -326,6 +412,8 @@ class _AppShell extends StatefulWidget {
 
 class _AppShellState extends State<_AppShell> {
   int _selectedIndex = 0;
+  final Set<int> _visitedPages = <int>{0};
+  Timer? _followingWarmupTimer;
 
   final _pages = const [
     ImageListPage(),
@@ -335,11 +423,49 @@ class _AppShellState extends State<_AppShell> {
   ];
 
   final _navItems = const [
-    _NavItem(icon: Icons.image_outlined, label: '图库'),
-    _NavItem(icon: Icons.favorite_border_rounded, label: '关注'),
-    _NavItem(icon: Icons.auto_graph_rounded, label: '日榜'),
-    _NavItem(icon: Icons.person_outline_rounded, label: '用户'),
+    _NavItem(
+      icon: Icons.photo_library_outlined,
+      selectedIcon: Icons.photo_library_rounded,
+      label: '图库',
+    ),
+    _NavItem(
+      icon: Icons.favorite_border_rounded,
+      selectedIcon: Icons.favorite_rounded,
+      label: '关注',
+    ),
+    _NavItem(
+      icon: Icons.leaderboard_outlined,
+      selectedIcon: Icons.leaderboard_rounded,
+      label: '日榜',
+    ),
+    _NavItem(
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      label: '用户',
+    ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _followingWarmupTimer = Timer(const Duration(milliseconds: 700), () {
+      unawaited(ApiService.instance.fetchFollowingImages(page: 1));
+    });
+  }
+
+  @override
+  void dispose() {
+    _followingWarmupTimer?.cancel();
+    super.dispose();
+  }
+
+  void _selectPage(int index) {
+    if (_selectedIndex == index) return;
+    setState(() {
+      _selectedIndex = index;
+      _visitedPages.add(index);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -350,13 +476,13 @@ class _AppShellState extends State<_AppShell> {
     return Scaffold(
       drawer: compact && !phone
           ? Drawer(
-              backgroundColor: Colors.white,
+              backgroundColor: const Color(0xFF202329),
               child: _NavigationPane(
                 items: _navItems,
                 selectedIndex: _selectedIndex,
                 compact: false,
                 onSelect: (index) {
-                  setState(() => _selectedIndex = index);
+                  _selectPage(index);
                   Navigator.of(context).pop();
                 },
               ),
@@ -374,58 +500,64 @@ class _AppShellState extends State<_AppShell> {
               ],
             )
           : null,
-      floatingActionButton: phone || !compact
-          ? Padding(
-              padding: EdgeInsets.only(bottom: phone ? 74 : 0),
-              child: const _DownloadProgressButton(compact: true),
-            )
-          : null,
       bottomNavigationBar: phone
           ? _MobileBottomNav(
               selectedIndex: _selectedIndex,
               items: _navItems,
               onSelect: (index) {
-                setState(() => _selectedIndex = index);
+                _selectPage(index);
               },
             )
           : null,
-      body: SafeArea(
-        top: phone,
-        left: false,
-        right: false,
-        bottom: false,
-        child: Row(
-          children: [
-            if (!compact)
-              Container(
-                width: 108,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    right: BorderSide(color: Color(0xFFE5E7EB)),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: SafeArea(
+              top: phone,
+              left: false,
+              right: false,
+              bottom: false,
+              child: Row(
+                children: [
+                  if (!compact)
+                    Container(
+                      width: 88,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF202329),
+                        border: Border(
+                          right: BorderSide(color: Color(0xFF30343B)),
+                        ),
+                      ),
+                      child: _NavigationPane(
+                        items: _navItems,
+                        selectedIndex: _selectedIndex,
+                        compact: true,
+                        onSelect: _selectPage,
+                      ),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(phone ? 0 : (compact ? 12 : 16)),
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: [
+                          for (var index = 0; index < _pages.length; index++)
+                            _visitedPages.contains(index)
+                                ? _pages[index]
+                                : const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                child: _NavigationPane(
-                  items: _navItems,
-                  selectedIndex: _selectedIndex,
-                  compact: true,
-                  onSelect: (index) => setState(() => _selectedIndex = index),
-                ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(phone ? 0 : (compact ? 8 : 12)),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 160),
-                  child: KeyedSubtree(
-                    key: ValueKey(_selectedIndex),
-                    child: _pages[_selectedIndex],
-                  ),
-                ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          if (phone || !compact)
+            const Positioned.fill(
+              child: _DraggableDownloadControl(),
+            ),
+        ],
       ),
     );
   }
@@ -495,26 +627,27 @@ class _SessionLoginPageState extends State<_SessionLoginPage> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Container(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE1E5EA)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Session 登录',
-                    style: theme.textTheme.headlineMedium,
+                  Row(
+                    children: [
+                      const PixivMark(size: 42, radius: 8),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '登录 Pixiv Helper',
+                          style: theme.textTheme.headlineMedium,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -643,7 +776,7 @@ class _DownloadProgressButton extends StatelessWidget {
         );
 
         if (compact) {
-          return button;
+          return Tooltip(message: '下载任务（可拖动）', child: button);
         }
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
@@ -651,6 +784,49 @@ class _DownloadProgressButton extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _DraggableDownloadControl extends StatefulWidget {
+  const _DraggableDownloadControl();
+
+  @override
+  State<_DraggableDownloadControl> createState() =>
+      _DraggableDownloadControlState();
+}
+
+class _DraggableDownloadControlState extends State<_DraggableDownloadControl> {
+  Offset? _position;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      const size = 46.0;
+      final maxX = math.max(10.0, constraints.maxWidth - size - 10);
+      final maxY = math.max(10.0, constraints.maxHeight - size - 10);
+      final raw = _position ?? Offset(maxX, maxY);
+      final position = Offset(
+        raw.dx.clamp(10.0, maxX),
+        raw.dy.clamp(10.0, maxY),
+      );
+      return Stack(children: [
+        Positioned(
+          left: position.dx,
+          top: position.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _position = Offset(
+                  (position.dx + details.delta.dx).clamp(10.0, maxX),
+                  (position.dy + details.delta.dy).clamp(10.0, maxY),
+                );
+              });
+            },
+            child: const _DownloadProgressButton(compact: true),
+          ),
+        ),
+      ]);
+    });
   }
 }
 
@@ -669,34 +845,24 @@ class _MobileBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(5, 4, 5, 5),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: const Color(0xFFE8EDF4)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              for (var index = 0; index < items.length; index++)
-                Expanded(
-                  child: _MobileNavItem(
-                    item: items[index],
-                    selected: index == selectedIndex,
-                    onTap: () => onSelect(index),
-                  ),
+      child: Container(
+        height: 58,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFE1E5EA))),
+        ),
+        child: Row(
+          children: [
+            for (var index = 0; index < items.length; index++)
+              Expanded(
+                child: _MobileNavItem(
+                  item: items[index],
+                  selected: index == selectedIndex,
+                  onTap: () => onSelect(index),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -716,34 +882,45 @@ class _MobileNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFF0A84FF) : const Color(0xFF64748B);
+    final color = selected ? const Color(0xFF0096FA) : const Color(0xFF636B76);
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOutCubic,
-          height: 44,
+          height: 48,
           margin: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFFEAF4FF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
+          decoration: const BoxDecoration(color: Colors.transparent),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(item.icon, size: selected ? 21 : 20, color: color),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: selected ? 18 : 0,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0096FA),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Icon(
+                selected ? item.selectedIcon : item.icon,
+                size: 21,
+                color: color,
+              ),
               const SizedBox(height: 2),
               Text(
                 item.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   height: 1,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color: color,
@@ -772,104 +949,101 @@ class _NavigationPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.all(compact ? 10 : 14),
-        child: Column(
-          children: [
-            Container(
-              width: compact ? 52 : double.infinity,
-              height: 52,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+    return ColoredBox(
+      color: const Color(0xFF202329),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 10 : 14),
+          child: Column(
+            children: [
+              Container(
+                width: compact ? 52 : double.infinity,
+                height: 52,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: PixivMark(
+                  size: compact ? 32 : 34,
+                  radius: 10,
+                ),
               ),
-              child: PixivMark(
-                size: compact ? 32 : 34,
-                radius: 10,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.separated(
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final selected = index == selectedIndex;
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => onSelect(index),
-                    child: Ink(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compact ? 8 : 12,
-                        vertical: compact ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? const Color(0xFFF3F8FF)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: selected
-                              ? const Color(0xFFD6E8FF)
-                              : Colors.transparent,
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final selected = index == selectedIndex;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => onSelect(index),
+                      child: Ink(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 8 : 12,
+                          vertical: compact ? 9 : 11,
                         ),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? const Color(0xFF30343B)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: compact
+                            ? Column(
+                                children: [
+                                  Icon(
+                                    selected ? item.selectedIcon : item.icon,
+                                    size: 20,
+                                    color: selected
+                                        ? const Color(0xFF4DB8FF)
+                                        : const Color(0xFFAAB0B9),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    item.label,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: selected
+                                          ? Colors.white
+                                          : const Color(0xFFAAB0B9),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Icon(
+                                    selected ? item.selectedIcon : item.icon,
+                                    size: 20,
+                                    color: selected
+                                        ? const Color(0xFF4DB8FF)
+                                        : const Color(0xFFAAB0B9),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    item.label,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: selected
+                                          ? Colors.white
+                                          : const Color(0xFFAAB0B9),
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
-                      child: compact
-                          ? Column(
-                              children: [
-                                Icon(
-                                  item.icon,
-                                  size: 20,
-                                  color: selected
-                                      ? const Color(0xFF3B82F6)
-                                      : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  item.label,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected
-                                        ? const Color(0xFF3B82F6)
-                                        : const Color(0xFF243B53),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              children: [
-                                Icon(
-                                  item.icon,
-                                  size: 20,
-                                  color: selected
-                                      ? const Color(0xFF3B82F6)
-                                      : const Color(0xFF64748B),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  item.label,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected
-                                        ? const Color(0xFF3B82F6)
-                                        : const Color(0xFF243B53),
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -878,10 +1052,12 @@ class _NavigationPane extends StatelessWidget {
 
 class _NavItem {
   final IconData icon;
+  final IconData selectedIcon;
   final String label;
 
   const _NavItem({
     required this.icon,
+    required this.selectedIcon,
     required this.label,
   });
 }

@@ -5,10 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:tagselector/components/image_with_info.dart';
+import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/components/masonry_image_tile.dart';
 import 'package:tagselector/components/mobile_chrome.dart';
 import 'package:tagselector/components/page_bottombar.dart';
-import 'package:tagselector/components/search_tool.dart';
 import 'package:tagselector/model/author_model.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/pages/author_page.dart';
@@ -44,7 +44,6 @@ class _FollowingPageState extends State<FollowingPage> {
   final ScrollController _scrollController = ScrollController();
   final AppUserSession _session = AppUserSession.instance;
 
-  late Future<List<String>> _tagSuggestionsFuture;
   Future<List<ImageModel>>? _followingFuture;
   final ImagePrefetcher _prefetcher = ImagePrefetcher.instance;
   final Set<int> _bookmarkHydrationInFlight = <int>{};
@@ -67,7 +66,6 @@ class _FollowingPageState extends State<FollowingPage> {
     _scrollController.addListener(_scheduleScrollPrefetch);
     _sourceMode = widget.initialSourceMode;
     _bookmarkRestMode = widget.initialBookmarkRestMode;
-    _tagSuggestionsFuture = _api.fetchTagSuggestions();
     _refreshFollowing();
   }
 
@@ -88,7 +86,7 @@ class _FollowingPageState extends State<FollowingPage> {
     _refreshFollowing();
   }
 
-  void _refreshFollowing() {
+  void _refreshFollowing({bool force = false}) {
     setState(() {
       if (_sourceMode == FollowingSourceMode.bookmarks) {
         _followingFuture = _fetchBookmarkImages(
@@ -100,6 +98,7 @@ class _FollowingPageState extends State<FollowingPage> {
         _followingFuture = _fetchFollowingImages(
           page: _page,
           mode: _feedMode.name,
+          forceRefresh: force,
         );
       }
     });
@@ -122,8 +121,13 @@ class _FollowingPageState extends State<FollowingPage> {
   Future<List<ImageModel>> _fetchFollowingImages({
     required int page,
     required String mode,
+    bool forceRefresh = false,
   }) async {
-    final images = await _api.fetchFollowingImages(page: page, mode: mode);
+    final images = await _api.fetchFollowingImages(
+      page: page,
+      mode: mode,
+      forceRefresh: forceRefresh,
+    );
     _prepareImages(images);
     return images;
   }
@@ -338,7 +342,6 @@ class _FollowingPageState extends State<FollowingPage> {
                 child: MobileSheetSection(
                   child: _FollowSidebar(
                     compact: true,
-                    tagSearch: _buildTagSearch(),
                     activeUserLabel: _session.activeUser?.name ?? '当前会话用户',
                     selectedAuthor: _selectedAuthor,
                     selectedTags: _selectedTags,
@@ -355,17 +358,148 @@ class _FollowingPageState extends State<FollowingPage> {
     );
   }
 
-  Widget _buildTagSearch() {
-    return FutureBuilder<List<String>>(
-      future: _tagSuggestionsFuture,
-      builder: (context, tagSnapshot) {
-        return SearchTool(
-          suggestions: tagSnapshot.data ?? const [],
-          onInclude: _toggleTag,
-          onExclude: _toggleTag,
-          hintText: '添加 tag',
-        );
-      },
+  Future<void> _openViewOptionsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: StatefulBuilder(
+          builder: (context, setSheetState) {
+            void refreshSheet(VoidCallback change, {bool reload = false}) {
+              setState(change);
+              setSheetState(() {});
+              if (reload) _refreshFollowing();
+            }
+
+            Widget option({
+              required IconData icon,
+              required String label,
+              required bool selected,
+              required VoidCallback onTap,
+            }) {
+              return ListTile(
+                dense: true,
+                leading: Icon(icon, size: 20),
+                title: Text(label),
+                trailing: selected
+                    ? const Icon(Icons.check_rounded, color: Color(0xFF0096FA))
+                    : null,
+                selected: selected,
+                onTap: onTap,
+              );
+            }
+
+            return ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              children: [
+                Text('浏览设置', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                const _SheetLabel('内容来源'),
+                option(
+                  icon: Icons.favorite_outline_rounded,
+                  label: '关注动态',
+                  selected: _sourceMode == FollowingSourceMode.following,
+                  onTap: () => refreshSheet(() {
+                    _sourceMode = FollowingSourceMode.following;
+                    _page = 1;
+                  }, reload: true),
+                ),
+                option(
+                  icon: Icons.bookmarks_outlined,
+                  label: '收藏作品',
+                  selected: _sourceMode == FollowingSourceMode.bookmarks,
+                  onTap: () => refreshSheet(() {
+                    _sourceMode = FollowingSourceMode.bookmarks;
+                    _page = 1;
+                  }, reload: true),
+                ),
+                if (_sourceMode == FollowingSourceMode.bookmarks) ...[
+                  const Divider(),
+                  const _SheetLabel('收藏范围'),
+                  option(
+                    icon: Icons.lock_outline_rounded,
+                    label: '私有收藏',
+                    selected: _bookmarkRestMode == BookmarkRestMode.hide,
+                    onTap: () => refreshSheet(() {
+                      _bookmarkRestMode = BookmarkRestMode.hide;
+                      _page = 1;
+                    }, reload: true),
+                  ),
+                  option(
+                    icon: Icons.public_rounded,
+                    label: '公开收藏',
+                    selected: _bookmarkRestMode == BookmarkRestMode.show,
+                    onTap: () => refreshSheet(() {
+                      _bookmarkRestMode = BookmarkRestMode.show;
+                      _page = 1;
+                    }, reload: true),
+                  ),
+                ],
+                const Divider(),
+                const _SheetLabel('内容分级'),
+                option(
+                  icon: Icons.layers_outlined,
+                  label: '全部内容',
+                  selected: _feedMode == FollowingFeedMode.all,
+                  onTap: () => refreshSheet(() {
+                    _feedMode = FollowingFeedMode.all;
+                    _page = 1;
+                  }, reload: true),
+                ),
+                option(
+                  icon: Icons.shield_outlined,
+                  label: 'Safe',
+                  selected: _feedMode == FollowingFeedMode.safe,
+                  onTap: () => refreshSheet(() {
+                    _feedMode = FollowingFeedMode.safe;
+                    _page = 1;
+                  }, reload: true),
+                ),
+                option(
+                  icon: Icons.explicit_outlined,
+                  label: 'R18',
+                  selected: _feedMode == FollowingFeedMode.r18,
+                  onTap: () => refreshSheet(() {
+                    _feedMode = FollowingFeedMode.r18;
+                    _page = 1;
+                  }, reload: true),
+                ),
+                const Divider(),
+                const _SheetLabel('显示方式'),
+                option(
+                  icon: Icons.grid_view_rounded,
+                  label: '网格',
+                  selected: _displayMode == FollowingDisplayMode.grid,
+                  onTap: () => refreshSheet(
+                    () => _displayMode = FollowingDisplayMode.grid,
+                  ),
+                ),
+                option(
+                  icon: Icons.view_agenda_outlined,
+                  label: '列表',
+                  selected: _displayMode == FollowingDisplayMode.list,
+                  onTap: () => refreshSheet(
+                    () => _displayMode = FollowingDisplayMode.list,
+                  ),
+                ),
+                if (_activeFilterCount > 0) ...[
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.filter_alt_off_outlined),
+                    title: const Text('清除作品筛选'),
+                    subtitle: Text('当前 $_activeFilterCount 个条件'),
+                    onTap: () {
+                      _clearMobileFilters();
+                      setSheetState(() {});
+                    },
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -387,8 +521,6 @@ class _FollowingPageState extends State<FollowingPage> {
           builder: (context, constraints) {
             final phone = constraints.maxWidth < 720;
             final showSidebar = constraints.maxWidth >= 1040;
-            final tagSearch = _buildTagSearch();
-
             final content = Column(
               children: [
                 Expanded(
@@ -435,7 +567,8 @@ class _FollowingPageState extends State<FollowingPage> {
                                 onDisplayModeChanged: (mode) {
                                   setState(() => _displayMode = mode);
                                 },
-                                onRefresh: _refreshFollowing,
+                                onRefresh: () => _refreshFollowing(force: true),
+                                onOpenViewOptions: _openViewOptionsSheet,
                                 onOpenFilters: _openFilterSheet,
                                 onRemoveTag: _toggleTag,
                                 onClearAuthor: _clearSelectedAuthor,
@@ -463,7 +596,6 @@ class _FollowingPageState extends State<FollowingPage> {
                           width: 220,
                           child: _FollowSidebar(
                             compact: false,
-                            tagSearch: tagSearch,
                             activeUserLabel:
                                 _session.activeUser?.name ?? '当前会话用户',
                             selectedAuthor: _selectedAuthor,
@@ -485,16 +617,13 @@ class _FollowingPageState extends State<FollowingPage> {
                     onPageChange: _changePage,
                   )
                 else
-                  _Surface(
-                    padding: EdgeInsets.zero,
-                    child: PageBottomBar(
-                      currentPage: _page,
-                      canGoNext: rawImages.isNotEmpty,
-                      onPageChange: _changePage,
-                      summary: snapshot.hasError
-                          ? '加载失败: ${snapshot.error}'
-                          : '${images.length} 条结果',
-                    ),
+                  PageBottomBar(
+                    currentPage: _page,
+                    canGoNext: rawImages.isNotEmpty,
+                    onPageChange: _changePage,
+                    summary: snapshot.hasError
+                        ? '加载失败: ${snapshot.error}'
+                        : '${images.length} 条结果',
                   ),
               ],
             );
@@ -518,7 +647,13 @@ class _FollowingPageState extends State<FollowingPage> {
   }) {
     if (snapshot.connectionState == ConnectionState.waiting &&
         snapshot.data == null) {
-      return const Center(child: CircularProgressIndicator());
+      return AppLoadingGrid(
+        padding: EdgeInsets.symmetric(
+          horizontal: phone ? 6 : 10,
+          vertical: phone ? 2 : 10,
+        ),
+        minTileWidth: phone ? 176 : 230,
+      );
     }
 
     if (snapshot.hasError && images.isEmpty) {
@@ -604,6 +739,7 @@ class _TopPanel extends StatelessWidget {
   final ValueChanged<FollowingFeedMode> onFeedModeChanged;
   final ValueChanged<FollowingDisplayMode> onDisplayModeChanged;
   final VoidCallback onRefresh;
+  final VoidCallback onOpenViewOptions;
   final VoidCallback onOpenFilters;
   final ValueChanged<String> onRemoveTag;
   final VoidCallback onClearAuthor;
@@ -623,6 +759,7 @@ class _TopPanel extends StatelessWidget {
     required this.onFeedModeChanged,
     required this.onDisplayModeChanged,
     required this.onRefresh,
+    required this.onOpenViewOptions,
     required this.onOpenFilters,
     required this.onRemoveTag,
     required this.onClearAuthor,
@@ -632,7 +769,9 @@ class _TopPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     if (phone) {
       final subtitle = [
-        '$resultCount 个作品',
+        sourceMode == FollowingSourceMode.bookmarks
+            ? 'Pixiv 收藏 · $resultCount 个作品'
+            : 'Pixiv 关注动态 · $resultCount 个作品',
         if (selectedAuthor.isNotEmpty) selectedAuthor,
         if (selectedTags.isNotEmpty) '${selectedTags.length} 个标签',
       ].join(' · ');
@@ -647,11 +786,10 @@ class _TopPanel extends StatelessWidget {
           color: mobileBlue,
         ),
         actions: [
-          MobilePill(
+          MobileIconButton(
             icon: Icons.tune_rounded,
-            label: activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选',
-            selected: activeFilterCount > 0,
-            onTap: onOpenFilters,
+            tooltip: '浏览设置',
+            onTap: onOpenViewOptions,
           ),
           MobileIconButton(
             icon: Icons.refresh_rounded,
@@ -659,58 +797,6 @@ class _TopPanel extends StatelessWidget {
             onTap: onRefresh,
           ),
         ],
-        bottom: MobileToolbarRow(
-          children: [
-            MobileSegmentedControl<FollowingSourceMode>(
-              selected: sourceMode,
-              segments: const [
-                MobileSegment(
-                  value: FollowingSourceMode.following,
-                  label: '关注',
-                ),
-                MobileSegment(
-                  value: FollowingSourceMode.bookmarks,
-                  label: '收藏',
-                ),
-              ],
-              onChanged: onSourceModeChanged,
-            ),
-            if (sourceMode == FollowingSourceMode.bookmarks)
-              MobileSegmentedControl<BookmarkRestMode>(
-                selected: bookmarkRestMode,
-                segments: const [
-                  MobileSegment(value: BookmarkRestMode.hide, label: '私有'),
-                  MobileSegment(value: BookmarkRestMode.show, label: '公开'),
-                ],
-                onChanged: onBookmarkRestModeChanged,
-              ),
-            MobileSegmentedControl<FollowingFeedMode>(
-              selected: feedMode,
-              segments: const [
-                MobileSegment(value: FollowingFeedMode.all, label: '全部'),
-                MobileSegment(value: FollowingFeedMode.safe, label: 'Safe'),
-                MobileSegment(value: FollowingFeedMode.r18, label: 'R18'),
-              ],
-              onChanged: onFeedModeChanged,
-            ),
-            MobileSegmentedControl<FollowingDisplayMode>(
-              selected: displayMode,
-              segments: const [
-                MobileSegment(
-                  value: FollowingDisplayMode.list,
-                  label: '列表',
-                  icon: Icons.view_agenda_rounded,
-                ),
-                MobileSegment(
-                  value: FollowingDisplayMode.grid,
-                  label: '网格',
-                  icon: Icons.grid_view_rounded,
-                ),
-              ],
-              onChanged: onDisplayModeChanged,
-            ),
-          ],
-        ),
       );
     }
 
@@ -719,99 +805,118 @@ class _TopPanel extends StatelessWidget {
       children: [
         Row(
           children: [
-            _SoftChip(label: '$resultCount'),
-            const SizedBox(width: 8),
-            SegmentedButton<FollowingSourceMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: FollowingSourceMode.following,
-                  label: Text('关注'),
-                ),
-                ButtonSegment(
-                  value: FollowingSourceMode.bookmarks,
-                  label: Text('收藏'),
-                ),
-              ],
-              selected: {sourceMode},
-              onSelectionChanged: (values) => onSourceModeChanged(values.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: sourceMode == FollowingSourceMode.bookmarks
+                    ? const Color(0xFFFFEEF1)
+                    : const Color(0xFFE8F5FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                sourceMode == FollowingSourceMode.bookmarks
+                    ? Icons.bookmarks_rounded
+                    : Icons.favorite_outline_rounded,
+                color: sourceMode == FollowingSourceMode.bookmarks
+                    ? const Color(0xFFE5484D)
+                    : const Color(0xFF0096FA),
+                size: 21,
               ),
             ),
-            if (sourceMode == FollowingSourceMode.bookmarks) ...[
-              const SizedBox(width: 8),
-              SegmentedButton<BookmarkRestMode>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(
-                    value: BookmarkRestMode.hide,
-                    label: Text('私有'),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sourceMode == FollowingSourceMode.bookmarks
+                        ? '收藏作品'
+                        : '关注动态',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  ButtonSegment(
-                    value: BookmarkRestMode.show,
-                    label: Text('公开'),
+                  const SizedBox(height: 2),
+                  Text(
+                    sourceMode == FollowingSourceMode.bookmarks
+                        ? 'Pixiv 当前账户收藏的作品'
+                        : 'Pixiv 关注作者最近发布的作品',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
-                selected: {bookmarkRestMode},
-                onSelectionChanged: (values) =>
-                    onBookmarkRestModeChanged(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
-            ],
-            const SizedBox(width: 8),
-            SegmentedButton<FollowingFeedMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: FollowingFeedMode.all,
-                  label: Text('全部'),
-                ),
-                ButtonSegment(
-                  value: FollowingFeedMode.safe,
-                  label: Text('Safe'),
-                ),
-                ButtonSegment(
-                  value: FollowingFeedMode.r18,
-                  label: Text('R18'),
-                ),
-              ],
-              selected: {feedMode},
-              onSelectionChanged: (values) => onFeedModeChanged(values.first),
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
-            const Spacer(),
-            SegmentedButton<FollowingDisplayMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
+            _SoftChip(label: '$resultCount 项'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Divider(height: 1),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _PillToggle<FollowingSourceMode>(
+              value: sourceMode,
+              options: const [
+                _PillOption(
+                  value: FollowingSourceMode.following,
+                  label: '关注',
+                  icon: Icons.favorite_rounded,
+                ),
+                _PillOption(
+                  value: FollowingSourceMode.bookmarks,
+                  label: '收藏',
+                  icon: Icons.bookmarks_rounded,
+                ),
+              ],
+              onChanged: onSourceModeChanged,
+            ),
+            if (sourceMode == FollowingSourceMode.bookmarks)
+              _PillToggle<BookmarkRestMode>(
+                value: bookmarkRestMode,
+                options: const [
+                  _PillOption(value: BookmarkRestMode.hide, label: '私有'),
+                  _PillOption(value: BookmarkRestMode.show, label: '公开'),
+                ],
+                onChanged: onBookmarkRestModeChanged,
+              ),
+            _PillToggle<FollowingFeedMode>(
+              value: feedMode,
+              options: const [
+                _PillOption(value: FollowingFeedMode.all, label: '全部'),
+                _PillOption(value: FollowingFeedMode.safe, label: 'Safe'),
+                _PillOption(value: FollowingFeedMode.r18, label: 'R18'),
+              ],
+              onChanged: onFeedModeChanged,
+            ),
+            _PillToggle<FollowingDisplayMode>(
+              value: displayMode,
+              options: const [
+                _PillOption(
                   value: FollowingDisplayMode.list,
-                  label: Text('列表'),
-                  icon: Icon(Icons.view_agenda_rounded),
+                  label: '列表',
+                  icon: Icons.view_agenda_rounded,
                 ),
-                ButtonSegment(
+                _PillOption(
                   value: FollowingDisplayMode.grid,
-                  label: Text('网格'),
-                  icon: Icon(Icons.grid_view_rounded),
+                  label: '网格',
+                  icon: Icons.grid_view_rounded,
                 ),
               ],
-              selected: {displayMode},
-              onSelectionChanged: (values) {
-                onDisplayModeChanged(values.first);
-              },
+              onChanged: onDisplayModeChanged,
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
+            _PillAction(
+              icon: Icons.tune_rounded,
+              label: activeFilterCount > 0 ? '筛选 $activeFilterCount' : '筛选',
+              selected: activeFilterCount > 0,
+              onTap: onOpenFilters,
+            ),
+            _IconPillAction(
+              icon: Icons.refresh_rounded,
               tooltip: '刷新',
+              onTap: onRefresh,
             ),
           ],
         ),
@@ -857,7 +962,6 @@ class _TopPanel extends StatelessWidget {
 
 class _FollowSidebar extends StatelessWidget {
   final bool compact;
-  final Widget tagSearch;
   final String activeUserLabel;
   final String selectedAuthor;
   final List<String> selectedTags;
@@ -867,7 +971,6 @@ class _FollowSidebar extends StatelessWidget {
 
   const _FollowSidebar({
     required this.compact,
-    required this.tagSearch,
     required this.activeUserLabel,
     required this.selectedAuthor,
     required this.selectedTags,
@@ -917,8 +1020,6 @@ class _FollowSidebar extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        tagSearch,
-        const SizedBox(height: 10),
         _InlineLabel(
           label: '作者',
           trailing: selectedAuthor.isEmpty
@@ -966,13 +1067,12 @@ class _Surface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 640;
     return Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(compact ? 12 : 16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: child,
@@ -990,13 +1090,194 @@ class _SoftChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: const Color(0xFFF4F5F7),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE1E5EA)),
       ),
       child: Text(
         label,
         style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _PillOption<T> {
+  final T value;
+  final String label;
+  final IconData? icon;
+
+  const _PillOption({
+    required this.value,
+    required this.label,
+    this.icon,
+  });
+}
+
+class _PillToggle<T> extends StatelessWidget {
+  final T value;
+  final List<_PillOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  const _PillToggle({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F5F7),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE1E5EA)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final option in options)
+            _PillToggleItem<T>(
+              option: option,
+              selected: option.value == value,
+              onTap: () => onChanged(option.value),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PillToggleItem<T> extends StatelessWidget {
+  final _PillOption<T> option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PillToggleItem({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        selected ? const Color(0xFF0077C8) : const Color(0xFF636B76);
+    return InkWell(
+      borderRadius: BorderRadius.circular(5),
+      onTap: selected ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFE8F5FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: selected ? const Color(0xFFB8E1FF) : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (option.icon != null) ...[
+              Icon(option.icon, size: 14, color: foreground),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              option.label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PillAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PillAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        selected ? const Color(0xFF0077C8) : const Color(0xFF454B54);
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFE8F5FF) : const Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: selected ? const Color(0xFFB8E1FF) : const Color(0xFFE1E5EA),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: foreground),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconPillAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _IconPillAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F9FA),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE1E5EA)),
+          ),
+          child: Icon(icon, size: 17, color: const Color(0xFF475569)),
+        ),
       ),
     );
   }
@@ -1056,6 +1337,25 @@ class _InlineLabel extends StatelessWidget {
         const Spacer(),
         if (trailing != null) trailing!,
       ],
+    );
+  }
+}
+
+class _SheetLabel extends StatelessWidget {
+  final String text;
+
+  const _SheetLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: const Color(0xFF636B76),
+            ),
+      ),
     );
   }
 }

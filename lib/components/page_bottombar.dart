@@ -21,19 +21,14 @@ class PageBottomBar extends StatefulWidget {
 }
 
 class _PageBottomBarState extends State<PageBottomBar> {
-  late final TextEditingController _controller;
+  late final TextEditingController _controller =
+      TextEditingController(text: '${widget.currentPage}');
 
   @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.currentPage.toString());
-  }
-
-  @override
-  void didUpdateWidget(PageBottomBar oldWidget) {
+  void didUpdateWidget(covariant PageBottomBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.currentPage != oldWidget.currentPage) {
-      _controller.text = widget.currentPage.toString();
+    if (oldWidget.currentPage != widget.currentPage) {
+      _controller.text = '${widget.currentPage}';
     }
   }
 
@@ -45,295 +40,171 @@ class _PageBottomBarState extends State<PageBottomBar> {
 
   @override
   Widget build(BuildContext context) {
-    final hasKnownTotal = widget.totalPages != null;
-    final canGoNext = hasKnownTotal
-        ? widget.currentPage < widget.totalPages!
-        : widget.canGoNext;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 640;
-
-        if (compact) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(6, 2, 6, 7),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE8EDF4)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: _PageControls(
-                  controller: _controller,
-                  currentPage: widget.currentPage,
-                  totalPages: widget.totalPages,
-                  canGoNext: canGoNext,
-                  compact: compact,
-                  onPageChange: widget.onPageChange,
-                ),
+    final canNext = widget.totalPages == null
+        ? widget.canGoNext
+        : widget.currentPage < widget.totalPages!;
+    return LayoutBuilder(builder: (context, constraints) {
+      final compact = constraints.maxWidth < 640;
+      return Container(
+        height: compact ? 50 : 54,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE1E5EA)),
+          borderRadius: BorderRadius.circular(compact ? 0 : 8),
+        ),
+        child: Row(children: [
+          if (!compact && widget.summary?.isNotEmpty == true)
+            Expanded(
+              child: Text(
+                widget.summary!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Color(0xFF636B76)),
               ),
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.summary != null)
-                _SummaryPill(summary: widget.summary!),
-              if (widget.summary != null) const SizedBox(width: 8),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.96),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE8EDF4)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 4,
-                  ),
-                  child: _PageControls(
-                    controller: _controller,
-                    currentPage: widget.currentPage,
-                    totalPages: widget.totalPages,
-                    canGoNext: canGoNext,
-                    compact: compact,
-                    onPageChange: widget.onPageChange,
-                  ),
-                ),
-              ),
-            ],
+            )
+          else
+            const Spacer(),
+          _PageButton(
+            icon: Icons.arrow_back_rounded,
+            label: compact ? null : '上一页',
+            enabled: widget.currentPage > 1,
+            onTap: () => widget.onPageChange(widget.currentPage - 1),
           ),
-        );
-      },
-    );
+          const SizedBox(width: 6),
+          _CurrentPageButton(
+            currentPage: widget.currentPage,
+            totalPages: widget.totalPages,
+            controller: _controller,
+            onPageChange: widget.onPageChange,
+          ),
+          const SizedBox(width: 6),
+          _PageButton(
+            icon: Icons.arrow_forward_rounded,
+            label: compact ? null : '下一页',
+            enabled: canNext,
+            onTap: () => widget.onPageChange(widget.currentPage + 1),
+          ),
+          const Spacer(),
+        ]),
+      );
+    });
   }
 }
 
-class _SummaryPill extends StatelessWidget {
-  final String summary;
+class _PageButton extends StatelessWidget {
+  final IconData icon;
+  final String? label;
+  final bool enabled;
+  final VoidCallback onTap;
 
-  const _SummaryPill({required this.summary});
+  const _PageButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 220),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFFE8EDF4)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          child: Text(
-            summary,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
-            ),
+    final foreground =
+        enabled ? const Color(0xFF343A42) : const Color(0xFFADB3BC);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          height: 34,
+          padding: EdgeInsets.symmetric(horizontal: label == null ? 8 : 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE1E5EA)),
+            borderRadius: BorderRadius.circular(6),
           ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 17, color: foreground),
+            if (label != null) ...[
+              const SizedBox(width: 6),
+              Text(label!,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: foreground)),
+            ],
+          ]),
         ),
       ),
     );
   }
 }
 
-class _PageControls extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<int> onPageChange;
+class _CurrentPageButton extends StatelessWidget {
   final int currentPage;
   final int? totalPages;
-  final bool canGoNext;
-  final bool compact;
+  final TextEditingController controller;
+  final ValueChanged<int> onPageChange;
 
-  const _PageControls({
-    required this.controller,
-    required this.onPageChange,
+  const _CurrentPageButton({
     required this.currentPage,
     required this.totalPages,
-    required this.canGoNext,
-    required this.compact,
+    required this.controller,
+    required this.onPageChange,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _PagerIconButton(
-          icon: Icons.chevron_left_rounded,
-          enabled: currentPage > 1,
-          compact: compact,
-          onTap: () => onPageChange(currentPage - 1),
-        ),
-        SizedBox(width: compact ? 2 : 4),
-        _PageIndicatorButton(
-          controller: controller,
-          currentPage: currentPage,
-          totalPages: totalPages,
-          compact: compact,
-          onPageChange: onPageChange,
-        ),
-        SizedBox(width: compact ? 2 : 4),
-        _PagerIconButton(
-          icon: Icons.chevron_right_rounded,
-          enabled: canGoNext,
-          compact: compact,
-          onTap: () => onPageChange(currentPage + 1),
-        ),
-      ],
-    );
-  }
-}
-
-class _PageIndicatorButton extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<int> onPageChange;
-  final int currentPage;
-  final int? totalPages;
-  final bool compact;
-
-  const _PageIndicatorButton({
-    required this.controller,
-    required this.onPageChange,
-    required this.currentPage,
-    required this.totalPages,
-    required this.compact,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final hasKnownTotal = totalPages != null;
-    final label = hasKnownTotal
-        ? '$currentPage / $totalPages'
-        : '\u7b2c $currentPage \u9875';
-
+    final label =
+        totalPages == null ? '第 $currentPage 页' : '$currentPage / $totalPages';
     return Material(
-      color: const Color(0xFFF9FAFB),
-      borderRadius: BorderRadius.circular(999),
+      color: const Color(0xFFE8F5FF),
+      borderRadius: BorderRadius.circular(6),
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(6),
         onTap: () => _showJumpDialog(context),
         child: Container(
-          height: compact ? 30 : 36,
-          constraints: BoxConstraints(minWidth: compact ? 50 : 64),
-          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 11),
+          height: 34,
+          constraints: const BoxConstraints(minWidth: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: compact ? 12 : 13,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF111827),
-            ),
-          ),
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0077C8))),
         ),
       ),
     );
   }
 
   Future<void> _showJumpDialog(BuildContext context) async {
-    controller.text = currentPage.toString();
+    controller.text = '$currentPage';
     final nextPage = await showDialog<int>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('\u8df3\u8f6c\u9875\u7801'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              hintText: totalPages == null ? '\u9875\u7801' : '1 - $totalPages',
-            ),
-            onSubmitted: (value) {
-              Navigator.of(context).pop(int.tryParse(value));
-            },
-          ),
-          actions: [
-            TextButton(
+      builder: (context) => AlertDialog(
+        title: const Text('跳转页码'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+              hintText: totalPages == null ? '页码' : '1 - $totalPages'),
+          onSubmitted: (value) =>
+              Navigator.of(context).pop(int.tryParse(value)),
+        ),
+        actions: [
+          TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('\u53d6\u6d88'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(int.tryParse(controller.text));
-              },
-              child: const Text('\u8df3\u8f6c'),
-            ),
-          ],
-        );
-      },
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(int.tryParse(controller.text)),
+              child: const Text('跳转')),
+        ],
+      ),
     );
     if (nextPage == null || nextPage < 1) return;
     if (totalPages != null && nextPage > totalPages!) return;
     onPageChange(nextPage);
-  }
-}
-
-class _PagerIconButton extends StatelessWidget {
-  final IconData icon;
-  final bool enabled;
-  final bool compact;
-  final VoidCallback onTap;
-
-  const _PagerIconButton({
-    required this.icon,
-    required this.enabled,
-    required this.compact,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: enabled ? const Color(0xFFF9FAFB) : const Color(0xFFF3F4F6),
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: enabled ? onTap : null,
-        child: SizedBox(
-          width: compact ? 30 : 36,
-          height: compact ? 30 : 36,
-          child: Icon(
-            icon,
-            size: compact ? 18 : 19,
-            color: enabled ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
-          ),
-        ),
-      ),
-    );
   }
 }

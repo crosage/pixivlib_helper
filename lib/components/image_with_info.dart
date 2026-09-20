@@ -75,11 +75,6 @@ class _ImageWithInfoState extends State<ImageWithInfo> {
       final mergedImage = mergeImageState(_image, updatedImage);
       setState(() => _image = mergedImage);
       widget.onImageChanged?.call(mergedImage);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(updatedImage.isBookmarked ? '已收藏作品' : '已取消收藏'),
-        ),
-      );
       if (!wasBookmarked && updatedImage.isBookmarked) {
         widget.onImageBookmarked?.call(mergedImage);
       }
