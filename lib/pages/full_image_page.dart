@@ -1562,39 +1562,48 @@ class _DetailDownloadProgressFab extends StatelessWidget {
       builder: (context, _) {
         final activeCount = manager.activeTaskCount;
         final totalCount = manager.tasks.length;
-        final foreground =
-            activeCount > 0 ? const Color(0xFF0A84FF) : const Color(0xFF526176);
+        if (totalCount == 0) return const SizedBox.shrink();
+        final hasFailure = manager.failedTaskCount > 0 ||
+            manager.failedMetadataBatchCount > 0;
+        final foreground = activeCount > 0
+            ? const Color(0xFF0A84FF)
+            : hasFailure
+                ? const Color(0xFFE11D48)
+                : const Color(0xFF526176);
 
-        return Material(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(999),
-          elevation: 5,
-          shadowColor: Colors.black.withValues(alpha: 0.16),
-          child: InkWell(
+        return Tooltip(
+          message: '查看下载任务',
+          child: Material(
+            color: Colors.white.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(999),
-            onTap: () => showDownloadProgressSheet(context),
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(
-                    activeCount > 0
-                        ? Icons.downloading_rounded
-                        : Icons.file_download_done_rounded,
-                    color: foreground,
-                    size: 24,
-                  ),
-                  if (activeCount > 0)
-                    Positioned.fill(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        valueColor: AlwaysStoppedAnimation<Color>(foreground),
-                        backgroundColor: const Color(0xFFEAF4FF),
-                      ),
+            elevation: 5,
+            shadowColor: Colors.black.withValues(alpha: 0.16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => showDownloadProgressSheet(context),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      activeCount > 0
+                          ? Icons.downloading_rounded
+                          : hasFailure
+                              ? Icons.error_outline_rounded
+                              : Icons.file_download_done_rounded,
+                      color: foreground,
+                      size: 24,
                     ),
-                  if (totalCount > 0)
+                    if (activeCount > 0)
+                      Positioned.fill(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          valueColor: AlwaysStoppedAnimation<Color>(foreground),
+                          backgroundColor: const Color(0xFFEAF4FF),
+                        ),
+                      ),
                     Positioned(
                       right: 2,
                       top: 2,
@@ -1606,7 +1615,9 @@ class _DetailDownloadProgressFab extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: activeCount > 0
                               ? const Color(0xFF0A84FF)
-                              : const Color(0xFF64748B),
+                              : hasFailure
+                                  ? const Color(0xFFE11D48)
+                                  : const Color(0xFF64748B),
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(color: Colors.white, width: 1.5),
                         ),
@@ -1621,7 +1632,8 @@ class _DetailDownloadProgressFab extends StatelessWidget {
                         ),
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
