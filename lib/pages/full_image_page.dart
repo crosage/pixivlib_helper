@@ -15,6 +15,7 @@ import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/detail_visit_stats.dart';
+import 'package:tagselector/service/download_quality_store.dart';
 import 'package:tagselector/service/image_state_merger.dart';
 import 'package:tagselector/service/native_image_clipboard.dart';
 import 'package:tagselector/service/native_share.dart';
@@ -38,6 +39,8 @@ enum _ArtworkCopyAction {
   image,
 }
 
+enum _DetailMenuAction { share, link, pid }
+
 String _formatBookmarkCount(int count) {
   return count <= 0 ? '获取中' : '$count';
 }
@@ -56,7 +59,7 @@ class _FullImagePageState extends State<FullImagePage> {
   bool _isRecommendationLoading = true;
   bool _isBookmarkSubmitting = false;
   bool _isImageCopying = false;
-  bool _isOriginDownloadStarting = false;
+  bool _isDownloadStarting = false;
   Object? _detailError;
   Object? _recommendationError;
 
@@ -228,74 +231,27 @@ class _FullImagePageState extends State<FullImagePage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _goHome() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+  void _handleDetailMenuAction(_DetailMenuAction action) {
+    switch (action) {
+      case _DetailMenuAction.share:
+        unawaited(_shareArtwork());
+        return;
+      case _DetailMenuAction.link:
+        unawaited(_copyArtworkLink());
+        return;
+      case _DetailMenuAction.pid:
+        unawaited(_copyArtworkPid());
+        return;
+    }
   }
 
-  Future<void> _openMobilePageMenu() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.share_outlined),
-                title: const Text('分享作品'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_shareArtwork());
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.link_rounded),
-                title: const Text('复制作品链接'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_copyArtworkLink());
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.tag_rounded),
-                title: const Text('复制 PID'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_copyArtworkPid());
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.open_in_new_rounded),
-                title: const Text('在 Pixiv 中打开'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(_openPixivArtwork());
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.refresh_rounded),
-                title: const Text('刷新作品详情'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _loadPage(showLoading: true);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.home_rounded),
-                title: const Text('回到首页'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _goHome();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _setDownloadQuality(DownloadQuality quality) async {
+    try {
+      await DownloadQualityStore.instance.setQuality(quality);
+      if (mounted) _showActionMessage('后续下载将使用${quality.label}');
+    } catch (_) {
+      if (mounted) _showActionMessage('保存下载品质失败，请重试');
+    }
   }
 
   Future<void> _copyCurrentImage(String imageUrl) async {
@@ -315,15 +271,16 @@ class _FullImagePageState extends State<FullImagePage> {
     }
   }
 
-  Future<void> _downloadOriginalArtwork() async {
-    if (_isOriginDownloadStarting) {
+  Future<void> _downloadArtwork() async {
+    if (_isDownloadStarting) {
       return;
     }
 
-    setState(() => _isOriginDownloadStarting = true);
+    final quality = DownloadQualityStore.instance.quality;
+    setState(() => _isDownloadStarting = true);
     try {
       var image = _image;
-      if (image.urls.original.isEmpty) {
+      if (quality.urlFor(image.urls).isEmpty || image.pages.isEmpty) {
         image = await _api.fetchImageDetail(_image.pid);
         if (!mounted) return;
         setState(() {
@@ -333,21 +290,21 @@ class _FullImagePageState extends State<FullImagePage> {
         });
       }
 
-      unawaited(_startDownloadQuietly(image));
+      final batch = await ArtworkDownloadManager.instance.downloadArtwork(
+        image,
+        quality: quality,
+      );
+      if (mounted && batch.hasFailed) {
+        _showActionMessage(
+          '保存完成：${batch.completedCount}/${batch.tasks.length} 张成功',
+        );
+      }
     } catch (error) {
-      // The floating download button is the single place for download feedback.
+      if (mounted) _showActionMessage('保存${quality.label}失败: $error');
     } finally {
       if (mounted) {
-        setState(() => _isOriginDownloadStarting = false);
+        setState(() => _isDownloadStarting = false);
       }
-    }
-  }
-
-  Future<void> _startDownloadQuietly(ImageModel image) async {
-    try {
-      await ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
-    } catch (_) {
-      // The floating download button is the single place for download feedback.
     }
   }
 
@@ -570,53 +527,54 @@ class _FullImagePageState extends State<FullImagePage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        actions: narrow
-            ? [
-                IconButton(
-                  onPressed: _shareArtwork,
-                  icon: const Icon(Icons.share_outlined),
-                  tooltip: '分享作品',
-                ),
-                IconButton(
-                  onPressed: _openMobilePageMenu,
-                  icon: const Icon(Icons.more_horiz_rounded),
-                  tooltip: '更多',
-                ),
-              ]
-            : [
-                IconButton(
-                  onPressed: _shareArtwork,
-                  icon: const Icon(Icons.share_outlined),
-                  tooltip: '分享作品',
-                ),
-                PopupMenuButton<String>(
-                  tooltip: '复制与分享',
-                  onSelected: (value) {
-                    if (value == 'link') {
-                      unawaited(_copyArtworkLink());
-                    } else if (value == 'pid') {
-                      unawaited(_copyArtworkPid());
-                    } else if (value == 'pixiv') {
-                      unawaited(_openPixivArtwork());
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'link', child: Text('复制作品链接')),
-                    PopupMenuItem(value: 'pid', child: Text('复制 PID')),
-                    PopupMenuItem(value: 'pixiv', child: Text('在 Pixiv 中打开')),
-                  ],
-                ),
-                IconButton(
-                  onPressed: _goHome,
-                  icon: const Icon(Icons.home_rounded),
-                  tooltip: '回到首页',
-                ),
-                IconButton(
-                  onPressed: () => _loadPage(showLoading: true),
-                  icon: const Icon(Icons.refresh_rounded),
-                  tooltip: '刷新详情',
-                ),
+        actions: [
+          AnimatedBuilder(
+            animation: DownloadQualityStore.instance,
+            builder: (context, _) {
+              final quality = DownloadQualityStore.instance.quality;
+              return IconButton(
+                onPressed: _isDownloadStarting ? null : _downloadArtwork,
+                icon: const Icon(Icons.download_rounded),
+                tooltip: '下载作品（${quality.label}）',
+              );
+            },
+          ),
+          AnimatedBuilder(
+            animation: DownloadQualityStore.instance,
+            builder: (context, _) => PopupMenuButton<DownloadQuality>(
+              tooltip: '下载品质：${DownloadQualityStore.instance.quality.label}',
+              icon: const Icon(Icons.tune_rounded),
+              onSelected: (quality) => unawaited(_setDownloadQuality(quality)),
+              itemBuilder: (_) => [
+                for (final quality in DownloadQuality.values)
+                  CheckedPopupMenuItem<DownloadQuality>(
+                    value: quality,
+                    checked: quality == DownloadQualityStore.instance.quality,
+                    child: Text('${quality.label} · ${quality.description}'),
+                  ),
               ],
+            ),
+          ),
+          PopupMenuButton<_DetailMenuAction>(
+            tooltip: '更多操作',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onSelected: _handleDetailMenuAction,
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _DetailMenuAction.share,
+                child: Text('分享作品'),
+              ),
+              PopupMenuItem(
+                value: _DetailMenuAction.link,
+                child: Text('复制作品链接'),
+              ),
+              PopupMenuItem(
+                value: _DetailMenuAction.pid,
+                child: Text('复制 PID'),
+              ),
+            ],
+          ),
+        ],
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: narrow ? 14 : 0),
@@ -638,9 +596,10 @@ class _FullImagePageState extends State<FullImagePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_detailError != null) ...[
-                        const _StatusBanner(
+                        _StatusBanner(
                           text: '详情刷新失败，先展示当前内容。请稍后重试。',
                           icon: Icons.cloud_off_rounded,
+                          onRetry: () => _loadPage(showLoading: true),
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -689,6 +648,10 @@ class _FullImagePageState extends State<FullImagePage> {
                                             ],
                                           ),
                                         ),
+                                        const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: Color(0xFF94A3B8),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -698,17 +661,6 @@ class _FullImagePageState extends State<FullImagePage> {
                                   spacing: narrow ? 4 : 8,
                                   runSpacing: narrow ? 4 : 8,
                                   children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _openAuthorPage(_image.author),
-                                      style:
-                                          narrow ? _compactButtonStyle() : null,
-                                      icon: Icon(
-                                        Icons.person_outline_rounded,
-                                        size: narrow ? 15 : 18,
-                                      ),
-                                      label: const Text('作者页'),
-                                    ),
                                     FilledButton.tonalIcon(
                                       onPressed: _openPixivArtwork,
                                       style:
@@ -871,7 +823,7 @@ class _FullImagePageState extends State<FullImagePage> {
                             SizedBox(height: narrow ? 6 : 10),
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onLongPress: _downloadOriginalArtwork,
+                              onLongPress: _downloadArtwork,
                               onHorizontalDragEnd: !_imageInteractionEnabled
                                   ? _handleArtworkHorizontalSwipe
                                   : null,
@@ -1052,11 +1004,12 @@ class _FullImagePageState extends State<FullImagePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (_detailError != null)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 10, 12, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: _StatusBanner(
                 text: '详情刷新失败，先展示当前内容。请稍后重试。',
                 icon: Icons.cloud_off_rounded,
+                onRetry: () => _loadPage(showLoading: true),
               ),
             ),
           _MobileArtworkStage(
@@ -1068,7 +1021,7 @@ class _FullImagePageState extends State<FullImagePage> {
             currentPageIndex: _currentPageIndex,
             pageCount: _pageCount,
             onHorizontalSwipe: _handleArtworkHorizontalSwipe,
-            onLongPress: _downloadOriginalArtwork,
+            onLongPress: _downloadArtwork,
             onSecondaryTapDown: (details) =>
                 _showArtworkContextMenu(details, imageUrl),
           ),
@@ -2192,10 +2145,12 @@ class _RecommendationTile extends StatelessWidget {
 class _StatusBanner extends StatelessWidget {
   final String text;
   final IconData icon;
+  final VoidCallback? onRetry;
 
   const _StatusBanner({
     required this.text,
     required this.icon,
+    this.onRetry,
   });
 
   @override
@@ -2218,6 +2173,8 @@ class _StatusBanner extends StatelessWidget {
               style: const TextStyle(color: Color(0xFF334155)),
             ),
           ),
+          if (onRetry != null)
+            TextButton(onPressed: onRetry, child: const Text('重试')),
         ],
       ),
     );

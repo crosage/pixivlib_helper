@@ -158,7 +158,7 @@ class _DownloadBatchTileState extends State<_DownloadBatchTile> {
                             color: Color(0xFF1E293B))),
                     const SizedBox(height: 3),
                     Text(
-                        '${batch.pid} · ${batch.completedCount}/${batch.tasks.length} 张${batch.hasCanceled ? ' · 可继续' : ''}',
+                        '${batch.pid} · ${batch.quality.label} · ${batch.completedCount}/${batch.tasks.length} 张${batch.hasCanceled ? ' · 可继续' : ''}',
                         style: const TextStyle(
                             fontSize: 12, color: Color(0xFF64748B))),
                   ])),

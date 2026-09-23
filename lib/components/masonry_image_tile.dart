@@ -3,6 +3,7 @@ import 'package:tagselector/components/image_card.dart';
 import 'package:tagselector/model/image_model.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
+import 'package:tagselector/service/download_quality_store.dart';
 import 'package:tagselector/service/image_prefetcher.dart';
 import 'package:tagselector/service/image_state_merger.dart';
 
@@ -36,7 +37,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
   late ImageModel _image;
   late double _lockedAspectRatio;
   bool _isBookmarkSubmitting = false;
-  bool _isOriginDownloadStarting = false;
+  bool _isDownloadStarting = false;
 
   @override
   void initState() {
@@ -84,21 +85,24 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     }
   }
 
-  Future<void> _downloadOriginalArtwork() async {
-    if (_isOriginDownloadStarting || _image.pid <= 0) return;
+  Future<void> _downloadArtwork() async {
+    if (_isDownloadStarting || _image.pid <= 0) return;
 
-    setState(() => _isOriginDownloadStarting = true);
+    final quality = DownloadQualityStore.instance.quality;
+    setState(() => _isDownloadStarting = true);
     try {
       var image = _image;
-      if (image.urls.original.isEmpty) {
+      if (quality.urlFor(image.urls).isEmpty || image.pages.isEmpty) {
         image = await _api.fetchImageDetail(_image.pid);
         if (!mounted) return;
         setState(() => _image = image);
         widget.onImageChanged?.call(image);
       }
 
-      final batchFuture =
-          ArtworkDownloadManager.instance.downloadOriginalArtwork(image);
+      final batchFuture = ArtworkDownloadManager.instance.downloadArtwork(
+        image,
+        quality: quality,
+      );
       if (!mounted) return;
       // Download progress is shown by the shared floating download control.
       final batch = await batchFuture;
@@ -115,11 +119,11 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('保存 origin 失败: $error')),
+        SnackBar(content: Text('保存${quality.label}失败: $error')),
       );
     } finally {
       if (mounted) {
-        setState(() => _isOriginDownloadStarting = false);
+        setState(() => _isDownloadStarting = false);
       }
     }
   }
@@ -136,7 +140,7 @@ class _MasonryImageTileState extends State<MasonryImageTile> {
       image: _image,
       imageUrl: imageUrl,
       onTap: widget.onTap,
-      onLongPress: _downloadOriginalArtwork,
+      onLongPress: _downloadArtwork,
       topLeft: _image.pages.length > 1
           ? AppImageBadge(label: '${_image.pages.length}P')
           : null,

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:tagselector/model/image_model.dart';
+import 'package:tagselector/service/download_quality_store.dart';
 import 'package:tagselector/service/gallery_saver.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 
@@ -24,6 +25,7 @@ class ArtworkDownloadTask {
   final int pageIndex;
   final int pageCount;
   final String title;
+  final DownloadQuality quality;
   final String sourceUrl;
   final String savePath;
   final DateTime createdAt;
@@ -42,6 +44,7 @@ class ArtworkDownloadTask {
     required this.pageIndex,
     required this.pageCount,
     required this.title,
+    required this.quality,
     required this.sourceUrl,
     required this.savePath,
     required this.createdAt,
@@ -75,6 +78,8 @@ class ArtworkDownloadBatch {
   final String title;
   final List<ArtworkDownloadTask> tasks;
   final DateTime createdAt;
+
+  DownloadQuality get quality => tasks.first.quality;
 
   const ArtworkDownloadBatch({
     required this.id,
@@ -213,18 +218,28 @@ class ArtworkDownloadManager extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<ArtworkDownloadBatch> downloadOriginalArtwork(ImageModel image) async {
+  Future<ArtworkDownloadBatch> downloadArtwork(
+    ImageModel image, {
+    DownloadQuality? quality,
+  }) async {
+    final selectedQuality = quality ?? DownloadQualityStore.instance.quality;
+    final selectedUrl = selectedQuality.urlFor(image.urls);
+    if (selectedUrl.isEmpty) {
+      throw StateError('这个作品没有可下载的${selectedQuality.label}地址');
+    }
     final pageIds = image.pages.isEmpty
         ? const [0]
         : image.pages.map((page) => page.pageId).toList(growable: false);
+    if (pageIds.length > 1 && !RegExp(r'_p\d+').hasMatch(selectedUrl)) {
+      throw StateError('这个作品的${selectedQuality.label}缺少多页地址');
+    }
     final downloadDirectory = await _resolveDownloadDirectory();
     final createdAt = DateTime.now();
     final batchId = '${image.pid}-${createdAt.microsecondsSinceEpoch}';
     final batchTasks = <ArtworkDownloadTask>[];
 
     for (var index = 0; index < pageIds.length; index++) {
-      final sourceUrl =
-          _resolveOriginalUrlForPage(image.urls.original, pageIds[index]);
+      final sourceUrl = _resolvePageUrl(selectedUrl, pageIds[index]);
       if (sourceUrl.isEmpty) {
         continue;
       }
@@ -235,6 +250,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
           pageIndex: index,
           pageCount: pageIds.length,
           sourceUrl: sourceUrl,
+          quality: selectedQuality,
         ),
       );
       final task = ArtworkDownloadTask(
@@ -245,6 +261,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
         pageCount: pageIds.length,
         title:
             image.name.trim().isEmpty ? 'PID ${image.pid}' : image.name.trim(),
+        quality: selectedQuality,
         sourceUrl: sourceUrl,
         savePath: savePath,
         createdAt: createdAt,
@@ -253,7 +270,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     }
 
     if (batchTasks.isEmpty) {
-      throw StateError('这个作品没有可下载的 origin 地址');
+      throw StateError('这个作品没有可下载的${selectedQuality.label}地址');
     }
 
     _tasks.insertAll(0, batchTasks);
@@ -839,6 +856,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     required int pageIndex,
     required int pageCount,
     required String sourceUrl,
+    required DownloadQuality quality,
   }) {
     final uri = Uri.tryParse(sourceUrl);
     final extension = _extensionFromUrl(uri?.path ?? sourceUrl);
@@ -846,7 +864,9 @@ class ArtworkDownloadManager extends ChangeNotifier {
     final pageSuffix = pageCount > 1
         ? '_p${pageIndex.toString().padLeft(width.clamp(3, 6), '0')}'
         : '';
-    return '$pid$pageSuffix$extension';
+    final qualitySuffix =
+        quality == DownloadQuality.original ? '' : '_${quality.name}';
+    return '$pid$pageSuffix$qualitySuffix$extension';
   }
 
   DateTime _gallerySortTimeForTask(ArtworkDownloadTask task) {
@@ -873,15 +893,15 @@ class ArtworkDownloadManager extends ChangeNotifier {
     return '.jpg';
   }
 
-  String _resolveOriginalUrlForPage(String originalUrl, int pageID) {
-    if (originalUrl.isEmpty) {
+  String _resolvePageUrl(String sourceUrl, int pageID) {
+    if (sourceUrl.isEmpty) {
       return '';
     }
     final matcher = RegExp(r'_p\d+');
-    if (matcher.hasMatch(originalUrl)) {
-      return originalUrl.replaceFirst(matcher, '_p$pageID');
+    if (matcher.hasMatch(sourceUrl)) {
+      return sourceUrl.replaceFirst(matcher, '_p$pageID');
     }
-    return originalUrl;
+    return sourceUrl;
   }
 
   String _mimeTypeForPath(String filePath) {

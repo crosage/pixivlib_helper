@@ -11,9 +11,11 @@ import 'package:tagselector/pages/user_page.dart';
 import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
+import 'package:tagselector/service/download_quality_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DownloadQualityStore.instance.load();
   final imageCache = PaintingBinding.instance.imageCache;
   imageCache.maximumSize = 800;
   imageCache.maximumSizeBytes = 384 << 20;
