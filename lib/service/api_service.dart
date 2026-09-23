@@ -34,6 +34,11 @@ class ApiService {
       <String, _TimedImageList>{};
   final Map<String, Future<List<ImageModel>>> _followingRequests =
       <String, Future<List<ImageModel>>>{};
+  final Map<String, _TimedFollowedAuthorResponse> _followingAuthorCache =
+      <String, _TimedFollowedAuthorResponse>{};
+  final Map<String, Future<FollowedAuthorListResponse>>
+      _followingAuthorRequests =
+      <String, Future<FollowedAuthorListResponse>>{};
 
   static const Set<int> _transientStatusCodes = {408, 429, 500, 502, 503, 504};
   static const Duration _avatarRefreshCooldown = Duration(minutes: 30);
@@ -160,17 +165,66 @@ class ApiService {
 
   Future<FollowedAuthorListResponse> fetchFollowingAuthors({
     int offset = 0,
-    int limit = 48,
+    int limit = 18,
     String sortMode = 'recent_work',
     bool forceRefresh = false,
     String query = '',
   }) async {
+    final userId = AppUserSession.instance.activeUserId ?? 0;
+    final trimmedQuery = query.trim();
+    final cacheKey = '$userId:$offset:$limit:$sortMode:$trimmedQuery';
+    final cached = _followingAuthorCache[cacheKey];
+    if (!forceRefresh &&
+        cached != null &&
+        DateTime.now().difference(cached.createdAt) <
+            const Duration(minutes: 3)) {
+      return cached.response;
+    }
+    final inFlight = _followingAuthorRequests[cacheKey];
+    if (!forceRefresh && inFlight != null) {
+      return inFlight;
+    }
+
+    final request = _loadFollowingAuthors(
+      offset: offset,
+      limit: limit,
+      sortMode: sortMode,
+      forceRefresh: forceRefresh,
+      query: trimmedQuery,
+    );
+    _followingAuthorRequests[cacheKey] = request;
+    try {
+      final response = await request;
+      _followingAuthorCache[cacheKey] = _TimedFollowedAuthorResponse(
+        response: response,
+        createdAt: DateTime.now(),
+      );
+      if (_followingAuthorCache.length > 24) {
+        final oldestKey = _followingAuthorCache.entries.reduce((a, b) {
+          return a.value.createdAt.isBefore(b.value.createdAt) ? a : b;
+        }).key;
+        _followingAuthorCache.remove(oldestKey);
+      }
+      return response;
+    } finally {
+      if (identical(_followingAuthorRequests[cacheKey], request)) {
+        _followingAuthorRequests.remove(cacheKey);
+      }
+    }
+  }
+
+  Future<FollowedAuthorListResponse> _loadFollowingAuthors({
+    required int offset,
+    required int limit,
+    required String sortMode,
+    required bool forceRefresh,
+    required String query,
+  }) async {
     final requestPath = StringBuffer(
       '/api/pixiv/following/authors?offset=$offset&limit=$limit&sort=$sortMode',
     );
-    final trimmedQuery = query.trim();
-    if (trimmedQuery.isNotEmpty) {
-      final encoded = Uri.encodeQueryComponent(trimmedQuery);
+    if (query.isNotEmpty) {
+      final encoded = Uri.encodeQueryComponent(query);
       requestPath.write('&query=$encoded');
     }
     if (forceRefresh) {
@@ -199,7 +253,7 @@ class ApiService {
       limit: safeLimit,
       hasMore: payload['has_more'] ?? false,
       userId: payload['user_id'] ?? '',
-      query: payload['query'] ?? trimmedQuery,
+      query: payload['query'] ?? query,
     );
   }
 
@@ -806,6 +860,16 @@ class _TimedImageList {
   final DateTime createdAt;
 
   const _TimedImageList({required this.images, required this.createdAt});
+}
+
+class _TimedFollowedAuthorResponse {
+  final FollowedAuthorListResponse response;
+  final DateTime createdAt;
+
+  const _TimedFollowedAuthorResponse({
+    required this.response,
+    required this.createdAt,
+  });
 }
 
 class PixivConnectionInfo {

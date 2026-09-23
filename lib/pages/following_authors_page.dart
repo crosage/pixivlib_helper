@@ -41,7 +41,7 @@ class FollowingAuthorsPage extends StatefulWidget {
 }
 
 class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
-  static const int _pageSize = 48;
+  static const int _pageSize = 18;
 
   final ApiService _api = ApiService.instance;
   final AppUserSession _session = AppUserSession.instance;
@@ -104,15 +104,17 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
   }
 
   void _onQueryChanged(String value) {
-    setState(() {
-      _query = value;
-    });
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 280), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 450), () {
       if (!mounted) {
         return;
       }
+      final query = value.trim();
+      if (query == _query) {
+        return;
+      }
       setState(() {
+        _query = query;
         _page = 1;
         _future = _loadAuthors();
       });
@@ -345,7 +347,7 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
   }) {
     if (snapshot.connectionState == ConnectionState.waiting &&
         snapshot.data == null) {
-      return const AppLoadingGrid(minTileWidth: 220, itemCount: 10);
+      return const AppLoadingGrid(minTileWidth: 220, itemCount: 6);
     }
 
     if (snapshot.hasError && snapshot.data == null) {
@@ -372,6 +374,7 @@ class _FollowingAuthorsPageState extends State<FollowingAuthorsPage> {
       onRefresh: _refreshAuthors,
       child: ListView.separated(
         controller: _scrollController,
+        cacheExtent: phone ? 240 : 480,
         padding: EdgeInsets.fromLTRB(phone ? 6 : 12, 0, phone ? 6 : 12, 0),
         itemCount: authors.length,
         separatorBuilder: (_, __) => SizedBox(height: phone ? 6 : 10),
@@ -858,35 +861,41 @@ class _PreviewStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final previews = author.recentWorks
+        .take(phone ? 3 : 6)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              '最近作品预览',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${author.recentWorks.length} / ${author.pixivPreviewCount}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF64748B),
-                  ),
-            ),
-          ],
-        ),
-        SizedBox(height: phone ? 6 : 10),
+        if (!phone) ...[
+          Row(
+            children: [
+              Text(
+                '最近作品预览',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${previews.length} / ${author.pixivPreviewCount}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF64748B),
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
         SizedBox(
-          height: phone ? 118 : 162,
+          height: phone ? 94 : 162,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: author.recentWorks.length,
+            physics: phone ? const NeverScrollableScrollPhysics() : null,
+            itemCount: previews.length,
             separatorBuilder: (_, __) => SizedBox(width: phone ? 4 : 10),
             itemBuilder: (context, index) {
-              final preview = author.recentWorks[index];
+              final preview = previews[index];
               return _PreviewCard(
                 phone: phone,
                 preview: preview,
@@ -914,7 +923,7 @@ class _PreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: phone ? 86 : 120,
+      width: phone ? 82 : 120,
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(phone ? 0 : 14),
@@ -945,11 +954,12 @@ class _PreviewCard extends StatelessWidget {
                           httpHeaders: imageRequestHeaders(preview.thumbUrl),
                           fit: BoxFit.cover,
                           width: double.infinity,
+                          memCacheWidth: phone ? 220 : 320,
+                          maxWidthDiskCache: phone ? 360 : 480,
+                          fadeInDuration: Duration.zero,
+                          fadeOutDuration: Duration.zero,
                           placeholder: (_, __) => const ColoredBox(
                             color: Color(0xFFF1F5F9),
-                            child: Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
                           ),
                           errorWidget: (_, __, ___) => const ColoredBox(
                             color: Color(0xFFF1F5F9),

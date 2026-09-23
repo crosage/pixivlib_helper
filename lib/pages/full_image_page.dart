@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tagselector/components/app_ui.dart';
 import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/components/download_progress_sheet.dart';
@@ -14,8 +15,9 @@ import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/artwork_download_manager.dart';
 import 'package:tagselector/service/cache_proxy_manager.dart';
 import 'package:tagselector/service/detail_visit_stats.dart';
-import 'package:tagselector/service/native_image_clipboard.dart';
 import 'package:tagselector/service/image_state_merger.dart';
+import 'package:tagselector/service/native_image_clipboard.dart';
+import 'package:tagselector/service/native_share.dart';
 import 'package:tagselector/service/remote_image_url.dart';
 import 'package:tagselector/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -62,20 +64,14 @@ class _FullImagePageState extends State<FullImagePage> {
   void initState() {
     super.initState();
     _image = widget.image;
-    unawaited(_trackDetailVisit());
+    unawaited(_trackDetailVisit(_image));
     _loadPage();
   }
 
-  Future<void> _trackDetailVisit() async {
-    final pid = widget.image.pid;
+  Future<void> _trackDetailVisit(ImageModel image) async {
     try {
-      await DetailVisitStats.instance.record(
-        pid: pid,
-        title: widget.image.name,
-        authorName: widget.image.author.name,
-        tags: widget.image.tags.map((tag) => tag.name).toList(),
-      );
-    } catch (error) {
+      await DetailVisitStats.instance.recordFromImage(image);
+    } catch (_) {
       // Ignore local analytics failures.
     }
   }
@@ -189,8 +185,47 @@ class _FullImagePageState extends State<FullImagePage> {
   }
 
   Future<void> _openPixivArtwork() async {
-    final uri = Uri.parse('https://www.pixiv.net/artworks/${_image.pid}');
+    final uri = Uri.parse(_artworkUrl);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String get _artworkUrl => 'https://www.pixiv.net/artworks/${_image.pid}';
+
+  Future<void> _shareArtwork() async {
+    final title = _image.name.trim().isEmpty ? 'Pixiv 作品' : _image.name.trim();
+    try {
+      final openedShareSheet = await NativeShare.shareText(
+        title: title,
+        text: '$title\n$_artworkUrl',
+      );
+      if (!openedShareSheet && mounted) {
+        _showActionMessage('当前平台暂不支持系统分享，作品链接已复制');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showActionMessage('分享失败，请稍后重试');
+      }
+    }
+  }
+
+  Future<void> _copyArtworkLink() async {
+    await Clipboard.setData(ClipboardData(text: _artworkUrl));
+    if (mounted) {
+      _showActionMessage('作品链接已复制');
+    }
+  }
+
+  Future<void> _copyArtworkPid() async {
+    await Clipboard.setData(ClipboardData(text: '${_image.pid}'));
+    if (mounted) {
+      _showActionMessage('PID ${_image.pid} 已复制');
+    }
+  }
+
+  void _showActionMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _goHome() {
@@ -207,6 +242,39 @@ class _FullImagePageState extends State<FullImagePage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.share_outlined),
+                title: const Text('分享作品'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_shareArtwork());
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.link_rounded),
+                title: const Text('复制作品链接'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_copyArtworkLink());
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.tag_rounded),
+                title: const Text('复制 PID'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_copyArtworkPid());
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.open_in_new_rounded),
+                title: const Text('在 Pixiv 中打开'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  unawaited(_openPixivArtwork());
+                },
+              ),
+              const Divider(),
               ListTile(
                 leading: const Icon(Icons.refresh_rounded),
                 title: const Text('刷新作品详情'),
@@ -505,12 +573,39 @@ class _FullImagePageState extends State<FullImagePage> {
         actions: narrow
             ? [
                 IconButton(
+                  onPressed: _shareArtwork,
+                  icon: const Icon(Icons.share_outlined),
+                  tooltip: '分享作品',
+                ),
+                IconButton(
                   onPressed: _openMobilePageMenu,
                   icon: const Icon(Icons.more_horiz_rounded),
                   tooltip: '更多',
                 ),
               ]
             : [
+                IconButton(
+                  onPressed: _shareArtwork,
+                  icon: const Icon(Icons.share_outlined),
+                  tooltip: '分享作品',
+                ),
+                PopupMenuButton<String>(
+                  tooltip: '复制与分享',
+                  onSelected: (value) {
+                    if (value == 'link') {
+                      unawaited(_copyArtworkLink());
+                    } else if (value == 'pid') {
+                      unawaited(_copyArtworkPid());
+                    } else if (value == 'pixiv') {
+                      unawaited(_openPixivArtwork());
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'link', child: Text('复制作品链接')),
+                    PopupMenuItem(value: 'pid', child: Text('复制 PID')),
+                    PopupMenuItem(value: 'pixiv', child: Text('在 Pixiv 中打开')),
+                  ],
+                ),
                 IconButton(
                   onPressed: _goHome,
                   icon: const Icon(Icons.home_rounded),

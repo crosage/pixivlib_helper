@@ -144,6 +144,10 @@ class ArtworkDownloadManager extends ChangeNotifier {
   final Map<String, Completer<void>> _batchProgressWaiters = {};
   final Map<String, CancelToken> _cancelTokens = {};
   final Set<String> _activeTaskIds = <String>{};
+  final Set<String> _finalizingBatchIds = <String>{};
+  final Map<String, int> _batchMetadataVersions = <String, int>{};
+  final Map<String, int> _normalizedMetadataVersions = <String, int>{};
+  final Map<String, Object> _batchMetadataErrors = <String, Object>{};
 
   int _sequence = 0;
   DateTime _lastProgressNotifyAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -187,6 +191,21 @@ class ArtworkDownloadManager extends ChangeNotifier {
       .length;
 
   int get activeBatchCount => batches.where((batch) => batch.isActive).length;
+
+  int get finalizingMetadataBatchCount => _finalizingBatchIds.length;
+
+  int get failedMetadataBatchCount => _batchMetadataErrors.length;
+
+  bool hasMetadataError(String batchId) =>
+      _batchMetadataErrors.containsKey(batchId);
+
+  bool get hasClearableFinishedBatches => batches.any(
+        (batch) =>
+            batch.isCompleted &&
+            !_finalizingBatchIds.contains(batch.id) &&
+            !_batchCompleters.containsKey(batch.id) &&
+            !_batchMetadataErrors.containsKey(batch.id),
+      );
 
   @override
   void dispose() {
@@ -247,10 +266,19 @@ class ArtworkDownloadManager extends ChangeNotifier {
 
   void clearFinished() {
     final completedBatchIds = batches
-        .where((batch) => batch.isCompleted)
+        .where(
+          (batch) =>
+              batch.isCompleted &&
+              !_finalizingBatchIds.contains(batch.id) &&
+              !_batchCompleters.containsKey(batch.id) &&
+              !_batchMetadataErrors.containsKey(batch.id),
+        )
         .map((batch) => batch.id)
         .toSet();
     _tasks.removeWhere((task) => completedBatchIds.contains(task.batchId));
+    for (final batchId in completedBatchIds) {
+      _forgetBatchMetadataState(batchId);
+    }
     notifyListeners();
   }
 
@@ -271,7 +299,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       task.visiblePath = null;
       notifyListeners();
       _notifyBatchProgress(task.batchId);
-      _completeFinishedBatches();
+      _markBatchMetadataChanged(task.batchId);
       return;
     }
 
@@ -288,7 +316,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     }
     notifyListeners();
     _notifyBatchProgress(task.batchId);
-    _completeFinishedBatches();
+    _markBatchMetadataChanged(task.batchId);
     // The active slot is released in _downloadTask's finally block after Dio
     // has actually stopped writing, keeping the concurrency limit accurate.
   }
@@ -318,6 +346,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     task.error = null;
     task.publishedUri = null;
     task.visiblePath = null;
+    _invalidateBatchMetadata(task.batchId);
     _queue.remove(task);
     _queue.add(task);
     notifyListeners();
@@ -339,6 +368,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       task.error = null;
       task.publishedUri = null;
       task.visiblePath = null;
+      _invalidateBatchMetadata(task.batchId);
       _queue.remove(task);
       _queue.add(task);
     }
@@ -374,6 +404,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       task.error = null;
       task.publishedUri = null;
       task.visiblePath = null;
+      _invalidateBatchMetadata(task.batchId);
       _queue.remove(task);
       _queue.add(task);
       changed = true;
@@ -392,11 +423,24 @@ class ArtworkDownloadManager extends ChangeNotifier {
     }
   }
 
+  void retryBatchMetadata(ArtworkDownloadBatch batch) {
+    if (!hasMetadataError(batch.id) || batch.isActive) {
+      return;
+    }
+    _batchMetadataErrors.remove(batch.id);
+    _markBatchMetadataChanged(batch.id);
+  }
+
   void removeBatch(ArtworkDownloadBatch batch) {
     cancelBatch(batch);
+    final completer = _batchCompleters.remove(batch.id);
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(batch);
+    }
     _tasks.removeWhere((task) => task.batchId == batch.id);
     _queue.removeWhere((task) => task.batchId == batch.id);
     _batchProgressWaiters.remove(batch.id);
+    _forgetBatchMetadataState(batch.id);
     notifyListeners();
   }
 
@@ -492,14 +536,14 @@ class ArtworkDownloadManager extends ChangeNotifier {
         mimeType: _mimeTypeForPath(task.savePath),
         dateTaken: _gallerySortTimeForTask(task),
       );
-      if (task.status == ArtworkDownloadStatus.canceled ||
-          cancelToken.isCancelled) {
-        return;
-      }
+      // Once MediaStore has accepted the image, cancellation can no longer
+      // safely undo the publish. Keep the URI and finish this task so the image
+      // participates in the batch-wide metadata normalization below.
       if (publishedUri != null) {
         task.publishedUri = publishedUri;
         task.visiblePath =
             'Pictures/PixivHelper/${path.basename(task.savePath)}';
+        task.status = ArtworkDownloadStatus.completed;
         try {
           await saveFile.delete();
         } catch (_) {
@@ -507,8 +551,8 @@ class ArtworkDownloadManager extends ChangeNotifier {
         }
       } else {
         task.visiblePath = task.savePath;
+        task.status = ArtworkDownloadStatus.completed;
       }
-      task.status = ArtworkDownloadStatus.completed;
     } catch (error) {
       final canceled =
           error is DioException && error.type == DioExceptionType.cancel;
@@ -530,7 +574,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
       _releaseActiveSlot(task);
       notifyListeners();
       _notifyBatchProgress(task.batchId);
-      _completeFinishedBatches();
+      _markBatchMetadataChanged(task.batchId);
       _pumpQueue();
     }
   }
@@ -548,6 +592,7 @@ class ArtworkDownloadManager extends ChangeNotifier {
     _queue.remove(task);
     _cancelTokens.remove(task.id);
     _batchProgressWaiters.remove(task.batchId);
+    _markBatchMetadataChanged(task.batchId);
     notifyListeners();
   }
 
@@ -597,28 +642,143 @@ class ArtworkDownloadManager extends ChangeNotifier {
     }
   }
 
-  void _completeFinishedBatches() {
-    final pending = Map<String, Completer<ArtworkDownloadBatch>>.from(
-      _batchCompleters,
+  void _invalidateBatchMetadata(String batchId) {
+    _batchMetadataVersions[batchId] =
+        (_batchMetadataVersions[batchId] ?? 0) + 1;
+  }
+
+  void _markBatchMetadataChanged(String batchId) {
+    _invalidateBatchMetadata(batchId);
+    _scheduleBatchFinalization(batchId);
+  }
+
+  bool _batchHasActiveWork(List<ArtworkDownloadTask> batchTasks) {
+    return batchTasks.any(
+      (task) => task.isActive || _activeTaskIds.contains(task.id),
     );
-    for (final entry in pending.entries) {
-      final batchTasks = _tasks.where((task) => task.batchId == entry.key);
-      if (batchTasks.isEmpty || batchTasks.any((task) => task.isActive)) {
-        continue;
-      }
-      final list = batchTasks.toList(growable: false);
-      entry.value.complete(
-        ArtworkDownloadBatch(
-          id: entry.key,
-          pid: list.first.pid,
-          title: list.first.title,
-          tasks: list,
-          createdAt: list.first.createdAt,
-        ),
-      );
-      _batchCompleters.remove(entry.key);
-      _batchProgressWaiters.remove(entry.key);
+  }
+
+  void _scheduleBatchFinalization(String batchId) {
+    final batchTasks = _tasks
+        .where((task) => task.batchId == batchId)
+        .toList(growable: false);
+    if (batchTasks.isEmpty || _batchHasActiveWork(batchTasks)) {
+      return;
     }
+    if (!_finalizingBatchIds.add(batchId)) {
+      return;
+    }
+    notifyListeners();
+    unawaited(_finalizeBatch(batchId));
+  }
+
+  Future<void> _finalizeBatch(String batchId) async {
+    try {
+      while (true) {
+        final batchTasks = _tasks
+            .where((task) => task.batchId == batchId)
+            .toList(growable: false)
+          ..sort((a, b) => a.pageIndex.compareTo(b.pageIndex));
+        if (batchTasks.isEmpty || _batchHasActiveWork(batchTasks)) {
+          return;
+        }
+
+        final version = _batchMetadataVersions[batchId] ?? 0;
+        final updates = batchTasks
+            .where(
+              (task) =>
+                  task.status == ArtworkDownloadStatus.completed &&
+                  task.publishedUri != null,
+            )
+            .map(
+              (task) => GalleryMetadataUpdate(
+                uri: task.publishedUri!,
+                dateTaken: _gallerySortTimeForTask(task),
+              ),
+            )
+            .toList(growable: false);
+
+        if (updates.isNotEmpty) {
+          try {
+            await _rewriteBatchMetadata(updates);
+            _batchMetadataErrors.remove(batchId);
+          } catch (error) {
+            _batchMetadataErrors[batchId] = error;
+            // The files are already safely published. Do not turn a local
+            // MediaStore metadata failure into a failed network download.
+          }
+        }
+        _normalizedMetadataVersions[batchId] = version;
+
+        final latestTasks = _tasks
+            .where((task) => task.batchId == batchId)
+            .toList(growable: false);
+        if (latestTasks.isEmpty || _batchHasActiveWork(latestTasks)) {
+          return;
+        }
+        if ((_batchMetadataVersions[batchId] ?? 0) != version) {
+          continue;
+        }
+
+        final completer = _batchCompleters.remove(batchId);
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(
+            ArtworkDownloadBatch(
+              id: batchId,
+              pid: latestTasks.first.pid,
+              title: latestTasks.first.title,
+              tasks: List<ArtworkDownloadTask>.unmodifiable(latestTasks),
+              createdAt: latestTasks.first.createdAt,
+            ),
+          );
+        }
+        _batchProgressWaiters.remove(batchId);
+        return;
+      }
+    } finally {
+      _finalizingBatchIds.remove(batchId);
+      notifyListeners();
+      final latestTasks = _tasks
+          .where((task) => task.batchId == batchId)
+          .toList(growable: false);
+      final currentVersion = _batchMetadataVersions[batchId] ?? 0;
+      final normalizedVersion = _normalizedMetadataVersions[batchId] ?? -1;
+      if (latestTasks.isNotEmpty &&
+          !_batchHasActiveWork(latestTasks) &&
+          currentVersion != normalizedVersion) {
+        _scheduleBatchFinalization(batchId);
+      }
+    }
+  }
+
+  void _forgetBatchMetadataState(String batchId) {
+    _batchMetadataVersions.remove(batchId);
+    _normalizedMetadataVersions.remove(batchId);
+    _batchMetadataErrors.remove(batchId);
+  }
+
+  Future<void> _rewriteBatchMetadata(
+    List<GalleryMetadataUpdate> updates,
+  ) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final updatedCount =
+            await GallerySaver.rewriteImageMetadata(updates);
+        if (updatedCount != updates.length) {
+          throw StateError(
+            '只更新了 $updatedCount/${updates.length} 条图库 metadata',
+          );
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 120));
+        }
+      }
+    }
+    throw StateError('图库 metadata 更新失败: ${lastError ?? '未知错误'}');
   }
 
   Future<Directory> _resolveDownloadDirectory() async {

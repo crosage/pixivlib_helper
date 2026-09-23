@@ -2,6 +2,21 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+class GalleryMetadataUpdate {
+  final String uri;
+  final DateTime dateTaken;
+
+  const GalleryMetadataUpdate({
+    required this.uri,
+    required this.dateTaken,
+  });
+
+  Map<String, Object> toJson() => {
+        'uri': uri,
+        'dateTakenMillis': dateTaken.millisecondsSinceEpoch,
+      };
+}
+
 class GallerySaver {
   GallerySaver._();
 
@@ -29,5 +44,18 @@ class GallerySaver {
       if (dateTaken != null)
         'dateTakenMillis': dateTaken.millisecondsSinceEpoch,
     });
+  }
+
+  static Future<int> rewriteImageMetadata(
+    List<GalleryMetadataUpdate> updates,
+  ) async {
+    if (!Platform.isAndroid || updates.isEmpty) {
+      return 0;
+    }
+
+    return await _channel.invokeMethod<int>('rewriteImageMetadata', {
+          'items': updates.map((update) => update.toJson()).toList(),
+        }) ??
+        0;
   }
 }

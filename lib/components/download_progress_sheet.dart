@@ -37,6 +37,11 @@ class DownloadProgressSheet extends StatelessWidget {
         animation: manager,
         builder: (context, _) {
           final batches = manager.batches;
+          final metadataStatus = manager.finalizingMetadataBatchCount > 0
+              ? ' · 正在整理顺序'
+              : manager.failedMetadataBatchCount > 0
+                  ? ' · 顺序整理失败 ${manager.failedMetadataBatchCount}'
+                  : '';
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
             child: Column(
@@ -55,7 +60,7 @@ class DownloadProgressSheet extends StatelessWidget {
                         tooltip: '取消全部下载',
                         onPressed: manager.cancelAllPending,
                         icon: const Icon(Icons.stop_circle_outlined)),
-                  if (batches.any((batch) => batch.isCompleted))
+                  if (manager.hasClearableFinishedBatches)
                     IconButton(
                         tooltip: '清理已结束任务',
                         onPressed: manager.clearFinished,
@@ -63,7 +68,8 @@ class DownloadProgressSheet extends StatelessWidget {
                 ]),
                 const SizedBox(height: 3),
                 Text(
-                  '作品 ${batches.length} · 下载中 ${manager.activeBatchCount} · 已完成 ${manager.completedTaskCount} 张',
+                  '作品 ${batches.length} · 下载中 ${manager.activeBatchCount} · '
+                  '已完成 ${manager.completedTaskCount} 张$metadataStatus',
                   style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -222,6 +228,8 @@ class _BatchMenu extends StatelessWidget {
             manager.resumeBatch(batch);
           case _BatchAction.retry:
             manager.retryBatchFailures(batch);
+          case _BatchAction.reorder:
+            manager.retryBatchMetadata(batch);
           case _BatchAction.remove:
             manager.removeBatch(batch);
         }
@@ -233,6 +241,11 @@ class _BatchMenu extends StatelessWidget {
           const PopupMenuItem(value: _BatchAction.resume, child: Text('继续下载')),
         if (batch.hasFailed)
           const PopupMenuItem(value: _BatchAction.retry, child: Text('重试失败项')),
+        if (manager.hasMetadataError(batch.id))
+          const PopupMenuItem(
+            value: _BatchAction.reorder,
+            child: Text('重新整理顺序'),
+          ),
         if (!batch.isActive)
           const PopupMenuItem(value: _BatchAction.remove, child: Text('移除任务')),
       ],
@@ -240,7 +253,7 @@ class _BatchMenu extends StatelessWidget {
   }
 }
 
-enum _BatchAction { cancel, resume, retry, remove }
+enum _BatchAction { cancel, resume, retry, reorder, remove }
 
 enum _BatchStatus { active, completed, failed, canceled }
 

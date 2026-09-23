@@ -22,12 +22,21 @@ class AppAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final trimmed = avatarUrl.trim();
     if (trimmed.isNotEmpty) {
+      final pixelSize = (radius * 2 * MediaQuery.devicePixelRatioOf(context))
+          .round()
+          .clamp(64, 320)
+          .toInt();
+      final provider = CachedNetworkImageProvider(
+        proxiedImageUrl(trimmed),
+        cacheManager: imageProxyCacheManager,
+        headers: imageRequestHeaders(trimmed),
+      );
       return CircleAvatar(
         radius: radius,
-        backgroundImage: CachedNetworkImageProvider(
-          proxiedImageUrl(trimmed),
-          cacheManager: imageProxyCacheManager,
-          headers: imageRequestHeaders(trimmed),
+        backgroundImage: ResizeImage.resizeIfNeeded(
+          pixelSize,
+          pixelSize,
+          provider,
         ),
       );
     }

@@ -7,6 +7,7 @@ import 'package:tagselector/model/system_summary_model.dart';
 import 'package:tagselector/model/tag_model.dart';
 import 'package:tagselector/components/app_avatar.dart';
 import 'package:tagselector/pages/following_authors_page.dart';
+import 'package:tagselector/pages/history_page.dart';
 import 'package:tagselector/service/api_service.dart';
 import 'package:tagselector/service/app_user_session.dart';
 import 'package:tagselector/service/detail_visit_stats.dart';
@@ -204,6 +205,12 @@ class _UserPageState extends State<UserPage> {
     );
   }
 
+  Future<void> _openHistory() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HistoryPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -310,12 +317,30 @@ class _UserPageState extends State<UserPage> {
             ),
             const SizedBox(height: 12),
             _SectionCard(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.groups_2_outlined),
-                title: const Text('关注作者'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: _openFollowingAuthors,
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.history_rounded),
+                    title: const Text('浏览历史'),
+                    subtitle: Text(
+                      _visitRecords.isEmpty
+                          ? '最近打开的作品会保存在这里'
+                          : '已记录 ${_visitRecords.length} 个作品',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _openHistory,
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.groups_2_outlined),
+                    title: const Text('关注作者'),
+                    subtitle: const Text('查看关注作者及其最近作品'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: _openFollowingAuthors,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),

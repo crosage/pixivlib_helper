@@ -2,6 +2,7 @@ package com.example.tagselector
 
 import android.content.ContentUris
 import android.content.ContentValues
+import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -17,6 +18,7 @@ import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity() {
     private val mediaStoreChannelName = "tagselector/media_store"
+    private val nativeShareChannelName = "tagselector/native_share"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -27,9 +29,39 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "publishImage" -> publishImage(call, result)
+                "rewriteImageMetadata" -> rewriteImageMetadata(call, result)
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            nativeShareChannelName
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "shareText" -> shareText(call, result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun shareText(call: MethodCall, result: MethodChannel.Result) {
+        val text = call.argument<String>("text")
+        if (text.isNullOrBlank()) {
+            result.error("bad_args", "text is required.", null)
+            return
+        }
+
+        val title = call.argument<String>("title").orEmpty()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            if (title.isNotBlank()) {
+                putExtra(Intent.EXTRA_SUBJECT, title)
+            }
+        }
+        startActivity(Intent.createChooser(intent, title.ifBlank { "分享作品" }))
+        result.success(true)
     }
 
     private fun publishImage(call: MethodCall, result: MethodChannel.Result) {
@@ -69,6 +101,45 @@ class MainActivity : FlutterActivity() {
             result.success(uri.toString())
         } catch (error: Exception) {
             result.error("publish_failed", error.message, null)
+        }
+    }
+
+    private fun rewriteImageMetadata(call: MethodCall, result: MethodChannel.Result) {
+        val items = call.argument<List<Map<String, Any?>>>("items")
+        if (items == null) {
+            result.error("bad_args", "items is required.", null)
+            return
+        }
+
+        try {
+            var updatedCount = 0
+            for (item in items) {
+                val uriValue = item["uri"] as? String ?: continue
+                val dateTakenMillis = (item["dateTakenMillis"] as? Number)?.toLong()
+                    ?: continue
+                val uri = Uri.parse(uriValue)
+
+                if (uri.scheme == "file") {
+                    val file = uri.path?.let { File(it) }
+                    if (file != null && file.exists() && file.setLastModified(dateTakenMillis)) {
+                        updatedCount += 1
+                    }
+                    continue
+                }
+
+                val values = ContentValues().apply {
+                    putStableMediaDates(dateTakenMillis)
+                }
+                updatedCount += applicationContext.contentResolver.update(
+                    uri,
+                    values,
+                    null,
+                    null
+                )
+            }
+            result.success(updatedCount)
+        } catch (error: Exception) {
+            result.error("metadata_rewrite_failed", error.message, null)
         }
     }
 
