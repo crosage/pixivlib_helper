@@ -131,6 +131,8 @@ class _DownloadBatchTileState extends State<_DownloadBatchTile> {
     final batch = widget.batch;
     final status = _statusFor(batch);
     final progress = batch.progress;
+    final metadataError =
+        ArtworkDownloadManager.instance.metadataErrorForBatch(batch.id);
     return Container(
       decoration: BoxDecoration(
           color: const Color(0xFFFBFCFE),
@@ -190,6 +192,14 @@ class _DownloadBatchTileState extends State<_DownloadBatchTile> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
           ),
+          if (metadataError != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: SelectableText(
+                '顺序整理失败：$metadataError',
+                style: const TextStyle(fontSize: 11, color: Color(0xFFB42318)),
+              ),
+            ),
           for (final task in batch.tasks) _PageRow(task: task),
           if (!Platform.isAndroid && batch.completedCount > 0)
             Align(

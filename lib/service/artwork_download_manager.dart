@@ -204,6 +204,9 @@ class ArtworkDownloadManager extends ChangeNotifier {
   bool hasMetadataError(String batchId) =>
       _batchMetadataErrors.containsKey(batchId);
 
+  String? metadataErrorForBatch(String batchId) =>
+      _batchMetadataErrors[batchId]?.toString();
+
   bool get hasClearableFinishedBatches => batches.any(
         (batch) =>
             batch.isCompleted &&
@@ -874,11 +877,10 @@ class ArtworkDownloadManager extends ChangeNotifier {
       return task.createdAt;
     }
 
-    // Android gallery apps commonly sort albums by newest media first. Keep
-    // later manga pages newer so multi-page works display as pN, pN-1...
-    // consistently even when MediaStore scanning completes unpredictably.
-    final reverseOffset = task.pageCount - 1 - task.pageIndex;
-    return task.createdAt.subtract(Duration(seconds: reverseOffset));
+    // Android gallery apps commonly sort albums by newest media first. Make
+    // the first page newest so multi-page works display as p0, p1... even
+    // when downloads or MediaStore scans complete out of order.
+    return task.createdAt.subtract(Duration(seconds: task.pageIndex));
   }
 
   String _extensionFromUrl(String sourcePath) {

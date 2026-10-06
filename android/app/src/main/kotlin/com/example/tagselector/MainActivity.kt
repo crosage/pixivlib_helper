@@ -3,6 +3,7 @@ package com.example.tagselector
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Intent
+import android.media.ExifInterface
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -15,6 +16,14 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.abs
 
 class MainActivity : FlutterActivity() {
     private val mediaStoreChannelName = "tagselector/media_store"
@@ -92,8 +101,7 @@ class MainActivity : FlutterActivity() {
                     sourceFile,
                     displayName,
                     relativePath,
-                    mimeType,
-                    dateTakenMillis
+                    mimeType
                 )
             } else {
                 publishImageLegacy(sourceFile, displayName, relativePath, mimeType, dateTakenMillis)
@@ -111,35 +119,162 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        try {
-            var updatedCount = 0
-            for (item in items) {
-                val uriValue = item["uri"] as? String ?: continue
-                val dateTakenMillis = (item["dateTakenMillis"] as? Number)?.toLong()
-                    ?: continue
-                val uri = Uri.parse(uriValue)
-
-                if (uri.scheme == "file") {
-                    val file = uri.path?.let { File(it) }
-                    if (file != null && file.exists() && file.setLastModified(dateTakenMillis)) {
-                        updatedCount += 1
-                    }
-                    continue
+        Thread {
+            try {
+                val targets = items.mapIndexed { index, item ->
+                    val uriValue = item["uri"] as? String
+                        ?: throw IllegalArgumentException("Missing URI for item $index")
+                    val dateTakenMillis = (item["dateTakenMillis"] as? Number)?.toLong()
+                        ?: throw IllegalArgumentException("Missing date for item $index")
+                    resolveMediaDateTarget(Uri.parse(uriValue), dateTakenMillis)
                 }
-
-                val values = ContentValues().apply {
-                    putStableMediaDates(dateTakenMillis)
+                for (target in targets) {
+                    writeImageFileDates(target)
                 }
-                updatedCount += applicationContext.contentResolver.update(
-                    uri,
-                    values,
-                    null,
-                    null
-                )
+                scanUpdatedImages(targets)
+                for (target in targets) {
+                    verifyIndexedImageDate(target)
+                }
+                runOnUiThread { result.success(targets.size) }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    result.error(
+                        "metadata_rewrite_failed",
+                        "${error.javaClass.simpleName}: ${error.message}",
+                        null
+                    )
+                }
             }
-            result.success(updatedCount)
-        } catch (error: Exception) {
-            result.error("metadata_rewrite_failed", error.message, null)
+        }.start()
+    }
+
+    private data class MediaDateTarget(
+        val uri: Uri,
+        val file: File,
+        val mimeType: String,
+        val dateTakenMillis: Long,
+        val supportsExif: Boolean
+    )
+
+    private fun resolveMediaDateTarget(uri: Uri, dateTakenMillis: Long): MediaDateTarget {
+        if (uri.scheme != "content" || uri.authority != MediaStore.AUTHORITY) {
+            throw IllegalArgumentException("Expected a MediaStore image URI: $uri")
+        }
+
+        val projection = arrayOf(
+            MediaStore.Images.Media.DATA,
+            MediaStore.Images.Media.MIME_TYPE
+        )
+        val (path, mimeType) = applicationContext.contentResolver.query(
+            uri,
+            projection,
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) {
+                throw IllegalStateException("Gallery image is missing: $uri")
+            }
+            val imagePath = cursor.getString(
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+            ) ?: throw IllegalStateException("Gallery path is unavailable: $uri")
+            val imageMimeType = cursor.getString(
+                cursor.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
+            ) ?: guessMimeType(imagePath)
+            Pair(imagePath, imageMimeType)
+        } ?: throw IllegalStateException("Unable to query gallery image: $uri")
+
+        val file = File(path).canonicalFile
+        val galleryDirectory = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+            "PixivHelper"
+        ).canonicalFile
+        if (!file.path.startsWith("${galleryDirectory.path}${File.separator}")) {
+            throw SecurityException("Image is outside the PixivHelper gallery folder: $uri")
+        }
+        if (!file.isFile) {
+            throw IllegalStateException("Gallery image file is missing: $uri")
+        }
+
+        val supportsExif = when (file.extension.lowercase(Locale.ROOT)) {
+            "jpg", "jpeg", "png", "webp" -> true
+            else -> false
+        }
+        return MediaDateTarget(uri, file, mimeType, dateTakenMillis, supportsExif)
+    }
+
+    private fun writeImageFileDates(target: MediaDateTarget) {
+        if (target.supportsExif) {
+            val dateFormat = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val exifDate = dateFormat.format(Date(target.dateTakenMillis))
+            val exif = ExifInterface(target.file.absolutePath)
+            exif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, exifDate)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME_ORIGINAL, "+00:00")
+            exif.setAttribute(ExifInterface.TAG_DATETIME_DIGITIZED, exifDate)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME_DIGITIZED, "+00:00")
+            exif.setAttribute(ExifInterface.TAG_DATETIME, exifDate)
+            exif.setAttribute(ExifInterface.TAG_OFFSET_TIME, "+00:00")
+            exif.saveAttributes()
+        }
+        if (!target.file.setLastModified(target.dateTakenMillis)) {
+            throw IllegalStateException("Unable to set file modification time: ${target.uri}")
+        }
+    }
+
+    private fun scanUpdatedImages(targets: List<MediaDateTarget>) {
+        if (targets.isEmpty()) return
+        val remaining = CountDownLatch(targets.size)
+        val failures = AtomicInteger(0)
+        MediaScannerConnection.scanFile(
+            applicationContext,
+            targets.map { it.file.absolutePath }.toTypedArray(),
+            targets.map { it.mimeType }.toTypedArray()
+        ) { _, scannedUri ->
+            if (scannedUri == null) failures.incrementAndGet()
+            remaining.countDown()
+        }
+        val timeoutSeconds = (targets.size * 2L).coerceIn(30L, 120L)
+        if (!remaining.await(timeoutSeconds, TimeUnit.SECONDS)) {
+            throw IllegalStateException("Timed out while refreshing gallery metadata")
+        }
+        if (failures.get() > 0) {
+            throw IllegalStateException("Gallery scan failed for ${failures.get()} images")
+        }
+    }
+
+    private fun verifyIndexedImageDate(target: MediaDateTarget) {
+        val column = if (target.supportsExif) {
+            MediaStore.Images.Media.DATE_TAKEN
+        } else {
+            MediaStore.Images.Media.DATE_MODIFIED
+        }
+        val indexedDate = applicationContext.contentResolver.query(
+            target.uri,
+            arrayOf(column),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (!cursor.moveToFirst()) {
+                throw IllegalStateException("Gallery image disappeared: ${target.uri}")
+            }
+            val columnIndex = cursor.getColumnIndexOrThrow(column)
+            if (cursor.isNull(columnIndex)) null else cursor.getLong(columnIndex)
+        } ?: throw IllegalStateException("Unable to verify gallery image: ${target.uri}")
+
+        val expectedSeconds = target.dateTakenMillis / 1000
+        val actualSeconds = if (target.supportsExif) {
+            indexedDate / 1000
+        } else {
+            indexedDate
+        }
+        if (abs(actualSeconds - expectedSeconds) > 1) {
+            throw IllegalStateException(
+                "Gallery date did not update for ${target.uri}: " +
+                    "expected $expectedSeconds, got $actualSeconds"
+            )
         }
     }
 
@@ -147,8 +282,7 @@ class MainActivity : FlutterActivity() {
         sourceFile: File,
         displayName: String,
         relativePath: String,
-        mimeType: String,
-        dateTakenMillis: Long?
+        mimeType: String
     ): Uri {
         val resolver = applicationContext.contentResolver
         val collection = MediaStore.Images.Media.getContentUri(
@@ -164,7 +298,6 @@ class MainActivity : FlutterActivity() {
             put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Images.Media.MIME_TYPE, mimeType)
             put(MediaStore.Images.Media.RELATIVE_PATH, fullRelativePath)
-            putStableMediaDates(dateTakenMillis)
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
 
@@ -183,7 +316,6 @@ class MainActivity : FlutterActivity() {
             } ?: throw IllegalStateException("Unable to open MediaStore stream.")
 
             values.clear()
-            values.putStableMediaDates(dateTakenMillis)
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
             return uri
@@ -192,7 +324,6 @@ class MainActivity : FlutterActivity() {
                 resolver.delete(uri, null, null)
             } else {
                 values.clear()
-                values.putStableMediaDates(dateTakenMillis)
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
             }
@@ -261,13 +392,6 @@ class MainActivity : FlutterActivity() {
             null
         )
         return Uri.fromFile(targetFile)
-    }
-
-    private fun ContentValues.putStableMediaDates(dateTakenMillis: Long?) {
-        val millis = dateTakenMillis ?: System.currentTimeMillis()
-        put(MediaStore.Images.Media.DATE_TAKEN, millis)
-        put(MediaStore.Images.Media.DATE_ADDED, millis / 1000)
-        put(MediaStore.Images.Media.DATE_MODIFIED, millis / 1000)
     }
 
     private fun sanitizeFileName(value: String): String {
